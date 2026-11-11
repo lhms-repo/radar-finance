@@ -79,7 +79,7 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 
 | ID | Requisito |
 | --- | --- |
-| RF-31 | Cadastrar os dois cartões Alelo com titular e valor do crédito mensal. |
+| RF-31 | Cadastrar os dois cartões Alelo com titular, valor do crédito mensal e saldo inicial do dia do cadastro. |
 | RF-32 | Lançar o crédito mensal como previsto, confirmado pelo usuário quando cair. |
 | RF-33 | Lançar compras apenas com descrição livre e valor, sem categoria. |
 | RF-34 | Acumular o saldo não usado para o mês seguinte. |
@@ -190,7 +190,7 @@ As regras abaixo definem como o sistema calcula e classifica os valores. Elas vi
 | RN-13 | Renda prevista entra no saldo previsto, mas só altera o saldo da conta quando confirmada. |
 | RN-14 | Conta fixa usa o valor previsto até que o valor real seja informado. |
 | RN-15 | Saldo do Alelo = saldo do mês anterior + crédito confirmado − compras do mês. Gastos do Alelo entram no total de gastos como Alimentação, compras para casa. |
-| RN-16 | Saldo devedor de financiamento diminui a cada parcela paga, conforme o valor informado pelo usuário. |
+| RN-16 | Saldo devedor de financiamento diminui a cada parcela paga, conforme o valor informado pelo usuário: ao pagar, ele informa o novo saldo devedor, sugerido como o saldo atual menos a parcela. |
 | RN-17 | Limite livre do cartão = limite total menos todas as parcelas e compras ainda não pagas. |
 | RN-18 | Categoria desativada some das opções de lançamento, mas mantém o histórico. Uma categoria com lançamentos não pode ser excluída. |
 | RN-19 | Regra de apelido casa pelo texto original do estabelecimento no CSV. A regra mais recente prevalece em caso de conflito. |
