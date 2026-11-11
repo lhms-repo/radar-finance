@@ -319,6 +319,133 @@ func (q *Queries) SavedInPeriod(ctx context.Context, arg SavedInPeriodParams) (i
 	return cents, err
 }
 
+const searchEntries = `-- name: SearchEntries :many
+SELECT CAST(source AS TEXT) AS source, CAST(id AS INTEGER) AS id, CAST(occurred_on AS TEXT) AS occurred_on,
+       CAST(description AS TEXT) AS description, CAST(amount_cents AS INTEGER) AS amount_cents, CAST(kind AS TEXT) AS kind,
+       CAST(category_id AS INTEGER) AS category_id, CAST(category_name AS TEXT) AS category_name,
+       CAST(parent_category_name AS TEXT) AS parent_category_name, CAST(account_id AS INTEGER) AS account_id,
+       CAST(account_name AS TEXT) AS account_name, CAST(card_id AS INTEGER) AS card_id, CAST(card_name AS TEXT) AS card_name,
+       CAST(person_id AS INTEGER) AS person_id, CAST(person_name AS TEXT) AS person_name
+FROM (
+    SELECT 'account' AS source, e.id, e.occurred_on, e.description, e.amount_cents, e.kind,
+           coalesce(e.category_id, 0) AS category_id, coalesce(c.name, '') AS category_name, coalesce(pc.name, '') AS parent_category_name,
+           coalesce(c.parent_id, 0) AS category_parent_id, a.id AS account_id, a.name AS account_name, 0 AS card_id, '' AS card_name,
+           pe.id AS person_id, pe.name AS person_name
+    FROM entries e
+    JOIN accounts a ON a.id = e.account_id
+    LEFT JOIN categories c ON c.id = e.category_id
+    LEFT JOIN categories pc ON pc.id = c.parent_id
+    JOIN users u ON u.id = e.created_by
+    JOIN persons pe ON pe.id = u.person_id
+    WHERE e.confirmed
+    UNION ALL
+    SELECT 'card', p.id, p.purchased_on, p.merchant, CASE WHEN p.kind = 'credit' THEN p.total_cents ELSE -p.total_cents END, p.kind,
+           coalesce(p.category_id, 0), coalesce(c.name, ''), coalesce(pc.name, ''), coalesce(c.parent_id, 0),
+           0, '', cd.id, cd.name, pe.id, pe.name
+    FROM purchases p
+    JOIN cards cd ON cd.id = p.card_id
+    LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN categories pc ON pc.id = c.parent_id
+    JOIN users u ON u.id = p.created_by
+    JOIN persons pe ON pe.id = coalesce(p.buyer_person_id, u.person_id)
+    UNION ALL
+    SELECT 'alelo', ap.id, ap.purchased_on, ap.description, -ap.amount_cents, 'alelo',
+           ap.category_id, coalesce(c.name, ''), coalesce(pc.name, ''), coalesce(c.parent_id, 0),
+           0, '', 0, al.name, pe.id, pe.name
+    FROM alelo_purchases ap
+    JOIN alelo_cards al ON al.id = ap.alelo_id
+    LEFT JOIN categories c ON c.id = ap.category_id
+    LEFT JOIN categories pc ON pc.id = c.parent_id
+    JOIN users u ON u.id = ap.created_by
+    JOIN persons pe ON pe.id = u.person_id
+) AS x
+WHERE occurred_on >= ?1 AND occurred_on <= ?2
+  AND (CAST(?3 AS INTEGER) = 0 OR category_id = CAST(?3 AS INTEGER) OR category_parent_id = CAST(?3 AS INTEGER))
+  AND (CAST(?4 AS INTEGER) = 0 OR account_id = CAST(?4 AS INTEGER))
+  AND (CAST(?5 AS INTEGER) = 0 OR (source = 'card' AND card_id = CAST(?5 AS INTEGER)))
+  AND (CAST(?6 AS INTEGER) = 0 OR person_id = CAST(?6 AS INTEGER))
+  AND (CAST(?7 AS TEXT) = '' OR description LIKE '%' || CAST(?7 AS TEXT) || '%')
+ORDER BY occurred_on DESC, source, id DESC
+LIMIT 500
+`
+
+type SearchEntriesParams struct {
+	FirstDay   string
+	LastDay    string
+	CategoryID int64
+	AccountID  int64
+	CardID     int64
+	PersonID   int64
+	Text       string
+}
+
+type SearchEntriesRow struct {
+	Source             string
+	ID                 int64
+	OccurredOn         string
+	Description        string
+	AmountCents        int64
+	Kind               string
+	CategoryID         int64
+	CategoryName       string
+	ParentCategoryName string
+	AccountID          int64
+	AccountName        string
+	CardID             int64
+	CardName           string
+	PersonID           int64
+	PersonName         string
+}
+
+// Every entry, card purchase and Alelo purchase in the period, filtered (RF-63).
+// Zero and empty filters are off; a top level category matches its subcategories too.
+func (q *Queries) SearchEntries(ctx context.Context, arg SearchEntriesParams) ([]SearchEntriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchEntries,
+		arg.FirstDay,
+		arg.LastDay,
+		arg.CategoryID,
+		arg.AccountID,
+		arg.CardID,
+		arg.PersonID,
+		arg.Text,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchEntriesRow{}
+	for rows.Next() {
+		var i SearchEntriesRow
+		if err := rows.Scan(
+			&i.Source,
+			&i.ID,
+			&i.OccurredOn,
+			&i.Description,
+			&i.AmountCents,
+			&i.Kind,
+			&i.CategoryID,
+			&i.CategoryName,
+			&i.ParentCategoryName,
+			&i.AccountID,
+			&i.AccountName,
+			&i.CardID,
+			&i.CardName,
+			&i.PersonID,
+			&i.PersonName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertBudget = `-- name: UpsertBudget :exec
 INSERT INTO budgets (category_id, amount_cents, created_by, updated_at)
 VALUES (?, ?, ?, ?)
