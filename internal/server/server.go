@@ -19,7 +19,9 @@ import (
 	"github.com/italogfx/radar-finance/internal/api/gen"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
+	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
+	"github.com/italogfx/radar-finance/internal/problem"
 )
 
 // maxBodyBytes limits JSON request bodies.
@@ -39,14 +41,15 @@ const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 
 
 // Deps holds everything the HTTP layer needs.
 type Deps struct {
-	Config    config.Config
-	DB        *sql.DB
-	Accounts  *account.Service
-	Sessions  *scs.SessionManager
-	Backups   *backup.Service
-	Version   string
-	StartedAt time.Time
-	Log       *slog.Logger
+	Config     config.Config
+	DB         *sql.DB
+	Accounts   *account.Service
+	Categories *category.Service
+	Sessions   *scs.SessionManager
+	Backups    *backup.Service
+	Version    string
+	StartedAt  time.Time
+	Log        *slog.Logger
 	// Assets is the built frontend, or nil when Vite serves it in development.
 	Assets fs.FS
 }
@@ -59,6 +62,10 @@ func New(d Deps) http.Handler {
 			writeError(w, http.StatusBadRequest, "invalid_request", "Dados inválidos.")
 		},
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			if p, ok := problem.As(err); ok {
+				writeError(w, problemStatus(p.Kind), p.Code, p.Message)
+				return
+			}
 			d.Log.Error("api error", "method", r.Method, "path", r.URL.Path, "err", err)
 			writeError(w, http.StatusInternalServerError, "internal", "Algo deu errado. Tente de novo.")
 		},
@@ -80,6 +87,18 @@ func New(d Deps) http.Handler {
 	root.Handle("/api/", http.NewCrossOriginProtection().Handler(d.Sessions.LoadAndSave(noStore(protected))))
 	root.Handle("/", staticHandler(d.Assets))
 	return securityHeaders(recoverer(d.Log, logRequests(d.Log, root)))
+}
+
+// problemStatus maps a business error kind to its HTTP status.
+func problemStatus(k problem.Kind) int {
+	switch k {
+	case problem.KindNotFound:
+		return http.StatusNotFound
+	case problem.KindConflict:
+		return http.StatusConflict
+	default:
+		return http.StatusBadRequest
+	}
 }
 
 // writeError writes the JSON error body used by every API failure.

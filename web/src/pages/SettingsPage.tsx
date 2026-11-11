@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, CheckCircle2, Download, HardDrive, LogOut, Monitor, Moon, Sun } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Download, HardDrive, LogOut, Monitor, Moon, Sun, Tags } from "lucide-react";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { api, unwrap, type Backup, type Theme } from "@/api/client";
 import { useLogout, useMe, useUpdatePreferences } from "@/app/session";
@@ -28,12 +29,39 @@ export function SettingsPage() {
     <div className="flex flex-col gap-4">
       <h1 className="px-1 text-lg font-semibold md:hidden">Ajustes</h1>
       <div className="grid gap-4 lg:grid-cols-2">
+        <RecordsCard />
         <AppearanceCard />
         <HealthCard />
         <BackupsCard />
         <DataCard />
       </div>
     </div>
+  );
+}
+
+/** Links to the record screens kept in Settings (section 5.2). */
+function RecordsCard() {
+  const links = [{ to: "/settings/categories", label: "Categorias", hint: "Criar, renomear, mover e desativar", icon: Tags }];
+  return (
+    <Card className="flex flex-col gap-2 lg:col-span-2">
+      <CardTitle>Cadastros</CardTitle>
+      <ul className="flex flex-col">
+        {links.map((l) => (
+          <li key={l.to}>
+            <Link to={l.to} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-accent active:bg-accent">
+              <span className="grid size-10 place-items-center rounded-xl bg-muted">
+                <l.icon className="size-5 text-primary" />
+              </span>
+              <span className="flex-1">
+                <span className="block text-sm font-medium">{l.label}</span>
+                <span className="block text-xs text-muted-foreground">{l.hint}</span>
+              </span>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

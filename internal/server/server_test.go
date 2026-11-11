@@ -19,6 +19,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
+	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
 )
@@ -45,14 +46,15 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 	loc, _ := time.LoadLocation(config.Location)
 	cfg := config.Config{DBPath: filepath.Join(dir, "radar.db"), BackupDir: filepath.Join(dir, "backups"), BackupKeep: 30, BackupHour: 3, Loc: loc}
 	h := New(Deps{
-		Config:    cfg,
-		DB:        conn,
-		Accounts:  accounts,
-		Sessions:  auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
-		Backups:   backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
-		Version:   "test",
-		StartedAt: time.Now(),
-		Log:       log,
+		Config:     cfg,
+		DB:         conn,
+		Accounts:   accounts,
+		Categories: category.NewService(conn),
+		Sessions:   auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
+		Backups:    backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
+		Version:    "test",
+		StartedAt:  time.Now(),
+		Log:        log,
 	})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)

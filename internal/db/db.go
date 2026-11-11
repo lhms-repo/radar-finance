@@ -16,7 +16,8 @@ import (
 
 	"github.com/pressly/goose/v3"
 	// Pure Go SQLite driver, registered as "sqlite", so the binary needs no CGO.
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/italogfx/radar-finance/internal/db/store"
 )
@@ -88,4 +89,10 @@ func WithTx(ctx context.Context, conn *sql.DB, fn func(q *store.Queries) error) 
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
+}
+
+// IsForeignKeyViolation reports whether err is SQLite refusing a write that breaks a foreign key.
+func IsForeignKeyViolation(err error) bool {
+	var se *sqlite.Error
+	return errors.As(err, &se) && se.Code() == sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY
 }

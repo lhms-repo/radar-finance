@@ -11,6 +11,7 @@ tags:
   - name: auth
   - name: me
   - name: system
+  - name: categories
 paths:
   /ping:
     get:
@@ -180,7 +181,134 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: Lists the category tree in display order (RF-50, RN-18).
+      parameters:
+        - name: includeInactive
+          in: query
+          description: Also returns inactive categories, for the management screen.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Top level categories with their subcategories.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Creates a category or subcategory (RF-50).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryCreate"
+      responses:
+        "201":
+          description: Created category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /categories/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      operationId: updateCategory
+      tags: [categories]
+      summary: Renames, changes the icon or activates and deactivates a category (RF-50, RN-18).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpdate"
+      responses:
+        "200":
+          description: Updated category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteCategory
+      tags: [categories]
+      summary: Deletes a category without entries or subcategories (RN-18).
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /categories/{id}/move:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: moveCategory
+      tags: [categories]
+      summary: Moves a category under another parent or promotes it to top level (RF-50).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryMove"
+      responses:
+        "200":
+          description: Moved category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
 components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+
   securitySchemes:
     session:
       type: apiKey
@@ -196,6 +324,18 @@ components:
             $ref: "#/components/schemas/Error"
     Unauthorized:
       description: Missing or expired session, or wrong credentials.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: The record does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: The current state does not allow the action.
       content:
         application/json:
           schema:
@@ -319,6 +459,69 @@ components:
         backupErrorAt:
           type: string
           format: date-time
+
+    Category:
+      type: object
+      required: [id, name, active]
+      properties:
+        id:
+          type: integer
+          format: int64
+        parentId:
+          type: integer
+          format: int64
+          description: Absent for top level categories.
+        name:
+          type: string
+        icon:
+          type: string
+          description: Lucide icon name, always present on top level categories.
+        active:
+          type: boolean
+        children:
+          type: array
+          description: Subcategories, present only on top level categories.
+          items:
+            $ref: "#/components/schemas/Category"
+
+    CategoryCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 60
+        parentId:
+          type: integer
+          format: int64
+          description: Parent category; absent creates a top level category, which needs an icon.
+        icon:
+          type: string
+          maxLength: 40
+
+    CategoryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 60
+        icon:
+          type: string
+          maxLength: 40
+        active:
+          type: boolean
+
+    CategoryMove:
+      type: object
+      properties:
+        parentId:
+          type: integer
+          format: int64
+          description: New parent; absent promotes the category to top level.
+        icon:
+          type: string
+          maxLength: 40
+          description: Icon used when promoting a subcategory without one.
 
 security:
   - session: []

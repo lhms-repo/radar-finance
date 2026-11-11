@@ -6,6 +6,7 @@ export type Theme = components["schemas"]["Theme"];
 export type Health = components["schemas"]["Health"];
 export type Backup = components["schemas"]["Backup"];
 export type ApiError = components["schemas"]["Error"];
+export type { components };
 
 /** Listeners called when the server says the session is gone. */
 const unauthorizedListeners = new Set<() => void>();

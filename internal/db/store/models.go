@@ -5,8 +5,21 @@
 package store
 
 import (
+	"database/sql"
 	"time"
 )
+
+type Category struct {
+	ID        int64
+	ParentID  sql.NullInt64
+	Name      string
+	Icon      sql.NullString
+	Active    bool
+	SortOrder int64
+	CreatedBy sql.NullInt64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
 
 type Person struct {
 	ID        int64

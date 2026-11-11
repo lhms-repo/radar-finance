@@ -158,6 +158,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the category tree in display order (RF-50, RN-18). */
+        get: operations["listCategories"];
+        put?: never;
+        /** Creates a category or subcategory (RF-50). */
+        post: operations["createCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/categories/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes a category without entries or subcategories (RN-18). */
+        delete: operations["deleteCategory"];
+        options?: never;
+        head?: never;
+        /** Renames, changes the icon or activates and deactivates a category (RF-50, RN-18). */
+        patch: operations["updateCategory"];
+        trace?: never;
+    };
+    "/categories/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Moves a category under another parent or promotes it to top level (RF-50). */
+        post: operations["moveCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -219,6 +276,44 @@ export interface components {
             /** Format: date-time */
             backupErrorAt?: string;
         };
+        Category: {
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int64
+             * @description Absent for top level categories.
+             */
+            parentId?: number;
+            name: string;
+            /** @description Lucide icon name, always present on top level categories. */
+            icon?: string;
+            active: boolean;
+            /** @description Subcategories, present only on top level categories. */
+            children?: components["schemas"]["Category"][];
+        };
+        CategoryCreate: {
+            name: string;
+            /**
+             * Format: int64
+             * @description Parent category; absent creates a top level category, which needs an icon.
+             */
+            parentId?: number;
+            icon?: string;
+        };
+        CategoryUpdate: {
+            name?: string;
+            icon?: string;
+            active?: boolean;
+        };
+        CategoryMove: {
+            /**
+             * Format: int64
+             * @description New parent; absent promotes the category to top level.
+             */
+            parentId?: number;
+            /** @description Icon used when promoting a subcategory without one. */
+            icon?: string;
+        };
     };
     responses: {
         /** @description Invalid input. */
@@ -239,6 +334,24 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The record does not exist. */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The current state does not allow the action. */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Unexpected failure. */
         ServerError: {
             headers: {
@@ -249,7 +362,9 @@ export interface components {
             };
         };
     };
-    parameters: never;
+    parameters: {
+        Id: number;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -471,6 +586,140 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listCategories: {
+        parameters: {
+            query?: {
+                /** @description Also returns inactive categories, for the management screen. */
+                includeInactive?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Top level categories with their subcategories. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Created category. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated category. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    moveCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryMove"];
+            };
+        };
+        responses: {
+            /** @description Moved category. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

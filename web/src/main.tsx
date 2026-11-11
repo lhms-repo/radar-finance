@@ -7,6 +7,7 @@ import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { MonthProvider } from "@/lib/month";
 import { PreferencesProvider, usePreferences } from "@/lib/preferences";
+import { CategoriesPage } from "@/pages/CategoriesPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -32,6 +33,7 @@ const router = createBrowserRouter([
       { path: "receivables", element: <PlaceholderPage id="receivables" /> },
       { path: "market", element: <PlaceholderPage id="market" /> },
       { path: "settings", element: <SettingsPage /> },
+      { path: "settings/categories", element: <CategoriesPage /> },
       { path: "*", element: <PlaceholderPage id="overview" /> },
     ],
   },

@@ -20,6 +20,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
+	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/server"
@@ -106,15 +107,16 @@ func serve(log *slog.Logger) error {
 	go auth.CleanupSessions(ctx, conn, time.Hour, log)
 
 	handler := server.New(server.Deps{
-		Config:    cfg,
-		DB:        conn,
-		Accounts:  accounts,
-		Sessions:  sessions,
-		Backups:   backups,
-		Version:   version,
-		StartedAt: time.Now(),
-		Log:       log,
-		Assets:    web.Assets(),
+		Config:     cfg,
+		DB:         conn,
+		Accounts:   accounts,
+		Categories: category.NewService(conn),
+		Sessions:   sessions,
+		Backups:    backups,
+		Version:    version,
+		StartedAt:  time.Now(),
+		Log:        log,
+		Assets:     web.Assets(),
 	})
 	srv := &http.Server{
 		Addr:              cfg.Addr,
