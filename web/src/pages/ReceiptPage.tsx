@@ -52,6 +52,7 @@ export function ReceiptPage() {
   const markets = useMarkets();
   const products = useProducts();
   const [link, setLink] = useState("");
+  const [scanning, setScanning] = useState(true);
   const [data, setData] = useState<ReceiptPreview | null>(null);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [market, setMarket] = useState<number | "new">("new");
@@ -115,8 +116,27 @@ export function ReceiptPage() {
               <ScanLine className="size-6 animate-pulse text-primary motion-reduce:animate-none" />
               Consultando a nota na Sefaz...
             </div>
+          ) : scanning ? (
+            <QrScanner
+              onRead={(text) => {
+                // One read per scan: the camera stops until the user asks again, so an error does not loop.
+                setScanning(false);
+                setLink(text);
+                load(text);
+              }}
+            />
           ) : (
-            <QrScanner onRead={(text) => load(text)} />
+            <button
+              type="button"
+              onClick={() => {
+                preview.reset();
+                setScanning(true);
+              }}
+              className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-2xl bg-muted text-sm font-medium text-primary"
+            >
+              <ScanLine className="size-6" />
+              Ler de novo
+            </button>
           )}
           <form
             className="flex items-end gap-2"
@@ -136,6 +156,11 @@ export function ReceiptPage() {
             </Button>
           </form>
           <FieldError message={preview.error?.message} />
+          {preview.error && link && (
+            <p className="text-xs break-all text-muted-foreground">
+              Texto lido: <span className="font-mono">{link}</span>
+            </p>
+          )}
         </Card>
       ) : (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring} className="flex flex-col gap-4">

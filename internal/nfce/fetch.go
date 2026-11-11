@@ -36,9 +36,18 @@ func NewClient() *Client {
 	return &Client{timeout: 30 * time.Second, allowHost: isGovHost}
 }
 
+// normalize trims the text read from the QR code and adds https:// when the code brings only the host and path.
+func normalize(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	return raw
+}
+
 // CheckURL accepts only http or https addresses of government hosts, so the server never fetches other machines.
 func CheckURL(raw string) (*url.URL, error) {
-	u, err := url.Parse(strings.TrimSpace(raw))
+	u, err := url.Parse(normalize(raw))
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || !isGovHost(u.Hostname()) {
 		return nil, ErrNotReceiptURL
 	}
@@ -54,7 +63,7 @@ func isGovHost(host string) bool {
 // Fetch downloads and parses the receipt; on the Goiás shell page it follows the iframe
 // with the same cookies and unwraps the HTML embedded in the frame script (RF-68).
 func (c *Client) Fetch(ctx context.Context, raw string) (Receipt, error) {
-	u, err := url.Parse(strings.TrimSpace(raw))
+	u, err := url.Parse(normalize(raw))
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || !c.allowHost(u.Hostname()) {
 		return Receipt{}, ErrNotReceiptURL
 	}

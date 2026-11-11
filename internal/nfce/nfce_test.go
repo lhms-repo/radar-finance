@@ -165,7 +165,10 @@ func TestCheckURL(t *testing.T) {
 	}{
 		{"https://nfeweb.sefaz.go.gov.br/nfeweb/sites/nfce/danfeNFCe?p=123|3|1", true},
 		{"http://www.nfce.fazenda.sp.gov.br/qrcode?p=1", true},
+		{"nfeweb.sefaz.go.gov.br/nfeweb/sites/nfce/danfeNFCe?p=123|3|1", true},
+		{"  HTTPS://NFEWEB.SEFAZ.GO.GOV.BR/nfeweb/sites/nfce/danfeNFCe?p=123  ", true},
 		{"https://192.168.0.10/admin", false},
+		{"00020126580014br.gov.bcb.pix0136", false},
 		{"https://sefaz.go.gov.br.example.com/x", false},
 		{"ftp://nfeweb.sefaz.go.gov.br/x", false},
 		{"not a url", false},
