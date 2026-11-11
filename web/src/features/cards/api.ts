@@ -57,6 +57,7 @@ function useCardMutation<V, R>(fn: (vars: V) => Promise<R>, success: string) {
       haptic();
       toast.success(success);
       void qc.invalidateQueries({ queryKey: ["cards"] });
+      void qc.invalidateQueries({ queryKey: ["agenda"] });
       for (const key of ACCOUNT_KEYS) void qc.invalidateQueries({ queryKey: key });
     },
   });

@@ -9,6 +9,7 @@ import { MonthProvider } from "@/lib/month";
 import { PreferencesProvider, usePreferences } from "@/lib/preferences";
 import { AccountDetailPage } from "@/pages/AccountDetailPage";
 import { AccountsPage } from "@/pages/AccountsPage";
+import { BillsPage } from "@/pages/BillsPage";
 import { CardsPage } from "@/pages/CardsPage";
 import { CategoriesPage } from "@/pages/CategoriesPage";
 import { IncomesPage } from "@/pages/IncomesPage";
@@ -32,7 +33,7 @@ const router = createBrowserRouter([
       { path: "cash-flow", element: <PlaceholderPage id="cash-flow" /> },
       { path: "cards", element: <CardsPage /> },
       { path: "alelo", element: <PlaceholderPage id="alelo" /> },
-      { path: "bills", element: <PlaceholderPage id="bills" /> },
+      { path: "bills", element: <BillsPage /> },
       { path: "savings", element: <PlaceholderPage id="savings" /> },
       { path: "receivables", element: <PlaceholderPage id="receivables" /> },
       { path: "market", element: <PlaceholderPage id="market" /> },
