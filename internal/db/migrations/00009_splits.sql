@@ -3,8 +3,8 @@
 --
 -- A split keeps the whole share of a person in a purchase; the share is spread
 -- over the installments like the purchase itself, with the leftover cents on
--- the first one (RN-03). Marking a share as received writes an entry in the
--- chosen account (RN-06); deleting that entry unmarks it.
+-- the first one (RN-03). Marking shares as received writes one entry in the
+-- chosen account (RN-06), not counted as income; deleting it unmarks them.
 
 -- +goose Up
 CREATE TABLE parties (
@@ -29,12 +29,14 @@ CREATE TABLE split_installments (
     card_id       INTEGER NOT NULL REFERENCES cards (id),
     invoice_month TEXT    NOT NULL,
     amount_cents  INTEGER NOT NULL CHECK (amount_cents > 0),
-    -- Entry that received this share in an account; NULL while pending.
-    entry_id      INTEGER UNIQUE REFERENCES entries (id) ON DELETE SET NULL,
+    -- Entry that received this share in an account; NULL while pending. One
+    -- entry may receive several shares of the same person paid together.
+    entry_id      INTEGER REFERENCES entries (id) ON DELETE SET NULL,
     UNIQUE (split_id, number)
 );
 
 CREATE INDEX split_installments_card_month_idx ON split_installments (card_id, invoice_month);
+CREATE INDEX split_installments_entry_idx ON split_installments (entry_id);
 
 -- +goose Down
 DROP TABLE split_installments;

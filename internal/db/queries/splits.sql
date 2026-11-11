@@ -46,3 +46,21 @@ JOIN splits s ON s.id = si.split_id
 JOIN parties p ON p.id = s.party_id
 WHERE si.card_id = ? AND si.invoice_month = ?
 ORDER BY p.name COLLATE NOCASE;
+
+-- name: ListReceivables :many
+SELECT si.id, si.number, si.invoice_month, si.amount_cents, si.entry_id, s.party_id, pa.name AS party_name,
+       pu.id AS purchase_id, pu.merchant, pu.purchased_on, pu.installment_count, c.name AS card_name, c.closing_day, c.due_day,
+       coalesce(e.occurred_on, '') AS received_on, coalesce(a.name, '') AS received_in
+FROM split_installments si
+JOIN splits s ON s.id = si.split_id
+JOIN parties pa ON pa.id = s.party_id
+JOIN purchases pu ON pu.id = s.purchase_id
+JOIN cards c ON c.id = si.card_id
+LEFT JOIN entries e ON e.id = si.entry_id
+LEFT JOIN accounts a ON a.id = e.account_id
+ORDER BY pa.name COLLATE NOCASE, si.invoice_month, pu.merchant COLLATE NOCASE, si.number;
+
+-- name: SetSplitInstallmentEntry :exec
+UPDATE split_installments
+SET entry_id = ?
+WHERE id = ?;

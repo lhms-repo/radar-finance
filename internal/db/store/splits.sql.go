@@ -249,3 +249,92 @@ func (q *Queries) ListPurchaseSplits(ctx context.Context, purchaseID int64) ([]L
 	}
 	return items, nil
 }
+
+const listReceivables = `-- name: ListReceivables :many
+SELECT si.id, si.number, si.invoice_month, si.amount_cents, si.entry_id, s.party_id, pa.name AS party_name,
+       pu.id AS purchase_id, pu.merchant, pu.purchased_on, pu.installment_count, c.name AS card_name, c.closing_day, c.due_day,
+       coalesce(e.occurred_on, '') AS received_on, coalesce(a.name, '') AS received_in
+FROM split_installments si
+JOIN splits s ON s.id = si.split_id
+JOIN parties pa ON pa.id = s.party_id
+JOIN purchases pu ON pu.id = s.purchase_id
+JOIN cards c ON c.id = si.card_id
+LEFT JOIN entries e ON e.id = si.entry_id
+LEFT JOIN accounts a ON a.id = e.account_id
+ORDER BY pa.name COLLATE NOCASE, si.invoice_month, pu.merchant COLLATE NOCASE, si.number
+`
+
+type ListReceivablesRow struct {
+	ID               int64
+	Number           int64
+	InvoiceMonth     string
+	AmountCents      int64
+	EntryID          sql.NullInt64
+	PartyID          int64
+	PartyName        string
+	PurchaseID       int64
+	Merchant         string
+	PurchasedOn      string
+	InstallmentCount int64
+	CardName         string
+	ClosingDay       int64
+	DueDay           int64
+	ReceivedOn       string
+	ReceivedIn       string
+}
+
+func (q *Queries) ListReceivables(ctx context.Context) ([]ListReceivablesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReceivables)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReceivablesRow{}
+	for rows.Next() {
+		var i ListReceivablesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.InvoiceMonth,
+			&i.AmountCents,
+			&i.EntryID,
+			&i.PartyID,
+			&i.PartyName,
+			&i.PurchaseID,
+			&i.Merchant,
+			&i.PurchasedOn,
+			&i.InstallmentCount,
+			&i.CardName,
+			&i.ClosingDay,
+			&i.DueDay,
+			&i.ReceivedOn,
+			&i.ReceivedIn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setSplitInstallmentEntry = `-- name: SetSplitInstallmentEntry :exec
+UPDATE split_installments
+SET entry_id = ?
+WHERE id = ?
+`
+
+type SetSplitInstallmentEntryParams struct {
+	EntryID sql.NullInt64
+	ID      int64
+}
+
+func (q *Queries) SetSplitInstallmentEntry(ctx context.Context, arg SetSplitInstallmentEntryParams) error {
+	_, err := q.db.ExecContext(ctx, setSplitInstallmentEntry, arg.EntryID, arg.ID)
+	return err
+}
