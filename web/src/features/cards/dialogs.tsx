@@ -20,6 +20,7 @@ import {
   useCreateCard,
   usePayInvoice,
   useUpdateCard,
+  usePurchase,
   useUpdatePurchase,
   useUpdateRecurrence,
   type Card,
@@ -30,6 +31,7 @@ import {
   type Recurrence,
 } from "@/features/cards/api";
 import { CardVisual } from "@/features/cards/CardVisual";
+import { EMPTY_SPLIT, SplitEditor, splitBody, type SplitValue } from "@/features/cards/SplitEditor";
 import { CategorySelect } from "@/features/categories/CategorySelect";
 import { haptic } from "@/lib/haptics";
 import { formatDate, monthName, todayISO } from "@/lib/format";
@@ -198,6 +200,7 @@ const purchaseSchema = z.object({
   date: dateField,
   buyerPersonId: z.number().int(),
   description: descriptionField,
+  split: z.custom<SplitValue>(),
 });
 type PurchaseValues = z.infer<typeof purchaseSchema>;
 
@@ -218,6 +221,11 @@ export function PurchaseDialog({
   const add = useAddPurchase();
   const update = useUpdatePurchase();
   const mutation = item ? update : add;
+  const current = usePurchase(item?.purchaseId);
+  const shares = current.data?.splits ?? [];
+  const split: SplitValue = shares.length
+    ? { enabled: true, mode: "custom", coupleParts: 1, parties: shares.map((s) => ({ name: s.partyName, shareCents: s.shareCents })) }
+    : EMPTY_SPLIT;
   const form = useForm<PurchaseValues>({
     resolver: zodResolver(purchaseSchema),
     values: {
@@ -229,6 +237,7 @@ export function PurchaseDialog({
       date: item?.date ?? todayISO(),
       buyerPersonId: item?.buyerPersonId ?? 0,
       description: item?.description ?? "",
+      split,
     },
   });
   const installments = useWatch({ control: form.control, name: "installments" });
@@ -250,7 +259,7 @@ export function PurchaseDialog({
 
   /** Validates and sends the form. */
   const submit = form.handleSubmit((v) => {
-    const body = { ...v, buyerPersonId: v.buyerPersonId || undefined };
+    const body = { ...v, buyerPersonId: v.buyerPersonId || undefined, split: splitBody(v.split) };
     if (item?.purchaseId) update.mutate({ id: item.purchaseId, body }, { onSuccess: close });
     else add.mutate({ cardId: card.id, body }, { onSuccess: close });
   });
@@ -307,6 +316,7 @@ export function PurchaseDialog({
         <Field label="Descrição" htmlFor="purchase-desc" error={errors.description?.message}>
           <Input id="purchase-desc" autoComplete="off" placeholder="Opcional" {...form.register("description")} />
         </Field>
+        <Controller control={form.control} name="split" render={({ field }) => <SplitEditor value={field.value} onChange={field.onChange} />} />
         <FieldError message={mutation.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

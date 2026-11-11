@@ -621,7 +621,8 @@ export interface paths {
             };
             cookie?: never;
         };
-        get?: never;
+        /** Returns a purchase with the shares of other people, for editing. */
+        get: operations["getPurchase"];
         /** Replaces a purchase and regenerates its installments. */
         put: operations["updatePurchase"];
         post?: never;
@@ -2927,6 +2928,30 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The purchase. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     updatePurchase: {

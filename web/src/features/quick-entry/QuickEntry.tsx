@@ -15,6 +15,7 @@ import { useAccounts, useAddExpense, usePersons } from "@/features/accounts/api"
 import { useAddAleloPurchase, useAleloCards } from "@/features/alelo/api";
 import { useCreateBill } from "@/features/bills/api";
 import { useAddPurchase, useAddRecurrence, useCards } from "@/features/cards/api";
+import { EMPTY_SPLIT, SplitEditor, splitBody, type SplitValue } from "@/features/cards/SplitEditor";
 import { useCategories, type Category } from "@/features/categories/api";
 import { CategoryIcon } from "@/features/categories/icons";
 import { useAddOneOffIncome, useCreateIncome } from "@/features/incomes/api";
@@ -93,6 +94,7 @@ const schema = z
     day: z.number().int(),
     personId: z.number().int(),
     endOn: z.string(),
+    split: z.custom<SplitValue>(),
   })
   .superRefine((v, ctx) => {
     /** Adds an error message to a field. */
@@ -162,6 +164,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
       day: Number(todayISO().slice(8)),
       personId: 0,
       endOn: "",
+      split: EMPTY_SPLIT,
     },
   });
   // The last card and account used come preselected once the lists load (RNF-13).
@@ -213,7 +216,15 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         purchase.mutate(
           {
             cardId: v.cardId,
-            body: { date: v.date, merchant: v.merchant, categoryId: v.categoryId, amountCents: v.amountCents, installments: v.installments, buyerPersonId: v.buyerPersonId || undefined },
+            body: {
+              date: v.date,
+              merchant: v.merchant,
+              categoryId: v.categoryId,
+              amountCents: v.amountCents,
+              installments: v.installments,
+              buyerPersonId: v.buyerPersonId || undefined,
+              split: splitBody(v.split),
+            },
           },
           done,
         );
@@ -566,6 +577,7 @@ function Details({ combo, form }: { combo: Combo; form: UseFormReturn<Values> })
             </Field>
             {dateField("Data")}
           </div>
+          <Controller control={form.control} name="split" render={({ field }) => <SplitEditor value={field.value} onChange={field.onChange} />} />
         </>
       );
     case "recurrence":

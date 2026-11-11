@@ -180,6 +180,11 @@ func (s *Service) AddCredit(ctx context.Context, userID int64, in CreditInput) (
 	return s.getPurchase(ctx, store.New(s.conn), id)
 }
 
+// GetPurchase returns a purchase with the shares of other people.
+func (s *Service) GetPurchase(ctx context.Context, id int64) (Purchase, error) {
+	return s.getPurchase(ctx, store.New(s.conn), id)
+}
+
 // DeletePurchase removes a purchase or credit with its installments.
 func (s *Service) DeletePurchase(ctx context.Context, id int64) error {
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {

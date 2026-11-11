@@ -39,6 +39,15 @@ export function useForecast(cardId: number | undefined, count = 6) {
   });
 }
 
+/** Loads one purchase with the shares of other people, for editing (RF-24). */
+export function usePurchase(id: number | undefined) {
+  return useQuery({
+    queryKey: ["cards", "purchase", id],
+    queryFn: async () => unwrap(await api.GET("/purchases/{id}", { params: { path: { id: id! } } })),
+    enabled: id !== undefined,
+  });
+}
+
 /** Loads the recurrences of a card (RF-17). */
 export function useRecurrences(cardId: number | undefined) {
   return useQuery({
@@ -58,6 +67,8 @@ function useCardMutation<V, R>(fn: (vars: V) => Promise<R>, success: string) {
       toast.success(success);
       void qc.invalidateQueries({ queryKey: ["cards"] });
       void qc.invalidateQueries({ queryKey: ["agenda"] });
+      void qc.invalidateQueries({ queryKey: ["parties"] });
+      void qc.invalidateQueries({ queryKey: ["receivables"] });
       for (const key of ACCOUNT_KEYS) void qc.invalidateQueries({ queryKey: key });
     },
   });

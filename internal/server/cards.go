@@ -148,6 +148,15 @@ func (a *API) UpdatePurchase(ctx context.Context, req gen.UpdatePurchaseRequestO
 	return gen.UpdatePurchase200JSONResponse(toPurchase(p)), nil
 }
 
+// GetPurchase returns a purchase with its shares, for editing.
+func (a *API) GetPurchase(ctx context.Context, req gen.GetPurchaseRequestObject) (gen.GetPurchaseResponseObject, error) {
+	p, err := a.d.Cards.GetPurchase(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return gen.GetPurchase200JSONResponse(toPurchase(p)), nil
+}
+
 // DeletePurchase removes a purchase or credit.
 func (a *API) DeletePurchase(ctx context.Context, req gen.DeletePurchaseRequestObject) (gen.DeletePurchaseResponseObject, error) {
 	if err := a.d.Cards.DeletePurchase(ctx, req.Id); err != nil {

@@ -1625,6 +1625,9 @@ type ServerInterface interface {
 	// DeletePurchase Deletes a purchase or credit with its installments.
 	// (DELETE /purchases/{id})
 	DeletePurchase(w http.ResponseWriter, r *http.Request, id Id)
+	// GetPurchase Returns a purchase with the shares of other people, for editing.
+	// (GET /purchases/{id})
+	GetPurchase(w http.ResponseWriter, r *http.Request, id Id)
 	// UpdatePurchase Replaces a purchase and regenerates its installments.
 	// (PUT /purchases/{id})
 	UpdatePurchase(w http.ResponseWriter, r *http.Request, id Id)
@@ -3263,6 +3266,32 @@ func (siw *ServerInterfaceWrapper) DeletePurchase(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// GetPurchase operation middleware
+func (siw *ServerInterfaceWrapper) GetPurchase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPurchase(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UpdatePurchase operation middleware
 func (siw *ServerInterfaceWrapper) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
 
@@ -3576,6 +3605,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/purchases", wrapper.AddPurchase)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/credits", wrapper.AddCredit)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/purchases/{id}", wrapper.DeletePurchase)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/purchases/{id}", wrapper.GetPurchase)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/purchases/{id}", wrapper.UpdatePurchase)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{id}/recurrences", wrapper.ListRecurrences)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/recurrences", wrapper.AddRecurrence)
@@ -7519,6 +7549,56 @@ func (response DeletePurchase404JSONResponse) VisitDeletePurchaseResponse(w http
 	return err
 }
 
+type GetPurchaseRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type GetPurchaseResponseObject interface {
+	VisitGetPurchaseResponse(w http.ResponseWriter) error
+}
+
+type GetPurchase200JSONResponse Purchase
+
+func (response GetPurchase200JSONResponse) VisitGetPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPurchase401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPurchase401JSONResponse) VisitGetPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPurchase404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPurchase404JSONResponse) VisitGetPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UpdatePurchaseRequestObject struct {
 	Id   Id `json:"id"`
 	Body *UpdatePurchaseJSONRequestBody
@@ -8181,6 +8261,9 @@ type StrictServerInterface interface {
 	// DeletePurchase Deletes a purchase or credit with its installments.
 	// (DELETE /purchases/{id})
 	DeletePurchase(ctx context.Context, request DeletePurchaseRequestObject) (DeletePurchaseResponseObject, error)
+	// GetPurchase Returns a purchase with the shares of other people, for editing.
+	// (GET /purchases/{id})
+	GetPurchase(ctx context.Context, request GetPurchaseRequestObject) (GetPurchaseResponseObject, error)
 	// UpdatePurchase Replaces a purchase and regenerates its installments.
 	// (PUT /purchases/{id})
 	UpdatePurchase(ctx context.Context, request UpdatePurchaseRequestObject) (UpdatePurchaseResponseObject, error)
@@ -10140,6 +10223,32 @@ func (sh *strictHandler) DeletePurchase(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeletePurchaseResponseObject); ok {
 		if err := validResponse.VisitDeletePurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPurchase operation middleware
+func (sh *strictHandler) GetPurchase(w http.ResponseWriter, r *http.Request, id Id) {
+	var request GetPurchaseRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPurchase(ctx, request.(GetPurchaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPurchase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPurchaseResponseObject); ok {
+		if err := validResponse.VisitGetPurchaseResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

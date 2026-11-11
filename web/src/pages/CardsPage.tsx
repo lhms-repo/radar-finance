@@ -29,7 +29,7 @@ import {
 import { CardVisual } from "@/features/cards/CardVisual";
 import { CardFormDialog, CreditDialog, PayDialog, PurchaseDialog, RecurrenceDialog } from "@/features/cards/dialogs";
 import { CategoryIcon } from "@/features/categories/icons";
-import { formatDate, formatDayMonth, monthName, monthParam } from "@/lib/format";
+import { formatDate, formatDayMonth, formatMoney, monthName, monthParam } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
 import { fade, spring } from "@/lib/motion";
 import { useMonth } from "@/lib/month";
@@ -439,9 +439,10 @@ function InvoiceCard({
   );
 }
 
-/** Second line of an invoice item: category, buyer and kind. */
+/** Second line of an invoice item: category, buyer, kind and the shares of other people (RN-05). */
 function itemSubtitle(it: InvoiceItem) {
-  const parts = [it.categoryName, it.buyerName && `comprou ${it.buyerName}`];
+  const shares = (it.shares ?? []).map((s) => `${s.partyName} ${formatMoney(s.amountCents)}${s.received ? " ✓" : ""}`).join(", ");
+  const parts = [it.categoryName, it.buyerName && `comprou ${it.buyerName}`, shares && `dividida: ${shares}`];
   if (it.kind === "recurrence") parts.unshift("Recorrência");
   if (it.kind === "credit") parts.unshift("Crédito");
   return parts.filter(Boolean).join(" · ");

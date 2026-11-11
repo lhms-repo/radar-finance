@@ -986,6 +986,21 @@ paths:
   /purchases/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getPurchase
+      tags: [cards]
+      summary: Returns a purchase with the shares of other people, for editing.
+      responses:
+        "200":
+          description: The purchase.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
       operationId: updatePurchase
       tags: [cards]
