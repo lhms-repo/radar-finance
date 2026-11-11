@@ -16,6 +16,7 @@ import (
 	"github.com/alexedwards/scs/v2"
 
 	"github.com/italogfx/radar-finance/internal/account"
+	"github.com/italogfx/radar-finance/internal/agenda"
 	"github.com/italogfx/radar-finance/internal/api/gen"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
@@ -23,6 +24,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
+	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
@@ -53,6 +55,8 @@ type Deps struct {
 	Incomes    *income.Service
 	Cards      *card.Service
 	Bills      *bill.Service
+	Financings *financing.Service
+	Agenda     *agenda.Service
 	Sessions   *scs.SessionManager
 	Backups    *backup.Service
 	Version    string

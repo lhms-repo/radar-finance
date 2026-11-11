@@ -19,6 +19,27 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AgendaKind.
+const (
+	AgendaKindBill      AgendaKind = "bill"
+	AgendaKindFinancing AgendaKind = "financing"
+	AgendaKindInvoice   AgendaKind = "invoice"
+)
+
+// Valid indicates whether the value is a known member of the AgendaKind enum.
+func (e AgendaKind) Valid() bool {
+	switch e {
+	case AgendaKindBill:
+		return true
+	case AgendaKindFinancing:
+		return true
+	case AgendaKindInvoice:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackupKind.
 const (
 	Daily   BackupKind = "daily"
@@ -278,6 +299,64 @@ type AdjustmentCreate struct {
 	Date         openapi_types.Date `json:"date"`
 	Description  *string            `json:"description,omitempty"`
 }
+
+// Agenda defines model for Agenda.
+type Agenda struct {
+	Count int          `json:"count"`
+	Days  []AgendaDay  `json:"days"`
+	Items []AgendaItem `json:"items"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+
+	// PaidCents Amount in cents (RN-21).
+	PaidCents Cents `json:"paidCents"`
+	PaidCount int   `json:"paidCount"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
+// AgendaDay defines model for AgendaDay.
+type AgendaDay struct {
+	Count     int `json:"count"`
+	Day       int `json:"day"`
+	PaidCount int `json:"paidCount"`
+}
+
+// AgendaItem defines model for AgendaItem.
+type AgendaItem struct {
+	AccountId   *int64  `json:"accountId,omitempty"`
+	AccountName *string `json:"accountName,omitempty"`
+
+	// ActualCents Amount in cents (RN-21).
+	ActualCents *Cents `json:"actualCents,omitempty"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	DueOn       openapi_types.Date `json:"dueOn"`
+	EntryId     *int64             `json:"entryId,omitempty"`
+
+	// ExpectedCents Amount in cents (RN-21).
+	ExpectedCents *Cents              `json:"expectedCents,omitempty"`
+	Icon          *string             `json:"icon,omitempty"`
+	InvoiceStatus *InvoiceStatus      `json:"invoiceStatus,omitempty"`
+	Kind          AgendaKind          `json:"kind"`
+	Name          string              `json:"name"`
+	Number        *int                `json:"number,omitempty"`
+	Paid          bool                `json:"paid"`
+	PaidOn        *openapi_types.Date `json:"paidOn,omitempty"`
+
+	// RefId Id of the bill, financing or card.
+	RefId int64 `json:"refId"`
+
+	// SuggestedBalanceCents Amount in cents (RN-21).
+	SuggestedBalanceCents *Cents `json:"suggestedBalanceCents,omitempty"`
+	Total                 *int   `json:"total,omitempty"`
+}
+
+// AgendaKind defines model for AgendaKind.
+type AgendaKind string
 
 // Backup defines model for Backup.
 type Backup struct {
@@ -549,6 +628,82 @@ type ExpenseCreate struct {
 	CategoryId  int64              `json:"categoryId"`
 	Date        openapi_types.Date `json:"date"`
 	Description *string            `json:"description,omitempty"`
+}
+
+// Financing defines model for Financing.
+type Financing struct {
+	AccountId   int64  `json:"accountId"`
+	AccountName string `json:"accountName"`
+
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents   `json:"balanceCents"`
+	CategoryIcon *string `json:"categoryIcon,omitempty"`
+	CategoryId   int64   `json:"categoryId"`
+	CategoryName string  `json:"categoryName"`
+	Done         bool    `json:"done"`
+	DueDay       int     `json:"dueDay"`
+	Id           int64   `json:"id"`
+
+	// InstallmentCents Amount in cents (RN-21).
+	InstallmentCents Cents  `json:"installmentCents"`
+	Name             string `json:"name"`
+
+	// NextMonth Example: 2026-11
+	NextMonth             *Month `json:"nextMonth,omitempty"`
+	PaidInstallments      int    `json:"paidInstallments"`
+	RemainingInstallments int    `json:"remainingInstallments"`
+
+	// StartMonth Example: 2026-11
+	StartMonth        Month `json:"startMonth"`
+	TotalInstallments int   `json:"totalInstallments"`
+}
+
+// FinancingCorrection defines model for FinancingCorrection.
+type FinancingCorrection struct {
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents `json:"balanceCents"`
+
+	// InstallmentCents Amount in cents (RN-21).
+	InstallmentCents Cents `json:"installmentCents"`
+}
+
+// FinancingInput defines model for FinancingInput.
+type FinancingInput struct {
+	AccountId int64 `json:"accountId"`
+
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents `json:"balanceCents"`
+	CategoryId   int64 `json:"categoryId"`
+	DueDay       int   `json:"dueDay"`
+
+	// InstallmentCents Amount in cents (RN-21).
+	InstallmentCents Cents  `json:"installmentCents"`
+	Name             string `json:"name"`
+
+	// NextMonth Example: 2026-11
+	NextMonth         Month `json:"nextMonth"`
+	PaidInstallments  int   `json:"paidInstallments"`
+	TotalInstallments int   `json:"totalInstallments"`
+}
+
+// FinancingPaymentCreate defines model for FinancingPaymentCreate.
+type FinancingPaymentCreate struct {
+	AccountId *int64 `json:"accountId,omitempty"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents *Cents `json:"amountCents,omitempty"`
+
+	// BalanceAfterCents Amount in cents (RN-21).
+	BalanceAfterCents *Cents              `json:"balanceAfterCents,omitempty"`
+	Date              *openapi_types.Date `json:"date,omitempty"`
+}
+
+// FinancingUpdate defines model for FinancingUpdate.
+type FinancingUpdate struct {
+	AccountId  int64  `json:"accountId"`
+	CategoryId int64  `json:"categoryId"`
+	DueDay     int    `json:"dueDay"`
+	Name       string `json:"name"`
 }
 
 // Health defines model for Health.
@@ -969,6 +1124,11 @@ type GetAccountStatementParams struct {
 	Month Month `form:"month" json:"month"`
 }
 
+// GetAgendaParams defines parameters for GetAgenda.
+type GetAgendaParams struct {
+	Month Month `form:"month" json:"month"`
+}
+
 // GetBillMonthParams defines parameters for GetBillMonth.
 type GetBillMonthParams struct {
 	Month Month `form:"month" json:"month"`
@@ -1053,6 +1213,18 @@ type UpdateCategoryJSONRequestBody = CategoryUpdate
 // MoveCategoryJSONRequestBody defines body for MoveCategory for application/json ContentType.
 type MoveCategoryJSONRequestBody = CategoryMove
 
+// CreateFinancingJSONRequestBody defines body for CreateFinancing for application/json ContentType.
+type CreateFinancingJSONRequestBody = FinancingInput
+
+// UpdateFinancingJSONRequestBody defines body for UpdateFinancing for application/json ContentType.
+type UpdateFinancingJSONRequestBody = FinancingUpdate
+
+// CorrectFinancingJSONRequestBody defines body for CorrectFinancing for application/json ContentType.
+type CorrectFinancingJSONRequestBody = FinancingCorrection
+
+// PayFinancingJSONRequestBody defines body for PayFinancing for application/json ContentType.
+type PayFinancingJSONRequestBody = FinancingPaymentCreate
+
 // CreateIncomeJSONRequestBody defines body for CreateIncome for application/json ContentType.
 type CreateIncomeJSONRequestBody = IncomeInput
 
@@ -1103,6 +1275,9 @@ type ServerInterface interface {
 	// GetAccountStatement Entries of the account in the month, with opening and closing balances (RF-05).
 	// (GET /accounts/{id}/statement)
 	GetAccountStatement(w http.ResponseWriter, r *http.Request, id Id, params GetAccountStatementParams)
+	// GetAgenda Bills, financing installments and card invoices due in the month, pending first (RF-38, RF-40).
+	// (GET /agenda)
+	GetAgenda(w http.ResponseWriter, r *http.Request, params GetAgendaParams)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -1187,6 +1362,24 @@ type ServerInterface interface {
 	// DeleteEntry Deletes an entry; either side of a transfer deletes the whole transfer.
 	// (DELETE /entries/{id})
 	DeleteEntry(w http.ResponseWriter, r *http.Request, id Id)
+	// ListFinancings Lists the financings with paid and remaining installments and balance (RF-39, RF-41).
+	// (GET /financings)
+	ListFinancings(w http.ResponseWriter, r *http.Request)
+	// CreateFinancing Registers a financing with its state on the day (RF-39).
+	// (POST /financings)
+	CreateFinancing(w http.ResponseWriter, r *http.Request)
+	// DeleteFinancing Deletes a financing without payments.
+	// (DELETE /financings/{id})
+	DeleteFinancing(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateFinancing Edits name, category, account and due day.
+	// (PUT /financings/{id})
+	UpdateFinancing(w http.ResponseWriter, r *http.Request, id Id)
+	// CorrectFinancing Sets the balance and the installment by hand (RF-42).
+	// (POST /financings/{id}/corrections)
+	CorrectFinancing(w http.ResponseWriter, r *http.Request, id Id)
+	// PayFinancing Pays the installment of the month and sets the balance after it (RF-41, RN-16).
+	// (POST /financings/{id}/months/{month}/payment)
+	PayFinancing(w http.ResponseWriter, r *http.Request, id Id, month Month)
 	// ListIncomes Lists the registered incomes (RF-09, RF-11, RF-12).
 	// (GET /incomes)
 	ListIncomes(w http.ResponseWriter, r *http.Request)
@@ -1475,6 +1668,39 @@ func (siw *ServerInterfaceWrapper) GetAccountStatement(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAccountStatement(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAgenda operation middleware
+func (siw *ServerInterfaceWrapper) GetAgenda(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAgendaParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAgenda(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2182,6 +2408,147 @@ func (siw *ServerInterfaceWrapper) DeleteEntry(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListFinancings operation middleware
+func (siw *ServerInterfaceWrapper) ListFinancings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFinancings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateFinancing operation middleware
+func (siw *ServerInterfaceWrapper) CreateFinancing(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateFinancing(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFinancing operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFinancing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFinancing(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateFinancing operation middleware
+func (siw *ServerInterfaceWrapper) UpdateFinancing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateFinancing(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CorrectFinancing operation middleware
+func (siw *ServerInterfaceWrapper) CorrectFinancing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CorrectFinancing(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PayFinancing operation middleware
+func (siw *ServerInterfaceWrapper) PayFinancing(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PayFinancing(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListIncomes operation middleware
 func (siw *ServerInterfaceWrapper) ListIncomes(w http.ResponseWriter, r *http.Request) {
 
@@ -2761,6 +3128,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bills/{id}", wrapper.UpdateBill)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bills/{id}/months/{month}/actual", wrapper.SetBillActual)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bills/{id}/months/{month}/payment", wrapper.PayBill)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/financings", wrapper.ListFinancings)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/financings", wrapper.CreateFinancing)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/financings/{id}", wrapper.DeleteFinancing)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/financings/{id}", wrapper.UpdateFinancing)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/financings/{id}/months/{month}/payment", wrapper.PayFinancing)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/financings/{id}/corrections", wrapper.CorrectFinancing)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/agenda", wrapper.GetAgenda)
 
 	return m
 }
@@ -3359,6 +3733,56 @@ func (response GetAccountStatement404JSONResponse) VisitGetAccountStatementRespo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgendaRequestObject struct {
+	Params GetAgendaParams
+}
+
+type GetAgendaResponseObject interface {
+	VisitGetAgendaResponse(w http.ResponseWriter) error
+}
+
+type GetAgenda200JSONResponse Agenda
+
+func (response GetAgenda200JSONResponse) VisitGetAgendaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgenda400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetAgenda400JSONResponse) VisitGetAgendaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAgenda401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAgenda401JSONResponse) VisitGetAgendaResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5018,6 +5442,401 @@ func (response DeleteEntry404JSONResponse) VisitDeleteEntryResponse(w http.Respo
 	return err
 }
 
+type ListFinancingsRequestObject struct {
+}
+
+type ListFinancingsResponseObject interface {
+	VisitListFinancingsResponse(w http.ResponseWriter) error
+}
+
+type ListFinancings200JSONResponse []Financing
+
+func (response ListFinancings200JSONResponse) VisitListFinancingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFinancings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListFinancings401JSONResponse) VisitListFinancingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFinancingRequestObject struct {
+	Body *CreateFinancingJSONRequestBody
+}
+
+type CreateFinancingResponseObject interface {
+	VisitCreateFinancingResponse(w http.ResponseWriter) error
+}
+
+type CreateFinancing201JSONResponse Financing
+
+func (response CreateFinancing201JSONResponse) VisitCreateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFinancing400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateFinancing400JSONResponse) VisitCreateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFinancing401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateFinancing401JSONResponse) VisitCreateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFinancing404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateFinancing404JSONResponse) VisitCreateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateFinancing409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateFinancing409JSONResponse) VisitCreateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFinancingRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteFinancingResponseObject interface {
+	VisitDeleteFinancingResponse(w http.ResponseWriter) error
+}
+
+type DeleteFinancing204Response struct {
+}
+
+func (response DeleteFinancing204Response) VisitDeleteFinancingResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteFinancing401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteFinancing401JSONResponse) VisitDeleteFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFinancing404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteFinancing404JSONResponse) VisitDeleteFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFinancing409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteFinancing409JSONResponse) VisitDeleteFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFinancingRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateFinancingJSONRequestBody
+}
+
+type UpdateFinancingResponseObject interface {
+	VisitUpdateFinancingResponse(w http.ResponseWriter) error
+}
+
+type UpdateFinancing200JSONResponse Financing
+
+func (response UpdateFinancing200JSONResponse) VisitUpdateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFinancing400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateFinancing400JSONResponse) VisitUpdateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFinancing401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateFinancing401JSONResponse) VisitUpdateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFinancing404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateFinancing404JSONResponse) VisitUpdateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateFinancing409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateFinancing409JSONResponse) VisitUpdateFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFinancingRequestObject struct {
+	Id   Id `json:"id"`
+	Body *CorrectFinancingJSONRequestBody
+}
+
+type CorrectFinancingResponseObject interface {
+	VisitCorrectFinancingResponse(w http.ResponseWriter) error
+}
+
+type CorrectFinancing200JSONResponse Financing
+
+func (response CorrectFinancing200JSONResponse) VisitCorrectFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFinancing400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CorrectFinancing400JSONResponse) VisitCorrectFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFinancing401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CorrectFinancing401JSONResponse) VisitCorrectFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CorrectFinancing404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CorrectFinancing404JSONResponse) VisitCorrectFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayFinancingRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+	Body  *PayFinancingJSONRequestBody
+}
+
+type PayFinancingResponseObject interface {
+	VisitPayFinancingResponse(w http.ResponseWriter) error
+}
+
+type PayFinancing201JSONResponse Entry
+
+func (response PayFinancing201JSONResponse) VisitPayFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayFinancing400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PayFinancing400JSONResponse) VisitPayFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayFinancing401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PayFinancing401JSONResponse) VisitPayFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayFinancing404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PayFinancing404JSONResponse) VisitPayFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayFinancing409JSONResponse struct{ ConflictJSONResponse }
+
+func (response PayFinancing409JSONResponse) VisitPayFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListIncomesRequestObject struct {
 }
 
@@ -6123,6 +6942,9 @@ type StrictServerInterface interface {
 	// GetAccountStatement Entries of the account in the month, with opening and closing balances (RF-05).
 	// (GET /accounts/{id}/statement)
 	GetAccountStatement(ctx context.Context, request GetAccountStatementRequestObject) (GetAccountStatementResponseObject, error)
+	// GetAgenda Bills, financing installments and card invoices due in the month, pending first (RF-38, RF-40).
+	// (GET /agenda)
+	GetAgenda(ctx context.Context, request GetAgendaRequestObject) (GetAgendaResponseObject, error)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -6207,6 +7029,24 @@ type StrictServerInterface interface {
 	// DeleteEntry Deletes an entry; either side of a transfer deletes the whole transfer.
 	// (DELETE /entries/{id})
 	DeleteEntry(ctx context.Context, request DeleteEntryRequestObject) (DeleteEntryResponseObject, error)
+	// ListFinancings Lists the financings with paid and remaining installments and balance (RF-39, RF-41).
+	// (GET /financings)
+	ListFinancings(ctx context.Context, request ListFinancingsRequestObject) (ListFinancingsResponseObject, error)
+	// CreateFinancing Registers a financing with its state on the day (RF-39).
+	// (POST /financings)
+	CreateFinancing(ctx context.Context, request CreateFinancingRequestObject) (CreateFinancingResponseObject, error)
+	// DeleteFinancing Deletes a financing without payments.
+	// (DELETE /financings/{id})
+	DeleteFinancing(ctx context.Context, request DeleteFinancingRequestObject) (DeleteFinancingResponseObject, error)
+	// UpdateFinancing Edits name, category, account and due day.
+	// (PUT /financings/{id})
+	UpdateFinancing(ctx context.Context, request UpdateFinancingRequestObject) (UpdateFinancingResponseObject, error)
+	// CorrectFinancing Sets the balance and the installment by hand (RF-42).
+	// (POST /financings/{id}/corrections)
+	CorrectFinancing(ctx context.Context, request CorrectFinancingRequestObject) (CorrectFinancingResponseObject, error)
+	// PayFinancing Pays the installment of the month and sets the balance after it (RF-41, RN-16).
+	// (POST /financings/{id}/months/{month}/payment)
+	PayFinancing(ctx context.Context, request PayFinancingRequestObject) (PayFinancingResponseObject, error)
 	// ListIncomes Lists the registered incomes (RF-09, RF-11, RF-12).
 	// (GET /incomes)
 	ListIncomes(ctx context.Context, request ListIncomesRequestObject) (ListIncomesResponseObject, error)
@@ -6567,6 +7407,32 @@ func (sh *strictHandler) GetAccountStatement(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAccountStatementResponseObject); ok {
 		if err := validResponse.VisitGetAccountStatementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAgenda operation middleware
+func (sh *strictHandler) GetAgenda(w http.ResponseWriter, r *http.Request, params GetAgendaParams) {
+	var request GetAgendaRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAgenda(ctx, request.(GetAgendaRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAgenda")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAgendaResponseObject); ok {
+		if err := validResponse.VisitGetAgendaResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -7382,6 +8248,187 @@ func (sh *strictHandler) DeleteEntry(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteEntryResponseObject); ok {
 		if err := validResponse.VisitDeleteEntryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFinancings operation middleware
+func (sh *strictHandler) ListFinancings(w http.ResponseWriter, r *http.Request) {
+	var request ListFinancingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFinancings(ctx, request.(ListFinancingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFinancings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFinancingsResponseObject); ok {
+		if err := validResponse.VisitListFinancingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateFinancing operation middleware
+func (sh *strictHandler) CreateFinancing(w http.ResponseWriter, r *http.Request) {
+	var request CreateFinancingRequestObject
+
+	var body CreateFinancingJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateFinancing(ctx, request.(CreateFinancingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateFinancing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateFinancingResponseObject); ok {
+		if err := validResponse.VisitCreateFinancingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFinancing operation middleware
+func (sh *strictHandler) DeleteFinancing(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteFinancingRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFinancing(ctx, request.(DeleteFinancingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFinancing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFinancingResponseObject); ok {
+		if err := validResponse.VisitDeleteFinancingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateFinancing operation middleware
+func (sh *strictHandler) UpdateFinancing(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateFinancingRequestObject
+
+	request.Id = id
+
+	var body UpdateFinancingJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateFinancing(ctx, request.(UpdateFinancingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateFinancing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateFinancingResponseObject); ok {
+		if err := validResponse.VisitUpdateFinancingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CorrectFinancing operation middleware
+func (sh *strictHandler) CorrectFinancing(w http.ResponseWriter, r *http.Request, id Id) {
+	var request CorrectFinancingRequestObject
+
+	request.Id = id
+
+	var body CorrectFinancingJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CorrectFinancing(ctx, request.(CorrectFinancingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CorrectFinancing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CorrectFinancingResponseObject); ok {
+		if err := validResponse.VisitCorrectFinancingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PayFinancing operation middleware
+func (sh *strictHandler) PayFinancing(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request PayFinancingRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	var body PayFinancingJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PayFinancing(ctx, request.(PayFinancingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PayFinancing")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PayFinancingResponseObject); ok {
+		if err := validResponse.VisitPayFinancingResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

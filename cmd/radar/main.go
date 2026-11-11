@@ -18,6 +18,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/italogfx/radar-finance/internal/account"
+	"github.com/italogfx/radar-finance/internal/agenda"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
 	"github.com/italogfx/radar-finance/internal/bill"
@@ -25,6 +26,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
+	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/server"
@@ -110,6 +112,7 @@ func serve(log *slog.Logger) error {
 	go backups.Start(ctx)
 	go auth.CleanupSessions(ctx, conn, time.Hour, log)
 
+	cards, bills, financings := card.NewService(conn), bill.NewService(conn), financing.NewService(conn)
 	handler := server.New(server.Deps{
 		Config:     cfg,
 		DB:         conn,
@@ -117,8 +120,10 @@ func serve(log *slog.Logger) error {
 		Categories: category.NewService(conn),
 		Ledger:     ledger.NewService(conn),
 		Incomes:    income.NewService(conn),
-		Cards:      card.NewService(conn),
-		Bills:      bill.NewService(conn),
+		Cards:      cards,
+		Bills:      bills,
+		Financings: financings,
+		Agenda:     agenda.NewService(bills, financings, cards),
 		Sessions:   sessions,
 		Backups:    backups,
 		Version:    version,

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
+	"github.com/italogfx/radar-finance/internal/agenda"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
 	"github.com/italogfx/radar-finance/internal/bill"
@@ -24,6 +25,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
+	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 )
@@ -49,6 +51,7 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 	}
 	loc, _ := time.LoadLocation(config.Location)
 	cfg := config.Config{DBPath: filepath.Join(dir, "radar.db"), BackupDir: filepath.Join(dir, "backups"), BackupKeep: 30, BackupHour: 3, Loc: loc}
+	cards, bills, financings := card.NewService(conn), bill.NewService(conn), financing.NewService(conn)
 	h := New(Deps{
 		Config:     cfg,
 		DB:         conn,
@@ -56,8 +59,10 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Categories: category.NewService(conn),
 		Ledger:     ledger.NewService(conn),
 		Incomes:    income.NewService(conn),
-		Cards:      card.NewService(conn),
-		Bills:      bill.NewService(conn),
+		Cards:      cards,
+		Bills:      bills,
+		Financings: financings,
+		Agenda:     agenda.NewService(bills, financings, cards),
 		Sessions:   auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
 		Backups:    backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
 		Version:    "test",

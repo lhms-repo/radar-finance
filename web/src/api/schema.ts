@@ -767,6 +767,100 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/financings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the financings with paid and remaining installments and balance (RF-39, RF-41). */
+        get: operations["listFinancings"];
+        put?: never;
+        /** Registers a financing with its state on the day (RF-39). */
+        post: operations["createFinancing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/financings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Edits name, category, account and due day. */
+        put: operations["updateFinancing"];
+        post?: never;
+        /** Deletes a financing without payments. */
+        delete: operations["deleteFinancing"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/financings/{id}/months/{month}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pays the installment of the month and sets the balance after it (RF-41, RN-16). */
+        post: operations["payFinancing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/financings/{id}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sets the balance and the installment by hand (RF-42). */
+        post: operations["correctFinancing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agenda": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bills, financing installments and card invoices due in the month, pending first (RF-38, RF-40). */
+        get: operations["getAgenda"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1334,6 +1428,103 @@ export interface components {
             accountId?: number;
             /** Format: date */
             date?: string;
+        };
+        FinancingInput: {
+            name: string;
+            /** Format: int64 */
+            categoryId: number;
+            /** Format: int64 */
+            accountId: number;
+            dueDay: number;
+            installmentCents: components["schemas"]["Cents"];
+            totalInstallments: number;
+            paidInstallments: number;
+            balanceCents: components["schemas"]["Cents"];
+            nextMonth: components["schemas"]["Month"];
+        };
+        FinancingUpdate: {
+            name: string;
+            /** Format: int64 */
+            categoryId: number;
+            /** Format: int64 */
+            accountId: number;
+            dueDay: number;
+        };
+        Financing: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            categoryId: number;
+            categoryName: string;
+            categoryIcon?: string;
+            /** Format: int64 */
+            accountId: number;
+            accountName: string;
+            dueDay: number;
+            installmentCents: components["schemas"]["Cents"];
+            totalInstallments: number;
+            paidInstallments: number;
+            remainingInstallments: number;
+            balanceCents: components["schemas"]["Cents"];
+            startMonth: components["schemas"]["Month"];
+            nextMonth?: components["schemas"]["Month"];
+            done: boolean;
+        };
+        FinancingPaymentCreate: {
+            amountCents?: components["schemas"]["Cents"];
+            /** Format: int64 */
+            accountId?: number;
+            /** Format: date */
+            date?: string;
+            balanceAfterCents?: components["schemas"]["Cents"];
+        };
+        FinancingCorrection: {
+            balanceCents: components["schemas"]["Cents"];
+            installmentCents: components["schemas"]["Cents"];
+        };
+        /** @enum {string} */
+        AgendaKind: "bill" | "financing" | "invoice";
+        AgendaItem: {
+            kind: components["schemas"]["AgendaKind"];
+            /**
+             * Format: int64
+             * @description Id of the bill, financing or card.
+             */
+            refId: number;
+            name: string;
+            icon?: string;
+            /** Format: int64 */
+            accountId?: number;
+            accountName?: string;
+            /** Format: date */
+            dueOn: string;
+            amountCents: components["schemas"]["Cents"];
+            paid: boolean;
+            /** Format: int64 */
+            entryId?: number;
+            /** Format: date */
+            paidOn?: string;
+            expectedCents?: components["schemas"]["Cents"];
+            actualCents?: components["schemas"]["Cents"];
+            number?: number;
+            total?: number;
+            suggestedBalanceCents?: components["schemas"]["Cents"];
+            invoiceStatus?: components["schemas"]["InvoiceStatus"];
+        };
+        AgendaDay: {
+            day: number;
+            count: number;
+            paidCount: number;
+        };
+        Agenda: {
+            month: components["schemas"]["Month"];
+            items: components["schemas"]["AgendaItem"][];
+            days: components["schemas"]["AgendaDay"][];
+            totalCents: components["schemas"]["Cents"];
+            paidCents: components["schemas"]["Cents"];
+            count: number;
+            paidCount: number;
         };
     };
     responses: {
@@ -2848,6 +3039,192 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listFinancings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Financings. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Financing"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createFinancing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinancingInput"];
+            };
+        };
+        responses: {
+            /** @description Created financing. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Financing"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateFinancing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinancingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated financing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Financing"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteFinancing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    payFinancing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinancingPaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description Payment entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    correctFinancing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FinancingCorrection"];
+            };
+        };
+        responses: {
+            /** @description Corrected financing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Financing"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getAgenda: {
+        parameters: {
+            query: {
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Agenda of the month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Agenda"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
 }
