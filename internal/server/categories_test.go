@@ -70,7 +70,8 @@ func TestCategoryRoutes(t *testing.T) {
 		{name: "rename", method: http.MethodPatch, path: "/api/categories/1", body: `{"name":"Casa"}`, wantStatus: http.StatusOK},
 		{name: "rename missing", method: http.MethodPatch, path: "/api/categories/9999", body: `{"name":"x"}`, wantStatus: http.StatusNotFound, wantCode: "category_not_found"},
 		{name: "move", method: http.MethodPost, path: "/api/categories/2/move", body: `{"parentId":1}`, wantStatus: http.StatusConflict, wantCode: "category_has_children"},
-		{name: "delete with children", method: http.MethodDelete, path: "/api/categories/1", wantStatus: http.StatusConflict, wantCode: "category_has_children"},
+		{name: "delete system category", method: http.MethodDelete, path: "/api/categories/1", wantStatus: http.StatusConflict, wantCode: "category_system"},
+		{name: "delete with children", method: http.MethodDelete, path: "/api/categories/2", wantStatus: http.StatusConflict, wantCode: "category_has_children"},
 		{name: "delete unused", method: http.MethodDelete, path: "/api/categories/" + strconv.FormatInt(created.ID, 10), wantStatus: http.StatusNoContent},
 	}
 	for _, tt := range tests {

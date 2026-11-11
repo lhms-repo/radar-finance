@@ -37,7 +37,7 @@ var (
 	ErrParentInactive    = problem.Conflict("category_parent_inactive", "A categoria principal escolhida está desativada.")
 	ErrDuplicateName     = problem.Conflict("category_duplicate_name", "Já existe uma categoria com esse nome no mesmo lugar.")
 	ErrHasChildren       = problem.Conflict("category_has_children", "Esta categoria tem subcategorias. Mova ou exclua as subcategorias antes.")
-	ErrSystemCategory    = problem.Conflict("category_system", "Esta subcategoria é usada pelo Radar nas compras do Alelo e do mercado e não pode ser excluída. Você pode renomeá-la ou movê-la.")
+	ErrSystemCategory    = problem.Conflict("category_system", "Esta categoria é usada pelo Radar em regras fixas, como o Alelo e o card Moradia, e não pode ser excluída. Você pode renomeá-la.")
 	ErrInUse             = problem.Conflict("category_in_use", "Esta categoria já tem lançamentos e não pode ser excluída. Desative-a para tirá-la das opções.")
 )
 
