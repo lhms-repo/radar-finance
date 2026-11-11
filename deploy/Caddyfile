@@ -1,0 +1,12 @@
+# HTTPS on the local network with the mkcert certificate (RNF-21).
+{
+	auto_https disable_certs
+	admin off
+}
+
+{$RADAR_HOSTS} {
+	tls /certs/radar.pem /certs/radar-key.pem
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	reverse_proxy radar:8080
+}

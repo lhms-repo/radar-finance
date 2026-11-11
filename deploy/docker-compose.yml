@@ -1,0 +1,46 @@
+# Radar production stack (RNF-01 to RNF-03, RNF-21). Run from WSL2 with `make deploy`.
+name: radar
+
+services:
+  radar:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    image: radar:latest
+    restart: unless-stopped
+    environment:
+      RADAR_BACKUP_HOUR: ${RADAR_BACKUP_HOUR:-3}
+      RADAR_BACKUP_KEEP: ${RADAR_BACKUP_KEEP:-30}
+      RADAR_SESSION_IDLE: ${RADAR_SESSION_IDLE:-168h}
+    volumes:
+      # Database in a named volume, kept across restarts and updates (RNF-03).
+      - radar-data:/data
+      # Backups in a Windows folder, outside the volume (RNF-05, section 8.5).
+      - ${RADAR_BACKUP_HOST_DIR:?defina RADAR_BACKUP_HOST_DIR no deploy/.env}:/backups
+    expose:
+      - "8080"
+    stop_grace_period: 20s
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      radar:
+        condition: service_healthy
+    environment:
+      RADAR_HOSTS: ${RADAR_HOSTS:?defina RADAR_HOSTS no deploy/.env}
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  radar-data:
+  caddy-data:
+  caddy-config:
