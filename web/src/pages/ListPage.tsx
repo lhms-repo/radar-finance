@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronLeft, Minus, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, Minus, Pencil, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,12 @@ import {
   useRenameList,
   useSetPicked,
   useShoppingList,
+  useListComparison,
   useUpdateListItem,
   type ListItem,
 } from "@/features/market/api";
 import { ListComparison } from "@/features/market/comparison";
+import { FinishDialog, PaidSummary } from "@/features/market/finish";
 import { fade, spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +37,10 @@ export function ListPage() {
   const id = Number(useParams().id);
   const list = useShoppingList(id);
   const [renaming, setRenaming] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const comparison = useListComparison(id);
   const l = list.data;
+  const firstMarket = comparison.data?.split?.markets[0]?.name;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-end justify-between gap-3">
@@ -53,6 +58,7 @@ export function ListPage() {
         )}
       </div>
       {list.error && <p className="text-sm text-destructive">{list.error.message}</p>}
+      {l?.done && <PaidSummary list={l} />}
       {l && !l.done && <AddItem listId={l.id} />}
       {l && (
         <Card className="flex flex-col gap-1">
@@ -70,6 +76,13 @@ export function ListPage() {
         </Card>
       )}
       {l && l.items.length > 0 && <ListComparison listId={l.id} />}
+      {l && !l.done && l.items.length > 0 && (
+        <Button size="lg" className="self-stretch sm:self-end" onClick={() => setFinishing(true)}>
+          <ShoppingCart />
+          Finalizar compra
+        </Button>
+      )}
+      {l && !l.done && <FinishDialog open={finishing} list={l} suggestion={firstMarket ? `Compra no ${firstMarket}` : l.name} onClose={() => setFinishing(false)} />}
       {l && <RenameDialog open={renaming} id={l.id} name={l.name} onClose={() => setRenaming(false)} />}
     </div>
   );

@@ -245,3 +245,19 @@ export function useListComparison(id: number) {
     placeholderData: (prev) => prev,
   });
 }
+
+export type ListFinish = components["schemas"]["ListFinish"];
+
+/** Records the real total of the purchase and closes the list; refreshes everything, since accounts and invoices change (RF-77). */
+export function useFinishList() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: number; body: ListFinish }) =>
+      noContent(await api.POST("/market/lists/{id}/finish", { params: { path: { id } }, body })),
+    onSuccess: () => {
+      haptic();
+      toast.success("Compra finalizada", { description: "O gasto já entrou em Compras para casa." });
+      void qc.invalidateQueries();
+    },
+  });
+}

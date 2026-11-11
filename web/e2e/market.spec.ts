@@ -193,4 +193,20 @@ test("market: ranking of the markets and best split of a list (RF-72, RF-73, RN-
   await expect(ranking.nth(1)).toContainText(`Mercado Um ${tag}`);
   await expect(page.getByText("Economia de R$ 15,00 sobre o melhor mercado único")).toBeVisible();
   await expect(page.getByText("Em 2 mercados, até 2 permitidos")).toBeVisible();
+
+  // Finishing pays from an account and closes the list (RF-77, RN-26).
+  const persons = (await (await page.request.get("/api/persons")).json()) as { id: number }[];
+  await post("/api/accounts", { name: `Conta M ${tag}`, personId: persons[0]!.id, initialBalanceCents: 100_000 });
+  await page.reload();
+  await page.getByRole("button", { name: "Finalizar compra" }).click();
+  const dialog = page.getByRole("dialog", { name: "Finalizar compra" });
+  await dialog.getByLabel("Total pago").fill("2390");
+  await dialog.getByRole("radio", { name: "Conta" }).click();
+  await dialog.getByLabel("Conta", { exact: true }).selectOption({ label: `Conta M ${tag}` });
+  await expect(dialog.getByLabel("Descrição")).toHaveValue(`Compra no Mercado Dois ${tag}`);
+  await dialog.getByRole("button", { name: "Finalizar" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Compra finalizada" })).toBeVisible();
+  await expect(page.getByText(`Compra no Mercado Dois ${tag}, na conta`)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finalizar compra" })).toBeHidden();
 });
