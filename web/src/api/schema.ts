@@ -1049,6 +1049,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/savings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Savings boxes as seen in the month, with the base, suggestions and estimates (RF-45, RF-48, RN-09 to RN-12). */
+        get: operations["getSavingsMonth"];
+        put?: never;
+        /** Creates a savings box (RF-43). */
+        post: operations["createSavingsBox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/savings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Edits name, target and percentage (RF-44). */
+        put: operations["updateSavingsBox"];
+        post?: never;
+        /** Deletes a box without moves. */
+        delete: operations["deleteSavingsBox"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/savings/{id}/deposits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirms a deposit with the amount really saved, from an account (RF-46, RN-08). */
+        post: operations["depositSavings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/savings/{id}/withdrawals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Takes money out of a box into an account, with a reason (RF-47, RN-08). */
+        post: operations["withdrawSavings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1185,7 +1261,7 @@ export interface components {
             active?: boolean;
         };
         /** @enum {string} */
-        EntryKind: "expense" | "income" | "adjustment" | "transfer" | "invoice_payment" | "receivable";
+        EntryKind: "expense" | "income" | "adjustment" | "transfer" | "invoice_payment" | "receivable" | "savings_deposit" | "savings_withdrawal";
         Entry: {
             /** Format: int64 */
             id: number;
@@ -1850,6 +1926,69 @@ export interface components {
         };
         ChargeMessage: {
             text: string;
+        };
+        SavingsInput: {
+            name: string;
+            targetCents: components["schemas"]["Cents"];
+            /** @description Monthly percentage of the income in basis points, 1250 meaning 12,5%. */
+            percentBp: number;
+            initialBalanceCents?: components["schemas"]["Cents"];
+        };
+        SavingsUpdate: {
+            name: string;
+            targetCents: components["schemas"]["Cents"];
+            percentBp: number;
+        };
+        SavingsMove: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "deposit" | "withdrawal";
+            month: components["schemas"]["Month"];
+            /** Format: date */
+            date: string;
+            amountCents: components["schemas"]["Cents"];
+            reason: string;
+            accountName: string;
+            /** Format: int64 */
+            entryId: number;
+            createdByName?: string;
+        };
+        SavingsBox: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            targetCents: components["schemas"]["Cents"];
+            percentBp: number;
+            balanceCents: components["schemas"]["Cents"];
+            /** @description Balance over target in basis points, capped at 10000. */
+            progressBp: number;
+            done: boolean;
+            suggestedCents: components["schemas"]["Cents"];
+            depositedCents: components["schemas"]["Cents"];
+            estimatedMonth?: components["schemas"]["Month"];
+            moves: components["schemas"]["SavingsMove"][];
+        };
+        SavingsMonth: {
+            month: components["schemas"]["Month"];
+            baseCents: components["schemas"]["Cents"];
+            boxes: components["schemas"]["SavingsBox"][];
+        };
+        SavingsDepositCreate: {
+            month: components["schemas"]["Month"];
+            amountCents: components["schemas"]["Cents"];
+            /** Format: int64 */
+            accountId: number;
+            /** Format: date */
+            date: string;
+        };
+        SavingsWithdrawalCreate: {
+            amountCents: components["schemas"]["Cents"];
+            /** Format: int64 */
+            accountId: number;
+            /** Format: date */
+            date: string;
+            reason: string;
         };
     };
     responses: {
@@ -3902,6 +4041,168 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getSavingsMonth: {
+        parameters: {
+            query: {
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boxes of the month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavingsMonth"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createSavingsBox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavingsInput"];
+            };
+        };
+        responses: {
+            /** @description Created box. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavingsBox"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateSavingsBox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated box. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavingsBox"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteSavingsBox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    depositSavings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavingsDepositCreate"];
+            };
+        };
+        responses: {
+            /** @description Account entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    withdrawSavings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavingsWithdrawalCreate"];
+            };
+        };
+        responses: {
+            /** @description Account entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

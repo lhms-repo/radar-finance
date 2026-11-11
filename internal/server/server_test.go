@@ -30,6 +30,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/receivable"
+	"github.com/italogfx/radar-finance/internal/savings"
 )
 
 // testServer starts the full HTTP stack on a fresh database with one fictional user.
@@ -67,6 +68,7 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Agenda:      agenda.NewService(bills, financings, cards),
 		Alelo:       alelo.NewService(conn),
 		Receivables: receivable.NewService(conn),
+		Savings:     savings.NewService(conn),
 		Sessions:    auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
 		Backups:     backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
 		Version:     "test",

@@ -31,6 +31,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/receivable"
+	"github.com/italogfx/radar-finance/internal/savings"
 	"github.com/italogfx/radar-finance/internal/server"
 	"github.com/italogfx/radar-finance/web"
 )
@@ -128,6 +129,7 @@ func serve(log *slog.Logger) error {
 		Agenda:      agenda.NewService(bills, financings, cards),
 		Alelo:       alelo.NewService(conn),
 		Receivables: receivable.NewService(conn),
+		Savings:     savings.NewService(conn),
 		Sessions:    sessions,
 		Backups:     backups,
 		Version:     version,

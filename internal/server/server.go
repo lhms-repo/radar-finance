@@ -30,6 +30,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
 	"github.com/italogfx/radar-finance/internal/receivable"
+	"github.com/italogfx/radar-finance/internal/savings"
 )
 
 // maxBodyBytes limits JSON request bodies.
@@ -61,6 +62,7 @@ type Deps struct {
 	Agenda      *agenda.Service
 	Alelo       *alelo.Service
 	Receivables *receivable.Service
+	Savings     *savings.Service
 	Sessions    *scs.SessionManager
 	Backups     *backup.Service
 	Version     string

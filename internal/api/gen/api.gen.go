@@ -117,12 +117,14 @@ func (e CardFinish) Valid() bool {
 
 // Defines values for EntryKind.
 const (
-	EntryKindAdjustment     EntryKind = "adjustment"
-	EntryKindExpense        EntryKind = "expense"
-	EntryKindIncome         EntryKind = "income"
-	EntryKindInvoicePayment EntryKind = "invoice_payment"
-	EntryKindReceivable     EntryKind = "receivable"
-	EntryKindTransfer       EntryKind = "transfer"
+	EntryKindAdjustment        EntryKind = "adjustment"
+	EntryKindExpense           EntryKind = "expense"
+	EntryKindIncome            EntryKind = "income"
+	EntryKindInvoicePayment    EntryKind = "invoice_payment"
+	EntryKindReceivable        EntryKind = "receivable"
+	EntryKindSavingsDeposit    EntryKind = "savings_deposit"
+	EntryKindSavingsWithdrawal EntryKind = "savings_withdrawal"
+	EntryKindTransfer          EntryKind = "transfer"
 )
 
 // Valid indicates whether the value is a known member of the EntryKind enum.
@@ -137,6 +139,10 @@ func (e EntryKind) Valid() bool {
 	case EntryKindInvoicePayment:
 		return true
 	case EntryKindReceivable:
+		return true
+	case EntryKindSavingsDeposit:
+		return true
+	case EntryKindSavingsWithdrawal:
 		return true
 	case EntryKindTransfer:
 		return true
@@ -235,6 +241,24 @@ func (e PurchaseKind) Valid() bool {
 	case PurchaseKindCredit:
 		return true
 	case PurchaseKindPurchase:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SavingsMoveKind.
+const (
+	Deposit    SavingsMoveKind = "deposit"
+	Withdrawal SavingsMoveKind = "withdrawal"
+)
+
+// Valid indicates whether the value is a known member of the SavingsMoveKind enum.
+func (e SavingsMoveKind) Valid() bool {
+	switch e {
+	case Deposit:
+		return true
+	case Withdrawal:
 		return true
 	default:
 		return false
@@ -1260,6 +1284,106 @@ type RecurrenceUpdate struct {
 	EndMonth *Month `json:"endMonth,omitempty"`
 }
 
+// SavingsBox defines model for SavingsBox.
+type SavingsBox struct {
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents `json:"balanceCents"`
+
+	// DepositedCents Amount in cents (RN-21).
+	DepositedCents Cents `json:"depositedCents"`
+	Done           bool  `json:"done"`
+
+	// EstimatedMonth Example: 2026-11
+	EstimatedMonth *Month        `json:"estimatedMonth,omitempty"`
+	Id             int64         `json:"id"`
+	Moves          []SavingsMove `json:"moves"`
+	Name           string        `json:"name"`
+	PercentBp      int           `json:"percentBp"`
+
+	// ProgressBp Balance over target in basis points, capped at 10000.
+	ProgressBp int `json:"progressBp"`
+
+	// SuggestedCents Amount in cents (RN-21).
+	SuggestedCents Cents `json:"suggestedCents"`
+
+	// TargetCents Amount in cents (RN-21).
+	TargetCents Cents `json:"targetCents"`
+}
+
+// SavingsDepositCreate defines model for SavingsDepositCreate.
+type SavingsDepositCreate struct {
+	AccountId int64 `json:"accountId"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	Date        openapi_types.Date `json:"date"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+}
+
+// SavingsInput defines model for SavingsInput.
+type SavingsInput struct {
+	// InitialBalanceCents Amount in cents (RN-21).
+	InitialBalanceCents *Cents `json:"initialBalanceCents,omitempty"`
+	Name                string `json:"name"`
+
+	// PercentBp Monthly percentage of the income in basis points, 1250 meaning 12,5%.
+	PercentBp int `json:"percentBp"`
+
+	// TargetCents Amount in cents (RN-21).
+	TargetCents Cents `json:"targetCents"`
+}
+
+// SavingsMonth defines model for SavingsMonth.
+type SavingsMonth struct {
+	// BaseCents Amount in cents (RN-21).
+	BaseCents Cents        `json:"baseCents"`
+	Boxes     []SavingsBox `json:"boxes"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+}
+
+// SavingsMove defines model for SavingsMove.
+type SavingsMove struct {
+	AccountName string `json:"accountName"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents   Cents              `json:"amountCents"`
+	CreatedByName *string            `json:"createdByName,omitempty"`
+	Date          openapi_types.Date `json:"date"`
+	EntryId       int64              `json:"entryId"`
+	Id            int64              `json:"id"`
+	Kind          SavingsMoveKind    `json:"kind"`
+
+	// Month Example: 2026-11
+	Month  Month  `json:"month"`
+	Reason string `json:"reason"`
+}
+
+// SavingsMoveKind defines model for SavingsMove.Kind.
+type SavingsMoveKind string
+
+// SavingsUpdate defines model for SavingsUpdate.
+type SavingsUpdate struct {
+	Name      string `json:"name"`
+	PercentBp int    `json:"percentBp"`
+
+	// TargetCents Amount in cents (RN-21).
+	TargetCents Cents `json:"targetCents"`
+}
+
+// SavingsWithdrawalCreate defines model for SavingsWithdrawalCreate.
+type SavingsWithdrawalCreate struct {
+	AccountId int64 `json:"accountId"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	Date        openapi_types.Date `json:"date"`
+	Reason      string             `json:"reason"`
+}
+
 // SplitInput Divides the purchase between the couple and other people (RF-24, RF-25).
 type SplitInput struct {
 	// CoupleParts Equal parts kept by the couple; the couple keeps the leftover cents.
@@ -1369,6 +1493,11 @@ type GetMonthFlowParams struct {
 	Month Month `form:"month" json:"month"`
 }
 
+// GetSavingsMonthParams defines parameters for GetSavingsMonth.
+type GetSavingsMonthParams struct {
+	Month Month `form:"month" json:"month"`
+}
+
 // CreateAccountJSONRequestBody defines body for CreateAccount for application/json ContentType.
 type CreateAccountJSONRequestBody = AccountCreate
 
@@ -1470,6 +1599,18 @@ type MarkReceivedJSONRequestBody = ReceiptCreate
 
 // UpdateRecurrenceJSONRequestBody defines body for UpdateRecurrence for application/json ContentType.
 type UpdateRecurrenceJSONRequestBody = RecurrenceUpdate
+
+// CreateSavingsBoxJSONRequestBody defines body for CreateSavingsBox for application/json ContentType.
+type CreateSavingsBoxJSONRequestBody = SavingsInput
+
+// UpdateSavingsBoxJSONRequestBody defines body for UpdateSavingsBox for application/json ContentType.
+type UpdateSavingsBoxJSONRequestBody = SavingsUpdate
+
+// DepositSavingsJSONRequestBody defines body for DepositSavings for application/json ContentType.
+type DepositSavingsJSONRequestBody = SavingsDepositCreate
+
+// WithdrawSavingsJSONRequestBody defines body for WithdrawSavings for application/json ContentType.
+type WithdrawSavingsJSONRequestBody = SavingsWithdrawalCreate
 
 // CreateTransferJSONRequestBody defines body for CreateTransfer for application/json ContentType.
 type CreateTransferJSONRequestBody = TransferCreate
@@ -1695,6 +1836,24 @@ type ServerInterface interface {
 	// UpdateRecurrence Edits a recurrence; a new price applies from the current invoice on.
 	// (PUT /recurrences/{id})
 	UpdateRecurrence(w http.ResponseWriter, r *http.Request, id Id)
+	// GetSavingsMonth Savings boxes as seen in the month, with the base, suggestions and estimates (RF-45, RF-48, RN-09 to RN-12).
+	// (GET /savings)
+	GetSavingsMonth(w http.ResponseWriter, r *http.Request, params GetSavingsMonthParams)
+	// CreateSavingsBox Creates a savings box (RF-43).
+	// (POST /savings)
+	CreateSavingsBox(w http.ResponseWriter, r *http.Request)
+	// DeleteSavingsBox Deletes a box without moves.
+	// (DELETE /savings/{id})
+	DeleteSavingsBox(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateSavingsBox Edits name, target and percentage (RF-44).
+	// (PUT /savings/{id})
+	UpdateSavingsBox(w http.ResponseWriter, r *http.Request, id Id)
+	// DepositSavings Confirms a deposit with the amount really saved, from an account (RF-46, RN-08).
+	// (POST /savings/{id}/deposits)
+	DepositSavings(w http.ResponseWriter, r *http.Request, id Id)
+	// WithdrawSavings Takes money out of a box into an account, with a reason (RF-47, RN-08).
+	// (POST /savings/{id}/withdrawals)
+	WithdrawSavings(w http.ResponseWriter, r *http.Request, id Id)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(w http.ResponseWriter, r *http.Request)
@@ -3482,6 +3641,157 @@ func (siw *ServerInterfaceWrapper) UpdateRecurrence(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// GetSavingsMonth operation middleware
+func (siw *ServerInterfaceWrapper) GetSavingsMonth(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSavingsMonthParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSavingsMonth(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSavingsBox operation middleware
+func (siw *ServerInterfaceWrapper) CreateSavingsBox(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSavingsBox(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSavingsBox operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSavingsBox(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSavingsBox(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSavingsBox operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSavingsBox(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSavingsBox(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DepositSavings operation middleware
+func (siw *ServerInterfaceWrapper) DepositSavings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DepositSavings(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WithdrawSavings operation middleware
+func (siw *ServerInterfaceWrapper) WithdrawSavings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WithdrawSavings(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListBackups operation middleware
 func (siw *ServerInterfaceWrapper) ListBackups(w http.ResponseWriter, r *http.Request) {
 
@@ -3750,6 +4060,12 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/receivables/receipts", wrapper.MarkReceived)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/receivables/{id}/message", wrapper.GetChargeMessage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/parties", wrapper.ListParties)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/savings", wrapper.GetSavingsMonth)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/savings", wrapper.CreateSavingsBox)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/savings/{id}", wrapper.DeleteSavingsBox)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/savings/{id}", wrapper.UpdateSavingsBox)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/savings/{id}/deposits", wrapper.DepositSavings)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/savings/{id}/withdrawals", wrapper.WithdrawSavings)
 
 	return m
 }
@@ -8093,6 +8409,387 @@ func (response UpdateRecurrence409JSONResponse) VisitUpdateRecurrenceResponse(w 
 	return err
 }
 
+type GetSavingsMonthRequestObject struct {
+	Params GetSavingsMonthParams
+}
+
+type GetSavingsMonthResponseObject interface {
+	VisitGetSavingsMonthResponse(w http.ResponseWriter) error
+}
+
+type GetSavingsMonth200JSONResponse SavingsMonth
+
+func (response GetSavingsMonth200JSONResponse) VisitGetSavingsMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSavingsMonth400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetSavingsMonth400JSONResponse) VisitGetSavingsMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSavingsMonth401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSavingsMonth401JSONResponse) VisitGetSavingsMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSavingsBoxRequestObject struct {
+	Body *CreateSavingsBoxJSONRequestBody
+}
+
+type CreateSavingsBoxResponseObject interface {
+	VisitCreateSavingsBoxResponse(w http.ResponseWriter) error
+}
+
+type CreateSavingsBox201JSONResponse SavingsBox
+
+func (response CreateSavingsBox201JSONResponse) VisitCreateSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSavingsBox400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateSavingsBox400JSONResponse) VisitCreateSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSavingsBox401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateSavingsBox401JSONResponse) VisitCreateSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSavingsBoxRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteSavingsBoxResponseObject interface {
+	VisitDeleteSavingsBoxResponse(w http.ResponseWriter) error
+}
+
+type DeleteSavingsBox204Response struct {
+}
+
+func (response DeleteSavingsBox204Response) VisitDeleteSavingsBoxResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSavingsBox401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteSavingsBox401JSONResponse) VisitDeleteSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSavingsBox404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteSavingsBox404JSONResponse) VisitDeleteSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSavingsBox409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteSavingsBox409JSONResponse) VisitDeleteSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateSavingsBoxRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateSavingsBoxJSONRequestBody
+}
+
+type UpdateSavingsBoxResponseObject interface {
+	VisitUpdateSavingsBoxResponse(w http.ResponseWriter) error
+}
+
+type UpdateSavingsBox200JSONResponse SavingsBox
+
+func (response UpdateSavingsBox200JSONResponse) VisitUpdateSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateSavingsBox400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateSavingsBox400JSONResponse) VisitUpdateSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateSavingsBox401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateSavingsBox401JSONResponse) VisitUpdateSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateSavingsBox404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateSavingsBox404JSONResponse) VisitUpdateSavingsBoxResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DepositSavingsRequestObject struct {
+	Id   Id `json:"id"`
+	Body *DepositSavingsJSONRequestBody
+}
+
+type DepositSavingsResponseObject interface {
+	VisitDepositSavingsResponse(w http.ResponseWriter) error
+}
+
+type DepositSavings201JSONResponse Entry
+
+func (response DepositSavings201JSONResponse) VisitDepositSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DepositSavings400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DepositSavings400JSONResponse) VisitDepositSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DepositSavings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DepositSavings401JSONResponse) VisitDepositSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DepositSavings404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DepositSavings404JSONResponse) VisitDepositSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DepositSavings409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DepositSavings409JSONResponse) VisitDepositSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawSavingsRequestObject struct {
+	Id   Id `json:"id"`
+	Body *WithdrawSavingsJSONRequestBody
+}
+
+type WithdrawSavingsResponseObject interface {
+	VisitWithdrawSavingsResponse(w http.ResponseWriter) error
+}
+
+type WithdrawSavings201JSONResponse Entry
+
+func (response WithdrawSavings201JSONResponse) VisitWithdrawSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawSavings400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response WithdrawSavings400JSONResponse) VisitWithdrawSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawSavings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response WithdrawSavings401JSONResponse) VisitWithdrawSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawSavings404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response WithdrawSavings404JSONResponse) VisitWithdrawSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawSavings409JSONResponse struct{ ConflictJSONResponse }
+
+func (response WithdrawSavings409JSONResponse) VisitWithdrawSavingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListBackupsRequestObject struct {
 }
 
@@ -8560,6 +9257,24 @@ type StrictServerInterface interface {
 	// UpdateRecurrence Edits a recurrence; a new price applies from the current invoice on.
 	// (PUT /recurrences/{id})
 	UpdateRecurrence(ctx context.Context, request UpdateRecurrenceRequestObject) (UpdateRecurrenceResponseObject, error)
+	// GetSavingsMonth Savings boxes as seen in the month, with the base, suggestions and estimates (RF-45, RF-48, RN-09 to RN-12).
+	// (GET /savings)
+	GetSavingsMonth(ctx context.Context, request GetSavingsMonthRequestObject) (GetSavingsMonthResponseObject, error)
+	// CreateSavingsBox Creates a savings box (RF-43).
+	// (POST /savings)
+	CreateSavingsBox(ctx context.Context, request CreateSavingsBoxRequestObject) (CreateSavingsBoxResponseObject, error)
+	// DeleteSavingsBox Deletes a box without moves.
+	// (DELETE /savings/{id})
+	DeleteSavingsBox(ctx context.Context, request DeleteSavingsBoxRequestObject) (DeleteSavingsBoxResponseObject, error)
+	// UpdateSavingsBox Edits name, target and percentage (RF-44).
+	// (PUT /savings/{id})
+	UpdateSavingsBox(ctx context.Context, request UpdateSavingsBoxRequestObject) (UpdateSavingsBoxResponseObject, error)
+	// DepositSavings Confirms a deposit with the amount really saved, from an account (RF-46, RN-08).
+	// (POST /savings/{id}/deposits)
+	DepositSavings(ctx context.Context, request DepositSavingsRequestObject) (DepositSavingsResponseObject, error)
+	// WithdrawSavings Takes money out of a box into an account, with a reason (RF-47, RN-08).
+	// (POST /savings/{id}/withdrawals)
+	WithdrawSavings(ctx context.Context, request WithdrawSavingsRequestObject) (WithdrawSavingsResponseObject, error)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(ctx context.Context, request ListBackupsRequestObject) (ListBackupsResponseObject, error)
@@ -10709,6 +11424,188 @@ func (sh *strictHandler) UpdateRecurrence(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateRecurrenceResponseObject); ok {
 		if err := validResponse.VisitUpdateRecurrenceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSavingsMonth operation middleware
+func (sh *strictHandler) GetSavingsMonth(w http.ResponseWriter, r *http.Request, params GetSavingsMonthParams) {
+	var request GetSavingsMonthRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSavingsMonth(ctx, request.(GetSavingsMonthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSavingsMonth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSavingsMonthResponseObject); ok {
+		if err := validResponse.VisitGetSavingsMonthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateSavingsBox operation middleware
+func (sh *strictHandler) CreateSavingsBox(w http.ResponseWriter, r *http.Request) {
+	var request CreateSavingsBoxRequestObject
+
+	var body CreateSavingsBoxJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateSavingsBox(ctx, request.(CreateSavingsBoxRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateSavingsBox")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSavingsBoxResponseObject); ok {
+		if err := validResponse.VisitCreateSavingsBoxResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSavingsBox operation middleware
+func (sh *strictHandler) DeleteSavingsBox(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteSavingsBoxRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSavingsBox(ctx, request.(DeleteSavingsBoxRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSavingsBox")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSavingsBoxResponseObject); ok {
+		if err := validResponse.VisitDeleteSavingsBoxResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateSavingsBox operation middleware
+func (sh *strictHandler) UpdateSavingsBox(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateSavingsBoxRequestObject
+
+	request.Id = id
+
+	var body UpdateSavingsBoxJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateSavingsBox(ctx, request.(UpdateSavingsBoxRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateSavingsBox")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSavingsBoxResponseObject); ok {
+		if err := validResponse.VisitUpdateSavingsBoxResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DepositSavings operation middleware
+func (sh *strictHandler) DepositSavings(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DepositSavingsRequestObject
+
+	request.Id = id
+
+	var body DepositSavingsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DepositSavings(ctx, request.(DepositSavingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DepositSavings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DepositSavingsResponseObject); ok {
+		if err := validResponse.VisitDepositSavingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WithdrawSavings operation middleware
+func (sh *strictHandler) WithdrawSavings(w http.ResponseWriter, r *http.Request, id Id) {
+	var request WithdrawSavingsRequestObject
+
+	request.Id = id
+
+	var body WithdrawSavingsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.WithdrawSavings(ctx, request.(WithdrawSavingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WithdrawSavings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(WithdrawSavingsResponseObject); ok {
+		if err := validResponse.VisitWithdrawSavingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

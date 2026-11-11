@@ -20,6 +20,7 @@ tags:
   - name: agenda
   - name: alelo
   - name: receivables
+  - name: savings
 paths:
   /ping:
     get:
@@ -1742,6 +1743,148 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /savings:
+    get:
+      operationId: getSavingsMonth
+      tags: [savings]
+      summary: Savings boxes as seen in the month, with the base, suggestions and estimates (RF-45, RF-48, RN-09 to RN-12).
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: Boxes of the month.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavingsMonth"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createSavingsBox
+      tags: [savings]
+      summary: Creates a savings box (RF-43).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavingsInput"
+      responses:
+        "201":
+          description: Created box.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavingsBox"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /savings/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateSavingsBox
+      tags: [savings]
+      summary: Edits name, target and percentage (RF-44).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavingsUpdate"
+      responses:
+        "200":
+          description: Updated box.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavingsBox"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteSavingsBox
+      tags: [savings]
+      summary: Deletes a box without moves.
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /savings/{id}/deposits:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: depositSavings
+      tags: [savings]
+      summary: Confirms a deposit with the amount really saved, from an account (RF-46, RN-08).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavingsDepositCreate"
+      responses:
+        "201":
+          description: Account entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /savings/{id}/withdrawals:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: withdrawSavings
+      tags: [savings]
+      summary: Takes money out of a box into an account, with a reason (RF-47, RN-08).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavingsWithdrawalCreate"
+      responses:
+        "201":
+          description: Account entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
 components:
   parameters:
     Id:
@@ -2036,7 +2179,7 @@ components:
 
     EntryKind:
       type: string
-      enum: [expense, income, adjustment, transfer, invoice_payment, receivable]
+      enum: [expense, income, adjustment, transfer, invoice_payment, receivable, savings_deposit, savings_withdrawal]
 
     Entry:
       type: object
@@ -3305,6 +3448,135 @@ components:
       properties:
         text:
           type: string
+
+    SavingsInput:
+      type: object
+      required: [name, targetCents, percentBp]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        targetCents:
+          $ref: "#/components/schemas/Cents"
+        percentBp:
+          type: integer
+          description: Monthly percentage of the income in basis points, 1250 meaning 12,5%.
+        initialBalanceCents:
+          $ref: "#/components/schemas/Cents"
+
+    SavingsUpdate:
+      type: object
+      required: [name, targetCents, percentBp]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        targetCents:
+          $ref: "#/components/schemas/Cents"
+        percentBp:
+          type: integer
+
+    SavingsMove:
+      type: object
+      required: [id, kind, month, date, amountCents, reason, accountName, entryId]
+      properties:
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum: [deposit, withdrawal]
+        month:
+          $ref: "#/components/schemas/Month"
+        date:
+          type: string
+          format: date
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        reason:
+          type: string
+        accountName:
+          type: string
+        entryId:
+          type: integer
+          format: int64
+        createdByName:
+          type: string
+
+    SavingsBox:
+      type: object
+      required: [id, name, targetCents, percentBp, balanceCents, progressBp, done, suggestedCents, depositedCents, moves]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        targetCents:
+          $ref: "#/components/schemas/Cents"
+        percentBp:
+          type: integer
+        balanceCents:
+          $ref: "#/components/schemas/Cents"
+        progressBp:
+          type: integer
+          description: Balance over target in basis points, capped at 10000.
+        done:
+          type: boolean
+        suggestedCents:
+          $ref: "#/components/schemas/Cents"
+        depositedCents:
+          $ref: "#/components/schemas/Cents"
+        estimatedMonth:
+          $ref: "#/components/schemas/Month"
+        moves:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavingsMove"
+
+    SavingsMonth:
+      type: object
+      required: [month, baseCents, boxes]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        baseCents:
+          $ref: "#/components/schemas/Cents"
+        boxes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavingsBox"
+
+    SavingsDepositCreate:
+      type: object
+      required: [month, amountCents, accountId, date]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        accountId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+
+    SavingsWithdrawalCreate:
+      type: object
+      required: [amountCents, accountId, date, reason]
+      properties:
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        accountId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        reason:
+          type: string
+          maxLength: 120
 
 security:
   - session: []
