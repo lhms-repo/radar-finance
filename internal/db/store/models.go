@@ -88,6 +88,34 @@ type Entry struct {
 	BillMonth   sql.NullString
 }
 
+type Financing struct {
+	ID                  int64
+	Name                string
+	CategoryID          int64
+	AccountID           int64
+	DueDay              int64
+	InstallmentCents    int64
+	TotalInstallments   int64
+	InitialPaid         int64
+	InitialBalanceCents int64
+	StartMonth          string
+	CreatedBy           int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type FinancingEvent struct {
+	ID                int64
+	FinancingID       int64
+	Kind              string
+	Month             sql.NullString
+	Number            sql.NullInt64
+	EntryID           sql.NullInt64
+	BalanceAfterCents int64
+	CreatedBy         int64
+	CreatedAt         time.Time
+}
+
 type Income struct {
 	ID          int64
 	Kind        string
