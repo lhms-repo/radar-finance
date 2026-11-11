@@ -474,6 +474,204 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the cards with limit use and current invoice (RF-14, RF-20). */
+        get: operations["listCards"];
+        put?: never;
+        /** Registers a card (RF-14). */
+        post: operations["createCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Returns one card with limit use (RF-20). */
+        get: operations["getCard"];
+        /** Replaces the fields of a card. */
+        put: operations["updateCard"];
+        post?: never;
+        /** Deletes a card without purchases, recurrences or payments. */
+        delete: operations["deleteCard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{id}/invoices/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        /** Invoice of the due month with every line and totals (RF-19, RN-01). */
+        get: operations["getInvoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{id}/invoices/{month}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pays the whole invoice from an account; not counted as spending (RF-21, RN-07). */
+        post: operations["payInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{id}/forecast": {
+        parameters: {
+            query?: {
+                count?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Totals of the next invoices from the current one (RF-23). */
+        get: operations["getCardForecast"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{id}/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registers a purchase in one or more installments (RF-15, RF-16, RF-18, RN-03). */
+        post: operations["addPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{id}/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registers a refund or credit on the invoice of its date (RF-22). */
+        post: operations["addCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/purchases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replaces a purchase and regenerates its installments. */
+        put: operations["updatePurchase"];
+        post?: never;
+        /** Deletes a purchase or credit with its installments. */
+        delete: operations["deletePurchase"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cards/{id}/recurrences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Recurrences of the card with the current price (RF-17). */
+        get: operations["listRecurrences"];
+        put?: never;
+        /** Registers a recurrence charged on every invoice (RF-17). */
+        post: operations["addRecurrence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recurrences/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Edits a recurrence; a new price applies from the current invoice on. */
+        put: operations["updateRecurrence"];
+        post?: never;
+        /** Deletes a recurrence that is not on a paid invoice. */
+        delete: operations["deleteRecurrence"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -610,7 +808,7 @@ export interface components {
             active?: boolean;
         };
         /** @enum {string} */
-        EntryKind: "expense" | "income" | "adjustment" | "transfer";
+        EntryKind: "expense" | "income" | "adjustment" | "transfer" | "invoice_payment";
         Entry: {
             /** Format: int64 */
             id: number;
@@ -775,6 +973,196 @@ export interface components {
             /** Format: date */
             date: string;
             description?: string;
+        };
+        /** @enum {string} */
+        CardColor: "graphite" | "purple" | "blue" | "green" | "red" | "orange" | "gold" | "silver";
+        /** @enum {string} */
+        CardFinish: "metal" | "matte";
+        CardInput: {
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            limitCents: components["schemas"]["Cents"];
+            closingDay: number;
+            dueDay: number;
+            /** @description Last four digits of the card number. */
+            lastDigits?: string;
+            color: components["schemas"]["CardColor"];
+            finish: components["schemas"]["CardFinish"];
+        };
+        CardUpdate: components["schemas"]["CardInput"] & {
+            active: boolean;
+        };
+        Card: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            limitCents: components["schemas"]["Cents"];
+            closingDay: number;
+            dueDay: number;
+            lastDigits?: string;
+            color: components["schemas"]["CardColor"];
+            finish: components["schemas"]["CardFinish"];
+            active: boolean;
+            limitUsedCents: components["schemas"]["Cents"];
+            limitFreeCents: components["schemas"]["Cents"];
+            currentInvoice: components["schemas"]["Month"];
+        };
+        /** @enum {string} */
+        InvoiceStatus: "open" | "closed" | "overdue" | "paid";
+        /** @enum {string} */
+        InvoiceItemKind: "purchase" | "credit" | "recurrence";
+        InvoiceItem: {
+            kind: components["schemas"]["InvoiceItemKind"];
+            /** Format: int64 */
+            purchaseId?: number;
+            /** Format: int64 */
+            recurrenceId?: number;
+            /**
+             * Format: date
+             * @description Purchase date, kept only as information (RN-01).
+             */
+            date?: string;
+            merchant: string;
+            description: string;
+            /** Format: int64 */
+            categoryId?: number;
+            categoryName?: string;
+            parentCategoryName?: string;
+            categoryIcon?: string;
+            /** @description Installment number, zero for recurrences. */
+            number: number;
+            /** @description Number of installments, zero for recurrences. */
+            count: number;
+            /**
+             * Format: int64
+             * @description Signed cents; credits are negative.
+             */
+            amountCents: number;
+            purchaseTotalCents?: components["schemas"]["Cents"];
+            buyerName?: string;
+            createdByName?: string;
+        };
+        InvoicePayment: {
+            /** Format: int64 */
+            entryId: number;
+            /** Format: int64 */
+            accountId: number;
+            accountName: string;
+            /** Format: date */
+            paidOn: string;
+            amountCents: components["schemas"]["Cents"];
+        };
+        Invoice: {
+            /** Format: int64 */
+            cardId: number;
+            month: components["schemas"]["Month"];
+            /** Format: date */
+            closingOn: string;
+            /** Format: date */
+            dueOn: string;
+            status: components["schemas"]["InvoiceStatus"];
+            totalCents: components["schemas"]["Cents"];
+            thirdPartyCents: components["schemas"]["Cents"];
+            receivedCents: components["schemas"]["Cents"];
+            pendingCents: components["schemas"]["Cents"];
+            netCents: components["schemas"]["Cents"];
+            items: components["schemas"]["InvoiceItem"][];
+            payment?: components["schemas"]["InvoicePayment"];
+            /** @description The total changed after the payment was recorded. */
+            paymentOutdated: boolean;
+        };
+        InvoiceSummary: {
+            month: components["schemas"]["Month"];
+            /** Format: date */
+            dueOn: string;
+            status: components["schemas"]["InvoiceStatus"];
+            totalCents: components["schemas"]["Cents"];
+        };
+        InvoicePaymentCreate: {
+            /** Format: int64 */
+            accountId: number;
+            /** Format: date */
+            date: string;
+        };
+        PurchaseInput: {
+            /** Format: date */
+            date: string;
+            merchant: string;
+            description?: string;
+            /** Format: int64 */
+            categoryId: number;
+            /** Format: int64 */
+            buyerPersonId?: number;
+            amountCents: components["schemas"]["Cents"];
+            installments: number;
+            /** @description amountCents is the value of each installment instead of the total. */
+            perInstallment?: boolean;
+        };
+        CreditInput: {
+            /** Format: date */
+            date: string;
+            merchant: string;
+            description?: string;
+            /** Format: int64 */
+            categoryId?: number;
+            amountCents: components["schemas"]["Cents"];
+        };
+        Purchase: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            cardId: number;
+            /** @enum {string} */
+            kind: "purchase" | "credit";
+            /** Format: date */
+            date: string;
+            merchant: string;
+            description: string;
+            /** Format: int64 */
+            categoryId?: number;
+            /** Format: int64 */
+            buyerPersonId?: number;
+            totalCents: components["schemas"]["Cents"];
+            installments: number;
+            firstInvoice: components["schemas"]["Month"];
+        };
+        RecurrenceInput: {
+            description: string;
+            /** Format: int64 */
+            categoryId: number;
+            amountCents: components["schemas"]["Cents"];
+            /**
+             * Format: date
+             * @description The first charge goes to the invoice of this date.
+             */
+            startDate: string;
+            endMonth?: components["schemas"]["Month"];
+        };
+        RecurrenceUpdate: {
+            description: string;
+            /** Format: int64 */
+            categoryId: number;
+            amountCents: components["schemas"]["Cents"];
+            endMonth?: components["schemas"]["Month"];
+        };
+        Recurrence: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            cardId: number;
+            description: string;
+            /** Format: int64 */
+            categoryId: number;
+            categoryName: string;
+            parentCategoryName?: string;
+            categoryIcon?: string;
+            amountCents: components["schemas"]["Cents"];
+            startMonth: components["schemas"]["Month"];
+            endMonth?: components["schemas"]["Month"];
         };
     };
     responses: {
@@ -1674,6 +2062,433 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listCards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cards, active first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardInput"];
+            };
+        };
+        responses: {
+            /** @description Created card. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Card"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteCard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invoice. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    payInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoicePaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description Paid invoice. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getCardForecast: {
+        parameters: {
+            query?: {
+                count?: number;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Invoice totals. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceSummary"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseInput"];
+            };
+        };
+        responses: {
+            /** @description Created purchase. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    addCredit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditInput"];
+            };
+        };
+        responses: {
+            /** @description Created credit. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updatePurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseInput"];
+            };
+        };
+        responses: {
+            /** @description Updated purchase. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Purchase"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deletePurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listRecurrences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recurrences. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recurrence"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurrenceInput"];
+            };
+        };
+        responses: {
+            /** @description Created recurrence. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recurrence"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecurrenceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated recurrence. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Recurrence"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteRecurrence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];

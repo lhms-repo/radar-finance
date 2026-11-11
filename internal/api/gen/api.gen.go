@@ -40,12 +40,67 @@ func (e BackupKind) Valid() bool {
 	}
 }
 
+// Defines values for CardColor.
+const (
+	Blue     CardColor = "blue"
+	Gold     CardColor = "gold"
+	Graphite CardColor = "graphite"
+	Green    CardColor = "green"
+	Orange   CardColor = "orange"
+	Purple   CardColor = "purple"
+	Red      CardColor = "red"
+	Silver   CardColor = "silver"
+)
+
+// Valid indicates whether the value is a known member of the CardColor enum.
+func (e CardColor) Valid() bool {
+	switch e {
+	case Blue:
+		return true
+	case Gold:
+		return true
+	case Graphite:
+		return true
+	case Green:
+		return true
+	case Orange:
+		return true
+	case Purple:
+		return true
+	case Red:
+		return true
+	case Silver:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CardFinish.
+const (
+	Matte CardFinish = "matte"
+	Metal CardFinish = "metal"
+)
+
+// Valid indicates whether the value is a known member of the CardFinish enum.
+func (e CardFinish) Valid() bool {
+	switch e {
+	case Matte:
+		return true
+	case Metal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EntryKind.
 const (
-	EntryKindAdjustment EntryKind = "adjustment"
-	EntryKindExpense    EntryKind = "expense"
-	EntryKindIncome     EntryKind = "income"
-	EntryKindTransfer   EntryKind = "transfer"
+	EntryKindAdjustment     EntryKind = "adjustment"
+	EntryKindExpense        EntryKind = "expense"
+	EntryKindIncome         EntryKind = "income"
+	EntryKindInvoicePayment EntryKind = "invoice_payment"
+	EntryKindTransfer       EntryKind = "transfer"
 )
 
 // Valid indicates whether the value is a known member of the EntryKind enum.
@@ -56,6 +111,8 @@ func (e EntryKind) Valid() bool {
 	case EntryKindExpense:
 		return true
 	case EntryKindIncome:
+		return true
+	case EntryKindInvoicePayment:
 		return true
 	case EntryKindTransfer:
 		return true
@@ -82,6 +139,51 @@ func (e IncomeKind) Valid() bool {
 	}
 }
 
+// Defines values for InvoiceItemKind.
+const (
+	InvoiceItemKindCredit     InvoiceItemKind = "credit"
+	InvoiceItemKindPurchase   InvoiceItemKind = "purchase"
+	InvoiceItemKindRecurrence InvoiceItemKind = "recurrence"
+)
+
+// Valid indicates whether the value is a known member of the InvoiceItemKind enum.
+func (e InvoiceItemKind) Valid() bool {
+	switch e {
+	case InvoiceItemKindCredit:
+		return true
+	case InvoiceItemKindPurchase:
+		return true
+	case InvoiceItemKindRecurrence:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InvoiceStatus.
+const (
+	Closed  InvoiceStatus = "closed"
+	Open    InvoiceStatus = "open"
+	Overdue InvoiceStatus = "overdue"
+	Paid    InvoiceStatus = "paid"
+)
+
+// Valid indicates whether the value is a known member of the InvoiceStatus enum.
+func (e InvoiceStatus) Valid() bool {
+	switch e {
+	case Closed:
+		return true
+	case Open:
+		return true
+	case Overdue:
+		return true
+	case Paid:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PingStatus.
 const (
 	Ok PingStatus = "ok"
@@ -91,6 +193,24 @@ const (
 func (e PingStatus) Valid() bool {
 	switch e {
 	case Ok:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PurchaseKind.
+const (
+	PurchaseKindCredit   PurchaseKind = "credit"
+	PurchaseKindPurchase PurchaseKind = "purchase"
+)
+
+// Valid indicates whether the value is a known member of the PurchaseKind enum.
+func (e PurchaseKind) Valid() bool {
+	switch e {
+	case PurchaseKindCredit:
+		return true
+	case PurchaseKindPurchase:
 		return true
 	default:
 		return false
@@ -170,6 +290,71 @@ type Backup struct {
 // BackupKind defines model for BackupKind.
 type BackupKind string
 
+// Card defines model for Card.
+type Card struct {
+	Active     bool      `json:"active"`
+	ClosingDay int       `json:"closingDay"`
+	Color      CardColor `json:"color"`
+
+	// CurrentInvoice Example: 2026-11
+	CurrentInvoice Month      `json:"currentInvoice"`
+	DueDay         int        `json:"dueDay"`
+	Finish         CardFinish `json:"finish"`
+	Id             int64      `json:"id"`
+	LastDigits     *string    `json:"lastDigits,omitempty"`
+
+	// LimitCents Amount in cents (RN-21).
+	LimitCents Cents `json:"limitCents"`
+
+	// LimitFreeCents Amount in cents (RN-21).
+	LimitFreeCents Cents `json:"limitFreeCents"`
+
+	// LimitUsedCents Amount in cents (RN-21).
+	LimitUsedCents Cents  `json:"limitUsedCents"`
+	Name           string `json:"name"`
+	PersonId       int64  `json:"personId"`
+	PersonName     string `json:"personName"`
+}
+
+// CardColor defines model for CardColor.
+type CardColor string
+
+// CardFinish defines model for CardFinish.
+type CardFinish string
+
+// CardInput defines model for CardInput.
+type CardInput struct {
+	ClosingDay int        `json:"closingDay"`
+	Color      CardColor  `json:"color"`
+	DueDay     int        `json:"dueDay"`
+	Finish     CardFinish `json:"finish"`
+
+	// LastDigits Last four digits of the card number.
+	LastDigits *string `json:"lastDigits,omitempty"`
+
+	// LimitCents Amount in cents (RN-21).
+	LimitCents Cents  `json:"limitCents"`
+	Name       string `json:"name"`
+	PersonId   int64  `json:"personId"`
+}
+
+// CardUpdate defines model for CardUpdate.
+type CardUpdate struct {
+	Active     bool       `json:"active"`
+	ClosingDay int        `json:"closingDay"`
+	Color      CardColor  `json:"color"`
+	DueDay     int        `json:"dueDay"`
+	Finish     CardFinish `json:"finish"`
+
+	// LastDigits Last four digits of the card number.
+	LastDigits *string `json:"lastDigits,omitempty"`
+
+	// LimitCents Amount in cents (RN-21).
+	LimitCents Cents  `json:"limitCents"`
+	Name       string `json:"name"`
+	PersonId   int64  `json:"personId"`
+}
+
 // Category defines model for Category.
 type Category struct {
 	Active bool `json:"active"`
@@ -213,6 +398,16 @@ type CategoryUpdate struct {
 
 // Cents Amount in cents (RN-21).
 type Cents = int64
+
+// CreditInput defines model for CreditInput.
+type CreditInput struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	CategoryId  *int64             `json:"categoryId,omitempty"`
+	Date        openapi_types.Date `json:"date"`
+	Description *string            `json:"description,omitempty"`
+	Merchant    string             `json:"merchant"`
+}
 
 // Entry defines model for Entry.
 type Entry struct {
@@ -368,6 +563,101 @@ type IncomeOccurrence struct {
 	ReceivedOn *openapi_types.Date `json:"receivedOn,omitempty"`
 }
 
+// Invoice defines model for Invoice.
+type Invoice struct {
+	CardId    int64              `json:"cardId"`
+	ClosingOn openapi_types.Date `json:"closingOn"`
+	DueOn     openapi_types.Date `json:"dueOn"`
+	Items     []InvoiceItem      `json:"items"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+
+	// NetCents Amount in cents (RN-21).
+	NetCents Cents           `json:"netCents"`
+	Payment  *InvoicePayment `json:"payment,omitempty"`
+
+	// PaymentOutdated The total changed after the payment was recorded.
+	PaymentOutdated bool `json:"paymentOutdated"`
+
+	// PendingCents Amount in cents (RN-21).
+	PendingCents Cents `json:"pendingCents"`
+
+	// ReceivedCents Amount in cents (RN-21).
+	ReceivedCents Cents         `json:"receivedCents"`
+	Status        InvoiceStatus `json:"status"`
+
+	// ThirdPartyCents Amount in cents (RN-21).
+	ThirdPartyCents Cents `json:"thirdPartyCents"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
+// InvoiceItem defines model for InvoiceItem.
+type InvoiceItem struct {
+	// AmountCents Signed cents; credits are negative.
+	AmountCents  int64   `json:"amountCents"`
+	BuyerName    *string `json:"buyerName,omitempty"`
+	CategoryIcon *string `json:"categoryIcon,omitempty"`
+	CategoryId   *int64  `json:"categoryId,omitempty"`
+	CategoryName *string `json:"categoryName,omitempty"`
+
+	// Count Number of installments, zero for recurrences.
+	Count         int     `json:"count"`
+	CreatedByName *string `json:"createdByName,omitempty"`
+
+	// Date Purchase date, kept only as information (RN-01).
+	Date        *openapi_types.Date `json:"date,omitempty"`
+	Description string              `json:"description"`
+	Kind        InvoiceItemKind     `json:"kind"`
+	Merchant    string              `json:"merchant"`
+
+	// Number Installment number, zero for recurrences.
+	Number             int     `json:"number"`
+	ParentCategoryName *string `json:"parentCategoryName,omitempty"`
+	PurchaseId         *int64  `json:"purchaseId,omitempty"`
+
+	// PurchaseTotalCents Amount in cents (RN-21).
+	PurchaseTotalCents *Cents `json:"purchaseTotalCents,omitempty"`
+	RecurrenceId       *int64 `json:"recurrenceId,omitempty"`
+}
+
+// InvoiceItemKind defines model for InvoiceItemKind.
+type InvoiceItemKind string
+
+// InvoicePayment defines model for InvoicePayment.
+type InvoicePayment struct {
+	AccountId   int64  `json:"accountId"`
+	AccountName string `json:"accountName"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	EntryId     int64              `json:"entryId"`
+	PaidOn      openapi_types.Date `json:"paidOn"`
+}
+
+// InvoicePaymentCreate defines model for InvoicePaymentCreate.
+type InvoicePaymentCreate struct {
+	AccountId int64              `json:"accountId"`
+	Date      openapi_types.Date `json:"date"`
+}
+
+// InvoiceStatus defines model for InvoiceStatus.
+type InvoiceStatus string
+
+// InvoiceSummary defines model for InvoiceSummary.
+type InvoiceSummary struct {
+	DueOn openapi_types.Date `json:"dueOn"`
+
+	// Month Example: 2026-11
+	Month  Month         `json:"month"`
+	Status InvoiceStatus `json:"status"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Login string `json:"login"`
@@ -442,6 +732,87 @@ type PreferencesUpdate struct {
 	Theme   *Theme `json:"theme,omitempty"`
 }
 
+// Purchase defines model for Purchase.
+type Purchase struct {
+	BuyerPersonId *int64             `json:"buyerPersonId,omitempty"`
+	CardId        int64              `json:"cardId"`
+	CategoryId    *int64             `json:"categoryId,omitempty"`
+	Date          openapi_types.Date `json:"date"`
+	Description   string             `json:"description"`
+
+	// FirstInvoice Example: 2026-11
+	FirstInvoice Month        `json:"firstInvoice"`
+	Id           int64        `json:"id"`
+	Installments int          `json:"installments"`
+	Kind         PurchaseKind `json:"kind"`
+	Merchant     string       `json:"merchant"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
+// PurchaseKind defines model for Purchase.Kind.
+type PurchaseKind string
+
+// PurchaseInput defines model for PurchaseInput.
+type PurchaseInput struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents   Cents              `json:"amountCents"`
+	BuyerPersonId *int64             `json:"buyerPersonId,omitempty"`
+	CategoryId    int64              `json:"categoryId"`
+	Date          openapi_types.Date `json:"date"`
+	Description   *string            `json:"description,omitempty"`
+	Installments  int                `json:"installments"`
+	Merchant      string             `json:"merchant"`
+
+	// PerInstallment amountCents is the value of each installment instead of the total.
+	PerInstallment *bool `json:"perInstallment,omitempty"`
+}
+
+// Recurrence defines model for Recurrence.
+type Recurrence struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents  Cents   `json:"amountCents"`
+	CardId       int64   `json:"cardId"`
+	CategoryIcon *string `json:"categoryIcon,omitempty"`
+	CategoryId   int64   `json:"categoryId"`
+	CategoryName string  `json:"categoryName"`
+	Description  string  `json:"description"`
+
+	// EndMonth Example: 2026-11
+	EndMonth           *Month  `json:"endMonth,omitempty"`
+	Id                 int64   `json:"id"`
+	ParentCategoryName *string `json:"parentCategoryName,omitempty"`
+
+	// StartMonth Example: 2026-11
+	StartMonth Month `json:"startMonth"`
+}
+
+// RecurrenceInput defines model for RecurrenceInput.
+type RecurrenceInput struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents  `json:"amountCents"`
+	CategoryId  int64  `json:"categoryId"`
+	Description string `json:"description"`
+
+	// EndMonth Example: 2026-11
+	EndMonth *Month `json:"endMonth,omitempty"`
+
+	// StartDate The first charge goes to the invoice of this date.
+	StartDate openapi_types.Date `json:"startDate"`
+}
+
+// RecurrenceUpdate defines model for RecurrenceUpdate.
+type RecurrenceUpdate struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents  `json:"amountCents"`
+	CategoryId  int64  `json:"categoryId"`
+	Description string `json:"description"`
+
+	// EndMonth Example: 2026-11
+	EndMonth *Month `json:"endMonth,omitempty"`
+}
+
 // Statement defines model for Statement.
 type Statement struct {
 	// ClosingCents Amount in cents (RN-21).
@@ -499,6 +870,11 @@ type GetAccountStatementParams struct {
 	Month Month `form:"month" json:"month"`
 }
 
+// GetCardForecastParams defines parameters for GetCardForecast.
+type GetCardForecastParams struct {
+	Count *int `form:"count,omitempty" json:"count,omitempty"`
+}
+
 // ListCategoriesParams defines parameters for ListCategories.
 type ListCategoriesParams struct {
 	// IncludeInactive Also returns inactive categories, for the management screen.
@@ -534,6 +910,24 @@ type AddAccountIncomeJSONRequestBody = OneOffIncomeCreate
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
+// CreateCardJSONRequestBody defines body for CreateCard for application/json ContentType.
+type CreateCardJSONRequestBody = CardInput
+
+// UpdateCardJSONRequestBody defines body for UpdateCard for application/json ContentType.
+type UpdateCardJSONRequestBody = CardUpdate
+
+// AddCreditJSONRequestBody defines body for AddCredit for application/json ContentType.
+type AddCreditJSONRequestBody = CreditInput
+
+// PayInvoiceJSONRequestBody defines body for PayInvoice for application/json ContentType.
+type PayInvoiceJSONRequestBody = InvoicePaymentCreate
+
+// AddPurchaseJSONRequestBody defines body for AddPurchase for application/json ContentType.
+type AddPurchaseJSONRequestBody = PurchaseInput
+
+// AddRecurrenceJSONRequestBody defines body for AddRecurrence for application/json ContentType.
+type AddRecurrenceJSONRequestBody = RecurrenceInput
+
 // CreateCategoryJSONRequestBody defines body for CreateCategory for application/json ContentType.
 type CreateCategoryJSONRequestBody = CategoryCreate
 
@@ -554,6 +948,12 @@ type ConfirmIncomeJSONRequestBody = IncomeConfirm
 
 // UpdatePreferencesJSONRequestBody defines body for UpdatePreferences for application/json ContentType.
 type UpdatePreferencesJSONRequestBody = PreferencesUpdate
+
+// UpdatePurchaseJSONRequestBody defines body for UpdatePurchase for application/json ContentType.
+type UpdatePurchaseJSONRequestBody = PurchaseInput
+
+// UpdateRecurrenceJSONRequestBody defines body for UpdateRecurrence for application/json ContentType.
+type UpdateRecurrenceJSONRequestBody = RecurrenceUpdate
 
 // CreateTransferJSONRequestBody defines body for CreateTransfer for application/json ContentType.
 type CreateTransferJSONRequestBody = TransferCreate
@@ -596,6 +996,42 @@ type ServerInterface interface {
 	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
 	// (GET /auth/users)
 	ListLoginUsers(w http.ResponseWriter, r *http.Request)
+	// ListCards Lists the cards with limit use and current invoice (RF-14, RF-20).
+	// (GET /cards)
+	ListCards(w http.ResponseWriter, r *http.Request)
+	// CreateCard Registers a card (RF-14).
+	// (POST /cards)
+	CreateCard(w http.ResponseWriter, r *http.Request)
+	// DeleteCard Deletes a card without purchases, recurrences or payments.
+	// (DELETE /cards/{id})
+	DeleteCard(w http.ResponseWriter, r *http.Request, id Id)
+	// GetCard Returns one card with limit use (RF-20).
+	// (GET /cards/{id})
+	GetCard(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateCard Replaces the fields of a card.
+	// (PUT /cards/{id})
+	UpdateCard(w http.ResponseWriter, r *http.Request, id Id)
+	// AddCredit Registers a refund or credit on the invoice of its date (RF-22).
+	// (POST /cards/{id}/credits)
+	AddCredit(w http.ResponseWriter, r *http.Request, id Id)
+	// GetCardForecast Totals of the next invoices from the current one (RF-23).
+	// (GET /cards/{id}/forecast)
+	GetCardForecast(w http.ResponseWriter, r *http.Request, id Id, params GetCardForecastParams)
+	// GetInvoice Invoice of the due month with every line and totals (RF-19, RN-01).
+	// (GET /cards/{id}/invoices/{month})
+	GetInvoice(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// PayInvoice Pays the whole invoice from an account; not counted as spending (RF-21, RN-07).
+	// (POST /cards/{id}/invoices/{month}/payment)
+	PayInvoice(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// AddPurchase Registers a purchase in one or more installments (RF-15, RF-16, RF-18, RN-03).
+	// (POST /cards/{id}/purchases)
+	AddPurchase(w http.ResponseWriter, r *http.Request, id Id)
+	// ListRecurrences Recurrences of the card with the current price (RF-17).
+	// (GET /cards/{id}/recurrences)
+	ListRecurrences(w http.ResponseWriter, r *http.Request, id Id)
+	// AddRecurrence Registers a recurrence charged on every invoice (RF-17).
+	// (POST /cards/{id}/recurrences)
+	AddRecurrence(w http.ResponseWriter, r *http.Request, id Id)
 	// ListCategories Lists the category tree in display order (RF-50, RN-18).
 	// (GET /categories)
 	ListCategories(w http.ResponseWriter, r *http.Request, params ListCategoriesParams)
@@ -647,6 +1083,18 @@ type ServerInterface interface {
 	// Ping Liveness check used by the container health check.
 	// (GET /ping)
 	Ping(w http.ResponseWriter, r *http.Request)
+	// DeletePurchase Deletes a purchase or credit with its installments.
+	// (DELETE /purchases/{id})
+	DeletePurchase(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdatePurchase Replaces a purchase and regenerates its installments.
+	// (PUT /purchases/{id})
+	UpdatePurchase(w http.ResponseWriter, r *http.Request, id Id)
+	// DeleteRecurrence Deletes a recurrence that is not on a paid invoice.
+	// (DELETE /recurrences/{id})
+	DeleteRecurrence(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateRecurrence Edits a recurrence; a new price applies from the current invoice on.
+	// (PUT /recurrences/{id})
+	UpdateRecurrence(w http.ResponseWriter, r *http.Request, id Id)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(w http.ResponseWriter, r *http.Request)
@@ -932,6 +1380,328 @@ func (siw *ServerInterfaceWrapper) ListLoginUsers(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListLoginUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListCards operation middleware
+func (siw *ServerInterfaceWrapper) ListCards(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCards(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateCard operation middleware
+func (siw *ServerInterfaceWrapper) CreateCard(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateCard(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteCard operation middleware
+func (siw *ServerInterfaceWrapper) DeleteCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteCard(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCard operation middleware
+func (siw *ServerInterfaceWrapper) GetCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCard(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCard operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCard(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCard(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddCredit operation middleware
+func (siw *ServerInterfaceWrapper) AddCredit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddCredit(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetCardForecast operation middleware
+func (siw *ServerInterfaceWrapper) GetCardForecast(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCardForecastParams
+
+	// ------------- Optional query parameter "count" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "count", r.URL.Query(), &params.Count, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "count"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "count", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCardForecast(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetInvoice operation middleware
+func (siw *ServerInterfaceWrapper) GetInvoice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetInvoice(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PayInvoice operation middleware
+func (siw *ServerInterfaceWrapper) PayInvoice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PayInvoice(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddPurchase operation middleware
+func (siw *ServerInterfaceWrapper) AddPurchase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddPurchase(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRecurrences operation middleware
+func (siw *ServerInterfaceWrapper) ListRecurrences(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRecurrences(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddRecurrence operation middleware
+func (siw *ServerInterfaceWrapper) AddRecurrence(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddRecurrence(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1320,6 +2090,110 @@ func (siw *ServerInterfaceWrapper) Ping(w http.ResponseWriter, r *http.Request) 
 	handler.ServeHTTP(w, r)
 }
 
+// DeletePurchase operation middleware
+func (siw *ServerInterfaceWrapper) DeletePurchase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePurchase(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePurchase operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePurchase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePurchase(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteRecurrence operation middleware
+func (siw *ServerInterfaceWrapper) DeleteRecurrence(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteRecurrence(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateRecurrence operation middleware
+func (siw *ServerInterfaceWrapper) UpdateRecurrence(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateRecurrence(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListBackups operation middleware
 func (siw *ServerInterfaceWrapper) ListBackups(w http.ResponseWriter, r *http.Request) {
 
@@ -1544,6 +2418,22 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/incomes/{id}", wrapper.UpdateIncome)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/incomes/{id}/confirm", wrapper.ConfirmIncome)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/accounts/{id}/incomes", wrapper.AddAccountIncome)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards", wrapper.ListCards)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards", wrapper.CreateCard)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/cards/{id}", wrapper.DeleteCard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{id}", wrapper.GetCard)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/cards/{id}", wrapper.UpdateCard)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{id}/invoices/{month}", wrapper.GetInvoice)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/invoices/{month}/payment", wrapper.PayInvoice)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{id}/forecast", wrapper.GetCardForecast)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/purchases", wrapper.AddPurchase)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/credits", wrapper.AddCredit)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/purchases/{id}", wrapper.DeletePurchase)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/purchases/{id}", wrapper.UpdatePurchase)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/cards/{id}/recurrences", wrapper.ListRecurrences)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/recurrences", wrapper.AddRecurrence)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/recurrences/{id}", wrapper.DeleteRecurrence)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/recurrences/{id}", wrapper.UpdateRecurrence)
 
 	return m
 }
@@ -2228,6 +3118,775 @@ func (response ListLoginUsers200JSONResponse) VisitListLoginUsersResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCardsRequestObject struct {
+}
+
+type ListCardsResponseObject interface {
+	VisitListCardsResponse(w http.ResponseWriter) error
+}
+
+type ListCards200JSONResponse []Card
+
+func (response ListCards200JSONResponse) VisitListCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCards401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListCards401JSONResponse) VisitListCardsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCardRequestObject struct {
+	Body *CreateCardJSONRequestBody
+}
+
+type CreateCardResponseObject interface {
+	VisitCreateCardResponse(w http.ResponseWriter) error
+}
+
+type CreateCard201JSONResponse Card
+
+func (response CreateCard201JSONResponse) VisitCreateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCard400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateCard400JSONResponse) VisitCreateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateCard401JSONResponse) VisitCreateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateCard409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateCard409JSONResponse) VisitCreateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCardRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteCardResponseObject interface {
+	VisitDeleteCardResponse(w http.ResponseWriter) error
+}
+
+type DeleteCard204Response struct {
+}
+
+func (response DeleteCard204Response) VisitDeleteCardResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteCard401JSONResponse) VisitDeleteCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteCard404JSONResponse) VisitDeleteCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteCard409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteCard409JSONResponse) VisitDeleteCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type GetCardResponseObject interface {
+	VisitGetCardResponse(w http.ResponseWriter) error
+}
+
+type GetCard200JSONResponse Card
+
+func (response GetCard200JSONResponse) VisitGetCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetCard401JSONResponse) VisitGetCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetCard404JSONResponse) VisitGetCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCardRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateCardJSONRequestBody
+}
+
+type UpdateCardResponseObject interface {
+	VisitUpdateCardResponse(w http.ResponseWriter) error
+}
+
+type UpdateCard200JSONResponse Card
+
+func (response UpdateCard200JSONResponse) VisitUpdateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCard400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateCard400JSONResponse) VisitUpdateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateCard401JSONResponse) VisitUpdateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCard404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateCard404JSONResponse) VisitUpdateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateCard409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateCard409JSONResponse) VisitUpdateCardResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddCreditRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddCreditJSONRequestBody
+}
+
+type AddCreditResponseObject interface {
+	VisitAddCreditResponse(w http.ResponseWriter) error
+}
+
+type AddCredit201JSONResponse Purchase
+
+func (response AddCredit201JSONResponse) VisitAddCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddCredit400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddCredit400JSONResponse) VisitAddCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddCredit401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddCredit401JSONResponse) VisitAddCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddCredit404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddCredit404JSONResponse) VisitAddCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddCredit409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddCredit409JSONResponse) VisitAddCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardForecastRequestObject struct {
+	Id     Id `json:"id"`
+	Params GetCardForecastParams
+}
+
+type GetCardForecastResponseObject interface {
+	VisitGetCardForecastResponse(w http.ResponseWriter) error
+}
+
+type GetCardForecast200JSONResponse []InvoiceSummary
+
+func (response GetCardForecast200JSONResponse) VisitGetCardForecastResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardForecast401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetCardForecast401JSONResponse) VisitGetCardForecastResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetCardForecast404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetCardForecast404JSONResponse) VisitGetCardForecastResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInvoiceRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+}
+
+type GetInvoiceResponseObject interface {
+	VisitGetInvoiceResponse(w http.ResponseWriter) error
+}
+
+type GetInvoice200JSONResponse Invoice
+
+func (response GetInvoice200JSONResponse) VisitGetInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInvoice400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetInvoice400JSONResponse) VisitGetInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInvoice401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetInvoice401JSONResponse) VisitGetInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetInvoice404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetInvoice404JSONResponse) VisitGetInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayInvoiceRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+	Body  *PayInvoiceJSONRequestBody
+}
+
+type PayInvoiceResponseObject interface {
+	VisitPayInvoiceResponse(w http.ResponseWriter) error
+}
+
+type PayInvoice201JSONResponse Invoice
+
+func (response PayInvoice201JSONResponse) VisitPayInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayInvoice400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PayInvoice400JSONResponse) VisitPayInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayInvoice401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PayInvoice401JSONResponse) VisitPayInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayInvoice404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PayInvoice404JSONResponse) VisitPayInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayInvoice409JSONResponse struct{ ConflictJSONResponse }
+
+func (response PayInvoice409JSONResponse) VisitPayInvoiceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddPurchaseRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddPurchaseJSONRequestBody
+}
+
+type AddPurchaseResponseObject interface {
+	VisitAddPurchaseResponse(w http.ResponseWriter) error
+}
+
+type AddPurchase201JSONResponse Purchase
+
+func (response AddPurchase201JSONResponse) VisitAddPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddPurchase400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddPurchase400JSONResponse) VisitAddPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddPurchase401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddPurchase401JSONResponse) VisitAddPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddPurchase404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddPurchase404JSONResponse) VisitAddPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddPurchase409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddPurchase409JSONResponse) VisitAddPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRecurrencesRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type ListRecurrencesResponseObject interface {
+	VisitListRecurrencesResponse(w http.ResponseWriter) error
+}
+
+type ListRecurrences200JSONResponse []Recurrence
+
+func (response ListRecurrences200JSONResponse) VisitListRecurrencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRecurrences401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListRecurrences401JSONResponse) VisitListRecurrencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRecurrences404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListRecurrences404JSONResponse) VisitListRecurrencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddRecurrenceRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddRecurrenceJSONRequestBody
+}
+
+type AddRecurrenceResponseObject interface {
+	VisitAddRecurrenceResponse(w http.ResponseWriter) error
+}
+
+type AddRecurrence201JSONResponse Recurrence
+
+func (response AddRecurrence201JSONResponse) VisitAddRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddRecurrence400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddRecurrence400JSONResponse) VisitAddRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddRecurrence401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddRecurrence401JSONResponse) VisitAddRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddRecurrence404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddRecurrence404JSONResponse) VisitAddRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddRecurrence409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddRecurrence409JSONResponse) VisitAddRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3162,6 +4821,266 @@ func (response Ping200JSONResponse) VisitPingResponse(w http.ResponseWriter) err
 	return err
 }
 
+type DeletePurchaseRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeletePurchaseResponseObject interface {
+	VisitDeletePurchaseResponse(w http.ResponseWriter) error
+}
+
+type DeletePurchase204Response struct {
+}
+
+func (response DeletePurchase204Response) VisitDeletePurchaseResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeletePurchase401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeletePurchase401JSONResponse) VisitDeletePurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePurchase404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeletePurchase404JSONResponse) VisitDeletePurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePurchaseRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdatePurchaseJSONRequestBody
+}
+
+type UpdatePurchaseResponseObject interface {
+	VisitUpdatePurchaseResponse(w http.ResponseWriter) error
+}
+
+type UpdatePurchase200JSONResponse Purchase
+
+func (response UpdatePurchase200JSONResponse) VisitUpdatePurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePurchase400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdatePurchase400JSONResponse) VisitUpdatePurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePurchase401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdatePurchase401JSONResponse) VisitUpdatePurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePurchase404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdatePurchase404JSONResponse) VisitUpdatePurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePurchase409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdatePurchase409JSONResponse) VisitUpdatePurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteRecurrenceRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteRecurrenceResponseObject interface {
+	VisitDeleteRecurrenceResponse(w http.ResponseWriter) error
+}
+
+type DeleteRecurrence204Response struct {
+}
+
+func (response DeleteRecurrence204Response) VisitDeleteRecurrenceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteRecurrence401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteRecurrence401JSONResponse) VisitDeleteRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteRecurrence404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteRecurrence404JSONResponse) VisitDeleteRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteRecurrence409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteRecurrence409JSONResponse) VisitDeleteRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRecurrenceRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateRecurrenceJSONRequestBody
+}
+
+type UpdateRecurrenceResponseObject interface {
+	VisitUpdateRecurrenceResponse(w http.ResponseWriter) error
+}
+
+type UpdateRecurrence200JSONResponse Recurrence
+
+func (response UpdateRecurrence200JSONResponse) VisitUpdateRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRecurrence400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateRecurrence400JSONResponse) VisitUpdateRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRecurrence401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateRecurrence401JSONResponse) VisitUpdateRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRecurrence404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateRecurrence404JSONResponse) VisitUpdateRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateRecurrence409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateRecurrence409JSONResponse) VisitUpdateRecurrenceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListBackupsRequestObject struct {
 }
 
@@ -3446,6 +5365,42 @@ type StrictServerInterface interface {
 	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
 	// (GET /auth/users)
 	ListLoginUsers(ctx context.Context, request ListLoginUsersRequestObject) (ListLoginUsersResponseObject, error)
+	// ListCards Lists the cards with limit use and current invoice (RF-14, RF-20).
+	// (GET /cards)
+	ListCards(ctx context.Context, request ListCardsRequestObject) (ListCardsResponseObject, error)
+	// CreateCard Registers a card (RF-14).
+	// (POST /cards)
+	CreateCard(ctx context.Context, request CreateCardRequestObject) (CreateCardResponseObject, error)
+	// DeleteCard Deletes a card without purchases, recurrences or payments.
+	// (DELETE /cards/{id})
+	DeleteCard(ctx context.Context, request DeleteCardRequestObject) (DeleteCardResponseObject, error)
+	// GetCard Returns one card with limit use (RF-20).
+	// (GET /cards/{id})
+	GetCard(ctx context.Context, request GetCardRequestObject) (GetCardResponseObject, error)
+	// UpdateCard Replaces the fields of a card.
+	// (PUT /cards/{id})
+	UpdateCard(ctx context.Context, request UpdateCardRequestObject) (UpdateCardResponseObject, error)
+	// AddCredit Registers a refund or credit on the invoice of its date (RF-22).
+	// (POST /cards/{id}/credits)
+	AddCredit(ctx context.Context, request AddCreditRequestObject) (AddCreditResponseObject, error)
+	// GetCardForecast Totals of the next invoices from the current one (RF-23).
+	// (GET /cards/{id}/forecast)
+	GetCardForecast(ctx context.Context, request GetCardForecastRequestObject) (GetCardForecastResponseObject, error)
+	// GetInvoice Invoice of the due month with every line and totals (RF-19, RN-01).
+	// (GET /cards/{id}/invoices/{month})
+	GetInvoice(ctx context.Context, request GetInvoiceRequestObject) (GetInvoiceResponseObject, error)
+	// PayInvoice Pays the whole invoice from an account; not counted as spending (RF-21, RN-07).
+	// (POST /cards/{id}/invoices/{month}/payment)
+	PayInvoice(ctx context.Context, request PayInvoiceRequestObject) (PayInvoiceResponseObject, error)
+	// AddPurchase Registers a purchase in one or more installments (RF-15, RF-16, RF-18, RN-03).
+	// (POST /cards/{id}/purchases)
+	AddPurchase(ctx context.Context, request AddPurchaseRequestObject) (AddPurchaseResponseObject, error)
+	// ListRecurrences Recurrences of the card with the current price (RF-17).
+	// (GET /cards/{id}/recurrences)
+	ListRecurrences(ctx context.Context, request ListRecurrencesRequestObject) (ListRecurrencesResponseObject, error)
+	// AddRecurrence Registers a recurrence charged on every invoice (RF-17).
+	// (POST /cards/{id}/recurrences)
+	AddRecurrence(ctx context.Context, request AddRecurrenceRequestObject) (AddRecurrenceResponseObject, error)
 	// ListCategories Lists the category tree in display order (RF-50, RN-18).
 	// (GET /categories)
 	ListCategories(ctx context.Context, request ListCategoriesRequestObject) (ListCategoriesResponseObject, error)
@@ -3497,6 +5452,18 @@ type StrictServerInterface interface {
 	// Ping Liveness check used by the container health check.
 	// (GET /ping)
 	Ping(ctx context.Context, request PingRequestObject) (PingResponseObject, error)
+	// DeletePurchase Deletes a purchase or credit with its installments.
+	// (DELETE /purchases/{id})
+	DeletePurchase(ctx context.Context, request DeletePurchaseRequestObject) (DeletePurchaseResponseObject, error)
+	// UpdatePurchase Replaces a purchase and regenerates its installments.
+	// (PUT /purchases/{id})
+	UpdatePurchase(ctx context.Context, request UpdatePurchaseRequestObject) (UpdatePurchaseResponseObject, error)
+	// DeleteRecurrence Deletes a recurrence that is not on a paid invoice.
+	// (DELETE /recurrences/{id})
+	DeleteRecurrence(ctx context.Context, request DeleteRecurrenceRequestObject) (DeleteRecurrenceResponseObject, error)
+	// UpdateRecurrence Edits a recurrence; a new price applies from the current invoice on.
+	// (PUT /recurrences/{id})
+	UpdateRecurrence(ctx context.Context, request UpdateRecurrenceRequestObject) (UpdateRecurrenceResponseObject, error)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(ctx context.Context, request ListBackupsRequestObject) (ListBackupsResponseObject, error)
@@ -3891,6 +5858,359 @@ func (sh *strictHandler) ListLoginUsers(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListLoginUsersResponseObject); ok {
 		if err := validResponse.VisitListLoginUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListCards operation middleware
+func (sh *strictHandler) ListCards(w http.ResponseWriter, r *http.Request) {
+	var request ListCardsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListCards(ctx, request.(ListCardsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCards")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCardsResponseObject); ok {
+		if err := validResponse.VisitListCardsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateCard operation middleware
+func (sh *strictHandler) CreateCard(w http.ResponseWriter, r *http.Request) {
+	var request CreateCardRequestObject
+
+	var body CreateCardJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateCard(ctx, request.(CreateCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateCardResponseObject); ok {
+		if err := validResponse.VisitCreateCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteCard operation middleware
+func (sh *strictHandler) DeleteCard(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteCardRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteCard(ctx, request.(DeleteCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteCardResponseObject); ok {
+		if err := validResponse.VisitDeleteCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCard operation middleware
+func (sh *strictHandler) GetCard(w http.ResponseWriter, r *http.Request, id Id) {
+	var request GetCardRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCard(ctx, request.(GetCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCardResponseObject); ok {
+		if err := validResponse.VisitGetCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCard operation middleware
+func (sh *strictHandler) UpdateCard(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateCardRequestObject
+
+	request.Id = id
+
+	var body UpdateCardJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCard(ctx, request.(UpdateCardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCardResponseObject); ok {
+		if err := validResponse.VisitUpdateCardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddCredit operation middleware
+func (sh *strictHandler) AddCredit(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddCreditRequestObject
+
+	request.Id = id
+
+	var body AddCreditJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddCredit(ctx, request.(AddCreditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddCredit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddCreditResponseObject); ok {
+		if err := validResponse.VisitAddCreditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetCardForecast operation middleware
+func (sh *strictHandler) GetCardForecast(w http.ResponseWriter, r *http.Request, id Id, params GetCardForecastParams) {
+	var request GetCardForecastRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCardForecast(ctx, request.(GetCardForecastRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCardForecast")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCardForecastResponseObject); ok {
+		if err := validResponse.VisitGetCardForecastResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetInvoice operation middleware
+func (sh *strictHandler) GetInvoice(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request GetInvoiceRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetInvoice(ctx, request.(GetInvoiceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetInvoice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetInvoiceResponseObject); ok {
+		if err := validResponse.VisitGetInvoiceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PayInvoice operation middleware
+func (sh *strictHandler) PayInvoice(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request PayInvoiceRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	var body PayInvoiceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PayInvoice(ctx, request.(PayInvoiceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PayInvoice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PayInvoiceResponseObject); ok {
+		if err := validResponse.VisitPayInvoiceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddPurchase operation middleware
+func (sh *strictHandler) AddPurchase(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddPurchaseRequestObject
+
+	request.Id = id
+
+	var body AddPurchaseJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddPurchase(ctx, request.(AddPurchaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddPurchase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddPurchaseResponseObject); ok {
+		if err := validResponse.VisitAddPurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListRecurrences operation middleware
+func (sh *strictHandler) ListRecurrences(w http.ResponseWriter, r *http.Request, id Id) {
+	var request ListRecurrencesRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRecurrences(ctx, request.(ListRecurrencesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRecurrences")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRecurrencesResponseObject); ok {
+		if err := validResponse.VisitListRecurrencesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddRecurrence operation middleware
+func (sh *strictHandler) AddRecurrence(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddRecurrenceRequestObject
+
+	request.Id = id
+
+	var body AddRecurrenceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddRecurrence(ctx, request.(AddRecurrenceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddRecurrence")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddRecurrenceResponseObject); ok {
+		if err := validResponse.VisitAddRecurrenceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4368,6 +6688,124 @@ func (sh *strictHandler) Ping(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PingResponseObject); ok {
 		if err := validResponse.VisitPingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeletePurchase operation middleware
+func (sh *strictHandler) DeletePurchase(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeletePurchaseRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePurchase(ctx, request.(DeletePurchaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePurchase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePurchaseResponseObject); ok {
+		if err := validResponse.VisitDeletePurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePurchase operation middleware
+func (sh *strictHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdatePurchaseRequestObject
+
+	request.Id = id
+
+	var body UpdatePurchaseJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePurchase(ctx, request.(UpdatePurchaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePurchase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePurchaseResponseObject); ok {
+		if err := validResponse.VisitUpdatePurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteRecurrence operation middleware
+func (sh *strictHandler) DeleteRecurrence(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteRecurrenceRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteRecurrence(ctx, request.(DeleteRecurrenceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteRecurrence")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteRecurrenceResponseObject); ok {
+		if err := validResponse.VisitDeleteRecurrenceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateRecurrence operation middleware
+func (sh *strictHandler) UpdateRecurrence(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateRecurrenceRequestObject
+
+	request.Id = id
+
+	var body UpdateRecurrenceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateRecurrence(ctx, request.(UpdateRecurrenceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateRecurrence")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateRecurrenceResponseObject); ok {
+		if err := validResponse.VisitUpdateRecurrenceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -20,6 +20,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
+	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
@@ -115,6 +116,7 @@ func serve(log *slog.Logger) error {
 		Categories: category.NewService(conn),
 		Ledger:     ledger.NewService(conn),
 		Incomes:    income.NewService(conn),
+		Cards:      card.NewService(conn),
 		Sessions:   sessions,
 		Backups:    backups,
 		Version:    version,
