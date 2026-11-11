@@ -10,7 +10,7 @@ test("desktop sidebar navigates and collapses with the fluid tooltip (section 5.
   const menu = page.getByRole("complementary", { name: "Menu principal" });
   await menu.getByRole("link", { name: "Mercado" }).click();
   await expect(page).toHaveURL(/\/market$/);
-  await expect(page.getByText("Chega na fase 7")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mercado", level: 1 })).toBeVisible();
 
   await menu.getByRole("button", { name: "Recolher menu" }).click();
   const caixinhas = menu.getByRole("link", { name: "Caixinhas" });
