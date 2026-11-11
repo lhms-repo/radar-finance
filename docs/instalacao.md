@@ -52,11 +52,13 @@ make certs HOSTS="nomedopc.local 192.168.0.10"
 
 Isso cria `deploy/certs/`, que não vai para o repositório. Guarde a pasta `deploy/certs/ca`: ela tem a chave da autoridade local.
 
-**Instalar a autoridade em cada iPhone, uma vez só:**
+**Instalar a autoridade em cada iPhone, uma vez só** (depois do passo 4, com o Radar no ar):
 
-1. Envie `deploy/certs/radar-root-ca.pem` para o iPhone por AirDrop ou e-mail e abra o arquivo.
-2. Ajustes, Perfil Transferido, Instalar.
+1. No **Safari** do iPhone, abra `http://<IP do servidor>/ca.crt` (http, sem o s) e toque em **Permitir**. Abrir o arquivo pelo WhatsApp não funciona: o iOS só mostra o texto.
+2. Ajustes: logo no topo aparece **Perfil Transferido**. Se não aparecer, vá em Geral, VPN e Gerenciamento de Dispositivo. Toque em Instalar. O perfil baixado expira em alguns minutos; se sumir, baixe de novo.
 3. Ajustes, Geral, Sobre, Ajustes de Confiança de Certificados: ative a confiança total para "mkcert".
+
+A pasta `deploy/certs/ca` guarda a chave da autoridade e nunca sai do PC; o Caddy recebe só os certificados públicos.
 
 ## 4. Subir o Radar
 

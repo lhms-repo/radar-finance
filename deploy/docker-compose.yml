@@ -37,7 +37,10 @@ services:
       - "80:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./certs:/certs:ro
+      # Only the server certificate and the public CA; the CA private key stays out of the container.
+      - ./certs/radar.pem:/certs/radar.pem:ro
+      - ./certs/radar-key.pem:/certs/radar-key.pem:ro
+      - ./certs/radar-root-ca.pem:/certs/radar-root-ca.pem:ro
       - caddy-data:/data
       - caddy-config:/config
 

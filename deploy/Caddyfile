@@ -1,9 +1,26 @@
 # HTTPS on the local network with the mkcert certificate (RNF-21).
 {
-	auto_https disable_certs
+	auto_https disable_redirects
 	admin off
 	# Browsers send no server name when opening an IP address; use the single local certificate.
 	default_sni {$RADAR_DEFAULT_SNI}
+}
+
+# Plain HTTP: serves the local CA certificate for the iPhones and redirects the rest to HTTPS.
+:80 {
+	handle /ca.crt {
+		rewrite * /radar-root-ca.pem
+		root * /certs
+		file_server
+		header {
+			Content-Type application/x-x509-ca-cert
+			Content-Disposition "attachment; filename=radar-ca.crt"
+			defer
+		}
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
 }
 
 {$RADAR_HOSTS} {
