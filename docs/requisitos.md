@@ -119,7 +119,7 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 | ID | Requisito |
 | --- | --- |
 | RF-50 | Manter categorias e subcategorias, permitindo criar, renomear, mover e desativar. |
-| RF-51 | Definir orçamento mensal por categoria. |
+| RF-51 | Definir orçamento mensal por categoria principal, somando todas as subcategorias dela. |
 | RF-52 | Alertar quando o gasto de uma categoria atingir 80% e 100% do orçamento. |
 
 ### 2.11 Importação de CSV
@@ -136,11 +136,11 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 
 | ID | Requisito |
 | --- | --- |
-| RF-58 | Calcular o saldo previsto do mês: renda menos todas as saídas previstas e aportes nas caixinhas. |
+| RF-58 | Calcular o saldo previsto do mês: renda menos todas as saídas previstas e aportes nas caixinhas. A fatura do cartão entra pela parte do casal, sem as cotas de terceiros (RN-04). |
 | RF-59 | Exibir gráfico de evolução dos gastos mês a mês, total e por categoria. |
 | RF-60 | Exibir o comprometimento da renda futura com parcelas e financiamentos. |
 | RF-61 | Gerar fechamento do mês com entradas, saídas, valor guardado e valores a receber. |
-| RF-62 | Exibir patrimônio líquido: saldos em conta e caixinhas menos saldos devedores. |
+| RF-62 | Exibir patrimônio líquido: saldos em conta e caixinhas menos saldos devedores. Dos cartões, entram como dívida só as faturas já fechadas e não pagas; parcelas futuras ficam no comprometimento da renda (RF-60). |
 | RF-63 | Filtrar lançamentos por período, categoria, cartão, conta, pessoa e texto. |
 
 ### 2.13 Notificações
