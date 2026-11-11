@@ -20,6 +20,27 @@ type Account struct {
 	UpdatedAt           time.Time
 }
 
+type Bill struct {
+	ID            int64
+	Name          string
+	CategoryID    int64
+	AccountID     int64
+	DueDay        int64
+	ExpectedCents int64
+	StartMonth    string
+	EndMonth      sql.NullString
+	CreatedBy     int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type BillAmount struct {
+	ID          int64
+	BillID      int64
+	Month       string
+	ActualCents int64
+}
+
 type Card struct {
 	ID         int64
 	Name       string
@@ -63,6 +84,8 @@ type Entry struct {
 	UpdatedAt   time.Time
 	IncomeID    sql.NullInt64
 	IncomeMonth sql.NullString
+	BillID      sql.NullInt64
+	BillMonth   sql.NullString
 }
 
 type Income struct {
