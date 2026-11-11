@@ -156,7 +156,7 @@ Módulo em tela própria para descobrir onde a compra do mês sai mais barata, c
 | ID | Requisito |
 | --- | --- |
 | RF-65 | Cadastrar mercados com nome e bairro. |
-| RF-66 | Cadastrar produtos sempre de marca específica, com nome, marca, tamanho e unidade, como Café Três Corações 500 g. Não existe produto genérico. |
+| RF-66 | Cadastrar produtos sempre de marca específica, com nome, marca, tamanho e unidade, como Café Três Corações 500 g. Não existe produto genérico. Itens vendidos por peso, como hortifrúti e carnes, são produtos com unidade kg e marca livre ("Sem marca" ou a do mercado): o preço é por kg e a quantidade na lista aceita decimais, como 1,5 kg. |
 | RF-67 | Registrar preços por produto e mercado, com data, mantendo o histórico. |
 | RF-68 | Importar preços escaneando o QR code da NFC-e com o iPhone: o sistema consulta a nota na Sefaz e registra todos os itens com o preço daquele mercado e daquela data. |
 | RF-69 | Vincular o nome abreviado do item na nota ao produto cadastrado, por mercado, e reconhecer automaticamente nas notas seguintes. |
@@ -195,10 +195,10 @@ As regras abaixo definem como o sistema calcula e classifica os valores. Elas vi
 | RN-18 | Categoria desativada some das opções de lançamento, mas mantém o histórico. Uma categoria com lançamentos não pode ser excluída. |
 | RN-19 | Regra de apelido casa pelo texto original do estabelecimento no CSV. A regra mais recente prevalece em caso de conflito. |
 | RN-20 | Lançamento é considerado possível duplicata quando cartão, valor e data coincidem, com tolerância de um dia na data. |
-| RN-21 | Valores monetários são guardados em centavos inteiros, sem ponto flutuante. |
+| RN-21 | Valores monetários são guardados em centavos inteiros, sem ponto flutuante. Preço unitário com mais de duas casas, como R$ 6,499 na nota fiscal, é truncado em centavos: vira R$ 6,49. |
 | RN-22 | A comparação entre mercados usa o preço mais recente de cada produto em cada mercado. Produtos de marcas ou tamanhos diferentes nunca são tratados como equivalentes. |
 | RN-23 | Total da lista num mercado = soma de preço × quantidade dos itens com preço naquele mercado. O mercado continua no ranking quando faltam preços, com aviso de quantos itens faltam. |
-| RN-24 | Melhor divisão: para cada combinação de mercados até o máximo configurado, cada item vai para o mercado mais barato da combinação. Vence a combinação de menor total que cubra todos os itens, desde que cada mercado a mais economize pelo menos o valor mínimo configurado. |
+| RN-24 | Melhor divisão: para cada combinação de mercados até o máximo configurado, cada item vai para o mercado mais barato da combinação. Vence a combinação de menor total que cubra todos os itens, desde que cada mercado a mais economize pelo menos o valor mínimo configurado. A comparação é passo a passo: a melhor combinação com um mercado a mais só vence se economizar o mínimo em relação à melhor combinação com um a menos; quando não economiza, a busca para. Item sem preço em nenhum mercado fica fora da divisão, com aviso. |
 | RN-25 | Preço com mais de 30 dias sem atualização é marcado como desatualizado. O prazo é configurável. |
 | RN-26 | A compra finalizada entra nos gastos como Alimentação, Compras para casa, exceto quando paga com Alelo, que segue a RN-15. |
 
