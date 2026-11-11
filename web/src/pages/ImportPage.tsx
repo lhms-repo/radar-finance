@@ -1,14 +1,16 @@
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, ChevronLeft, FileUp, Undo2, Upload } from "lucide-react";
+import { AlertTriangle, ChevronLeft, FileUp, Undo2, Upload, Users } from "lucide-react";
 import { useId, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Money } from "@/components/ui/money";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useCards } from "@/features/cards/api";
+import { EMPTY_SPLIT, SplitEditor, splitBody, type SplitValue } from "@/features/cards/SplitEditor";
 import { CategorySelect } from "@/features/categories/CategorySelect";
 import { useCommitImport, useImports, usePreviewImport, useUndoImport, type ImportPreviewLine } from "@/features/imports/api";
 import { formatDate, formatDayMonth, monthName, monthParam } from "@/lib/format";
@@ -16,8 +18,8 @@ import { fade, spring } from "@/lib/motion";
 import { useMonth } from "@/lib/month";
 import { cn } from "@/lib/utils";
 
-/** A preview line as edited by the user before confirming. */
-type Draft = ImportPreviewLine & { remember: boolean };
+/** A preview line as edited by the user before confirming, with the split chosen for it. */
+type Draft = ImportPreviewLine & { remember: boolean; split: SplitValue };
 
 /** Import of the Nubank invoice CSV: choose card and invoice, review each line, confirm (RF-53 to RF-57). */
 export function ImportPage() {
@@ -40,7 +42,7 @@ export function ImportPage() {
     const content = await file.text();
     preview.mutate(
       { cardId: chosenCard, invoiceMonth: invoice, content },
-      { onSuccess: (data) => setLines(data.map((l) => ({ ...l, remember: false }))) },
+      { onSuccess: (data) => setLines(data.map((l) => ({ ...l, remember: false, split: EMPTY_SPLIT }))) },
     );
   };
 
@@ -75,6 +77,7 @@ export function ImportPage() {
           categoryId: l.categoryId || undefined,
           skip: l.skip,
           remember: l.remember,
+          split: l.kind === "purchase" ? splitBody(l.split) : undefined,
         })),
       },
       { onSuccess: () => setLines(null) },
@@ -173,6 +176,8 @@ export function ImportPage() {
 /** One line of the preview with the import toggle, the friendly name, the category and the warnings (RF-56). */
 function PreviewRow({ line: l, onChange }: { line: Draft; onChange: (patch: Partial<Draft>) => void }) {
   const payment = l.kind === "payment";
+  const [splitting, setSplitting] = useState(false);
+  const named = l.split.parties.map((p) => p.name.trim()).filter(Boolean);
   return (
     <li className={cn("flex flex-col gap-2 border-b py-3 last:border-b-0", l.skip && "opacity-60")}>
       <div className="flex items-start gap-3">
@@ -209,7 +214,7 @@ function PreviewRow({ line: l, onChange }: { line: Draft; onChange: (patch: Part
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ height: spring, opacity: fade }}
-            className="grid gap-2 overflow-hidden pl-7 sm:grid-cols-[1fr_1fr_auto]"
+            className="grid gap-2 overflow-hidden pl-7 sm:grid-cols-[1fr_1fr_auto_auto]"
           >
             <Input aria-label={`Nome de ${l.title}`} value={l.friendlyName} onChange={(e) => onChange({ friendlyName: e.target.value })} />
             <CategorySelect
@@ -222,10 +227,65 @@ function PreviewRow({ line: l, onChange }: { line: Draft; onChange: (patch: Part
               <input type="checkbox" className="size-4 accent-primary" checked={l.remember} onChange={(e) => onChange({ remember: e.target.checked })} />
               Lembrar
             </label>
+            {l.kind === "purchase" && (
+              <Button variant={l.split.enabled ? "secondary" : "ghost"} size="sm" className="justify-self-start" onClick={() => setSplitting(true)} aria-label={`Dividir ${l.title}`}>
+                <Users />
+                {!l.split.enabled || named.length === 0 ? "Dividir" : l.split.mode === "equal" && l.split.coupleParts === 0 ? `Toda de ${named.join(", ")}` : `Com ${named.join(", ")}`}
+              </Button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
+      <SplitDialog open={splitting} line={l} onChange={(split) => onChange({ split })} onClose={() => setSplitting(false)} />
     </li>
+  );
+}
+
+/** Divides the line with other people, or leaves it all to them; the share is of each installment (RF-24, RF-25). */
+function SplitDialog({ open, line: l, onChange, onClose }: { open: boolean; line: Draft; onChange: (v: SplitValue) => void; onClose: () => void }) {
+  const [draft, setDraft] = useState<SplitValue | null>(null);
+  const value = draft ?? (l.split.enabled ? l.split : { ...l.split, enabled: true });
+
+  /** Discards the draft and closes. */
+  const close = () => {
+    setDraft(null);
+    onClose();
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => !o && close()}
+      title="Dividir a compra"
+      description={`${l.friendlyName}: a divisão vale para o valor da linha${l.installments ? ", em cada parcela" : ""}.`}
+    >
+      <div className="flex flex-col gap-4">
+        <Button variant="outline" onClick={() => setDraft({ ...value, enabled: true, mode: "equal", coupleParts: 0 })}>
+          <Users />
+          Tudo de outra pessoa
+        </Button>
+        <SplitEditor value={value} onChange={setDraft} installmentsNote={l.installments ? "A cota vale para cada parcela." : ""} />
+        <DialogActions>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onChange(EMPTY_SPLIT);
+              close();
+            }}
+          >
+            Sem divisão
+          </Button>
+          <Button
+            onClick={() => {
+              onChange(value);
+              close();
+            }}
+          >
+            Aplicar
+          </Button>
+        </DialogActions>
+      </div>
+    </Dialog>
   );
 }
 

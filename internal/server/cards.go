@@ -246,21 +246,27 @@ func fromPurchaseInput(cardID int64, b gen.PurchaseInput) card.PurchaseInput {
 		BuyerPersonID: b.BuyerPersonId, AmountCents: b.AmountCents, Installments: b.Installments,
 		PerInstallment: b.PerInstallment != nil && *b.PerInstallment,
 	}
-	if sp := b.Split; sp != nil {
-		split := card.SplitInput{Mode: card.SplitMode(sp.Mode)}
-		if sp.CoupleParts != nil {
-			split.CoupleParts = *sp.CoupleParts
-		}
-		for _, p := range sp.Parties {
-			share := card.PartyShare{Name: p.Name}
-			if p.ShareCents != nil {
-				share.ShareCents = *p.ShareCents
-			}
-			split.Parties = append(split.Parties, share)
-		}
-		in.Split = &split
-	}
+	in.Split = fromSplitInput(b.Split)
 	return in
+}
+
+// fromSplitInput converts the API split, nil when absent.
+func fromSplitInput(sp *gen.SplitInput) *card.SplitInput {
+	if sp == nil {
+		return nil
+	}
+	split := card.SplitInput{Mode: card.SplitMode(sp.Mode)}
+	if sp.CoupleParts != nil {
+		split.CoupleParts = *sp.CoupleParts
+	}
+	for _, p := range sp.Parties {
+		share := card.PartyShare{Name: p.Name}
+		if p.ShareCents != nil {
+			share.ShareCents = *p.ShareCents
+		}
+		split.Parties = append(split.Parties, share)
+	}
+	return &split
 }
 
 // ListParties lists the names already used in splits (RF-27).

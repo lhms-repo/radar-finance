@@ -17,6 +17,8 @@ async function createAccount(page: Page, name: string, initialDigits: string) {
 }
 
 test("accounts: balance, expense, transfer, adjustment and delete (RF-04 to RF-07)", async ({ page }, testInfo) => {
+  // Long flow; WebKit needs more than the default 30 seconds when the whole suite runs in parallel.
+  test.slow();
   // Projects share one database, so names carry the project to stay unique.
   const a = `Conta A ${testInfo.project.name}`;
   const b = `Conta B ${testInfo.project.name}`;

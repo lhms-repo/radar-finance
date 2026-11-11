@@ -38,7 +38,15 @@ function useParties() {
 }
 
 /** Turns the split on, picks equal parts or values and lists the people, suggesting known names (RF-24 to RF-27). */
-export function SplitEditor({ value, onChange }: { value: SplitValue; onChange: (v: SplitValue) => void }) {
+export function SplitEditor({
+  value,
+  onChange,
+  installmentsNote = "As cotas se repartem pelas parcelas.",
+}: {
+  value: SplitValue;
+  onChange: (v: SplitValue) => void;
+  installmentsNote?: string;
+}) {
   const parties = useParties();
   const listId = useId();
 
@@ -136,7 +144,7 @@ export function SplitEditor({ value, onChange }: { value: SplitValue; onChange: 
               Adicionar pessoa
             </Button>
             <p className="text-xs text-muted-foreground">
-              {value.mode === "equal" ? "Cada pessoa paga uma parte; o casal fica com as partes dele e com a sobra de centavos." : "O casal fica com o que sobrar do total."} As cotas se repartem pelas parcelas.
+              {value.mode === "equal" ? "Cada pessoa paga uma parte; o casal fica com as partes dele e com a sobra de centavos." : "O casal fica com o que sobrar do total."} {installmentsNote}
             </p>
           </motion.div>
         )}

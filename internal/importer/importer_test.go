@@ -271,3 +271,58 @@ func TestPreviewInstallments(t *testing.T) {
 		})
 	}
 }
+
+// TestCommitSplit divides imported lines with other people or leaves them all to one person; on an
+// installment line the share follows only the installments created from the CSV on (RF-24, RF-25, RF-57).
+func TestCommitSplit(t *testing.T) {
+	pedroAll := &card.SplitInput{Mode: card.SplitEqual, CoupleParts: 0, Parties: []card.PartyShare{{Name: "Pedro Ficticio"}}}
+	halfPedro := &card.SplitInput{Mode: card.SplitEqual, CoupleParts: 1, Parties: []card.PartyShare{{Name: "Pedro Ficticio"}}}
+	tests := []struct {
+		name      string
+		index     int
+		split     *card.SplitInput
+		wantErr   error
+		wantShare int64
+		wantCount int
+	}{
+		{name: "everything to Pedro", index: 0, split: pedroAll, wantShare: 5_200, wantCount: 1},
+		// 359,99 in two equal parts: Pedro 179,99 and the couple keeps the leftover cent, on installments 3 to 10.
+		{name: "half of each installment", index: 1, split: halfPedro, wantShare: 17_999, wantCount: 8},
+		{name: "custom value per installment", index: 2, split: &card.SplitInput{Mode: card.SplitCustom, Parties: []card.PartyShare{{Name: "Pedro Ficticio", ShareCents: 1_000}}}, wantShare: 1_000, wantCount: 1},
+		{name: "share above the line", index: 2, split: &card.SplitInput{Mode: card.SplitCustom, Parties: []card.PartyShare{{Name: "Pedro Ficticio", ShareCents: 99_999}}}, wantErr: card.ErrSplitTooLarge},
+		{name: "refund cannot be split", index: 4, split: pedroAll, wantErr: card.ErrSplitCredit},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			ctx := context.Background()
+			lines, err := f.s.Preview(ctx, f.cardID, dec, invoiceCSV)
+			if err != nil {
+				t.Fatal(err)
+			}
+			l := lines[tt.index]
+			_, err = f.s.Commit(ctx, f.userID, f.cardID, dec, "x.csv", []CommitLine{{Line: l.Line, FriendlyName: l.FriendlyName, CategoryID: l.CategoryID, Split: tt.split}})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			var count int
+			var each, total int64
+			_ = f.conn.QueryRow(`SELECT count(*), max(si.amount_cents), sum(si.amount_cents) FROM split_installments si`).Scan(&count, &each, &total)
+			if count != tt.wantCount || each != tt.wantShare || total != tt.wantShare*int64(tt.wantCount) {
+				t.Fatalf("shares = %d of %d, total %d", count, each, total)
+			}
+			var stored int64
+			_ = f.conn.QueryRow(`SELECT share_cents FROM splits`).Scan(&stored)
+			if stored != total {
+				t.Fatalf("split total = %d, want %d", stored, total)
+			}
+			inv, _ := f.cards.Invoice(ctx, f.cardID, dec)
+			if inv.ThirdPartyCents != tt.wantShare {
+				t.Fatalf("december third party = %d", inv.ThirdPartyCents)
+			}
+		})
+	}
+}

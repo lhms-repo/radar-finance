@@ -48,7 +48,8 @@ export function AppShell() {
 /** Layout of a signed in user, listening to the changes made on the other iPhone. */
 function SignedInShell() {
   const location = useLocation();
-  useLiveUpdates();
+  const me = useMeQuery();
+  useLiveUpdates(me.data?.id);
 
   return (
     <QuickEntryProvider>

@@ -4909,6 +4909,9 @@ components:
           type: boolean
         remember:
           type: boolean
+        split:
+          $ref: "#/components/schemas/SplitInput"
+          description: Divides the line amount, the value of each installment, with other people; couple parts zero leaves it all to them (RF-24).
 
     ImportCommitRequest:
       type: object

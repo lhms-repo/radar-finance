@@ -325,6 +325,8 @@ type ImportedLine struct {
 	// Installment and Installments come from "Parcela N/M"; zero means a single charge.
 	Installment  int
 	Installments int
+	// Split divides the amount of the line, the value of each installment, with other people (RF-24).
+	Split *SplitInput
 }
 
 // ImportLine records a CSV line inside the caller's transaction and returns the purchase id.
@@ -362,6 +364,14 @@ func (s *Service) ImportLine(ctx context.Context, q *store.Queries, userID int64
 			return 0, err
 		}
 	}
+	if in.Credit && in.Split != nil {
+		return 0, ErrSplitCredit
+	}
+	// Shares are worked out on the line amount, the value of one installment.
+	shares, err := resolveShares(in.AmountCents, 1, in.Split)
+	if err != nil {
+		return 0, err
+	}
 	first := in.Invoice.Add(-(n - 1))
 	now := s.now().UTC()
 	row, err := q.CreatePurchase(ctx, store.CreatePurchaseParams{
@@ -379,7 +389,32 @@ func (s *Service) ImportLine(ctx context.Context, q *store.Queries, userID int64
 			return 0, fmt.Errorf("create imported installment: %w", err)
 		}
 	}
+	if err := s.writeImportedSplits(ctx, q, userID, row.ID, c.ID, first, n, m, shares); err != nil {
+		return 0, err
+	}
 	return row.ID, nil
+}
+
+// writeImportedSplits gives each person the same share on every installment created from the CSV, n to m only.
+func (s *Service) writeImportedSplits(ctx context.Context, q *store.Queries, userID, purchaseID, cardID int64, first civil.Month, n, m int, shares []PartyShare) error {
+	for _, sh := range shares {
+		partyID, err := s.partyID(ctx, q, userID, sh.Name)
+		if err != nil {
+			return err
+		}
+		splitID, err := q.CreateSplit(ctx, store.CreateSplitParams{PurchaseID: purchaseID, PartyID: partyID, ShareCents: sh.ShareCents * int64(m-n+1)})
+		if err != nil {
+			return fmt.Errorf("create imported split: %w", err)
+		}
+		for k := n; k <= m; k++ {
+			if err := q.CreateSplitInstallment(ctx, store.CreateSplitInstallmentParams{
+				SplitID: splitID, Number: int64(k), CardID: cardID, InvoiceMonth: first.Add(k - 1).String(), AmountCents: sh.ShareCents,
+			}); err != nil {
+				return fmt.Errorf("create imported split installment: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 // RecurrenceChargesIn lists what the recurrences of a card bill on one invoice, for duplicate checks (RN-20).

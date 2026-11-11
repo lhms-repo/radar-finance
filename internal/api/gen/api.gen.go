@@ -1297,7 +1297,10 @@ type ImportCommitLine struct {
 	Merchant string `json:"merchant"`
 	Remember bool   `json:"remember"`
 	Skip     bool   `json:"skip"`
-	Title    string `json:"title"`
+
+	// Split Divides the purchase between the couple and other people (RF-24, RF-25).
+	Split *SplitInput `json:"split,omitempty"`
+	Title string      `json:"title"`
 }
 
 // ImportCommitLineKind defines model for ImportCommitLine.Kind.

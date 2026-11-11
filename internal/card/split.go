@@ -36,6 +36,7 @@ var (
 	ErrInvalidParts   = problem.Invalid("split_parts_invalid", "Informe quantas partes o casal conta, de zero para cima.")
 	ErrShareRequired  = problem.Invalid("split_share_required", "Cada pessoa precisa de pelo menos um centavo por parcela.")
 	ErrSplitTooLarge  = problem.Invalid("split_too_large", "As cotas passam do valor da compra.")
+	ErrSplitCredit    = problem.Invalid("split_credit", "Estorno ou crédito não pode ser dividido.")
 	ErrSplitReceived  = problem.Conflict("split_received", "Esta compra tem cotas já recebidas. Desfaça os recebimentos em A receber antes de mudá-la.")
 )
 

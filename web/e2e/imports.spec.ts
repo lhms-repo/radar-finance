@@ -53,10 +53,24 @@ test("imports: Nubank CSV with preview, alias rule, duplicates and undo (RF-53 t
   // A new name and category are remembered as a rule (RF-54, RF-55).
   await page.getByLabel(`Nome de ${pizza}`).fill(`Pizzaria ${tag}`);
   await page.getByLabel(`Categoria de ${pizza}`).selectOption({ label: "Delivery" });
+  // The whole line belongs to someone else, like a gym plan paid on this card (RF-24).
+  await page.getByRole("button", { name: `Dividir ${pizza}` }).click();
+  const split = page.getByRole("dialog", { name: "Dividir a compra" });
+  await split.getByRole("button", { name: "Tudo de outra pessoa" }).click();
+  await split.getByLabel("Pessoa 1", { exact: true }).fill(`Pedro ${tag}`);
+  await split.getByRole("button", { name: "Aplicar" }).click();
+  await expect(page.getByRole("button", { name: `Dividir ${pizza}` })).toHaveText(`Toda de Pedro ${tag}`);
   await page.getByRole("button", { name: "Importar", exact: true }).click();
   await expect(page.getByText("Fatura importada")).toBeVisible();
   const history = page.getByRole("listitem").filter({ hasText: cardName });
   await expect(history).toContainText("3 lançamentos");
+
+  // Pedro now owes the whole line.
+  await page.goto("/receivables");
+  await expect(page.getByText(`Pedro ${tag}`).first()).toBeVisible();
+  await expect(page.getByText("R$ 52,00").first()).toBeVisible();
+  await page.goto("/settings/import");
+  await page.getByLabel("Cartão").selectOption({ label: cardName });
 
   // The same file again: the rule applies and every line is flagged as a duplicate (RF-55, RF-56, RN-20).
   await page.locator('input[type="file"]').setInputFiles(file);

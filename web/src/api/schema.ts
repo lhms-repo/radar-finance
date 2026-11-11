@@ -2755,6 +2755,8 @@ export interface components {
             categoryId?: number;
             skip: boolean;
             remember: boolean;
+            /** @description Divides the line amount, the value of each installment, with other people; couple parts zero leaves it all to them (RF-24). */
+            split?: components["schemas"]["SplitInput"];
         };
         ImportCommitRequest: {
             /** Format: int64 */

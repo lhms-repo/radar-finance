@@ -113,7 +113,7 @@ func (a *API) CommitImport(ctx context.Context, req gen.CommitImportRequestObjec
 			Line: importer.Line{
 				Date: fromDate(l.Date), Title: l.Title, Merchant: l.Merchant, AmountCents: l.AmountCents, Kind: kind,
 			},
-			FriendlyName: l.FriendlyName, CategoryID: l.CategoryId, Skip: l.Skip, Remember: l.Remember,
+			FriendlyName: l.FriendlyName, CategoryID: l.CategoryId, Skip: l.Skip, Remember: l.Remember, Split: fromSplitInput(l.Split),
 		}
 		if l.Installment != nil && l.Installments != nil {
 			cl.Installment, cl.Installments = *l.Installment, *l.Installments

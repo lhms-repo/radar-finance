@@ -77,6 +77,8 @@ type CommitLine struct {
 	Skip         bool
 	// Remember saves the name and category as a rule for the next imports (RF-55).
 	Remember bool
+	// Split divides the line amount with other people or leaves it all to them; nil keeps it for the couple (RF-24).
+	Split *card.SplitInput
 }
 
 // Result tells what an import did.
@@ -273,7 +275,7 @@ func (s *Service) Commit(ctx context.Context, userID, cardID int64, invoice civi
 			}
 			id, err := s.cards.ImportLine(ctx, q, userID, card.ImportedLine{
 				CardID: cardID, Invoice: invoice, Date: l.Date, Merchant: name, CategoryID: l.CategoryID, AmountCents: l.AmountCents,
-				Credit: l.Kind == LineCredit, Installment: l.Installment, Installments: l.Installments,
+				Credit: l.Kind == LineCredit, Installment: l.Installment, Installments: l.Installments, Split: l.Split,
 			})
 			if err != nil {
 				return err
