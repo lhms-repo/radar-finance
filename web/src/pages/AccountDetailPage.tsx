@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "motion/react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronLeft, CreditCard, Eye, EyeOff, MinusCircle, MoreHorizontal, Pencil, Scale, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronLeft, CreditCard, Eye, HandCoins, EyeOff, MinusCircle, MoreHorizontal, Pencil, Scale, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
@@ -203,6 +203,8 @@ function entryTitle(e: Entry) {
       return "Ajuste de saldo";
     case "invoice_payment":
       return "Pagamento de fatura";
+    case "receivable":
+      return "Recebido de terceiro";
     case "transfer":
       return e.amountCents < 0 ? `Transferência para ${e.counterpartAccountName ?? "outra conta"}` : `Transferência de ${e.counterpartAccountName ?? "outra conta"}`;
   }
@@ -254,6 +256,7 @@ function EntryIcon({ entry: e }: { entry: Entry }) {
   if (e.kind === "transfer") return <ArrowLeftRight className={cls} />;
   if (e.kind === "adjustment") return <Scale className={cls} />;
   if (e.kind === "invoice_payment") return <CreditCard className={cls} />;
+  if (e.kind === "receivable") return <HandCoins className="size-4 text-success" />;
   return e.amountCents > 0 ? <ArrowDownLeft className="size-4 text-success" /> : <ArrowUpRight className={cls} />;
 }
 

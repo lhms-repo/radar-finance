@@ -14,6 +14,7 @@ import { BillsPage } from "@/pages/BillsPage";
 import { CardsPage } from "@/pages/CardsPage";
 import { CategoriesPage } from "@/pages/CategoriesPage";
 import { IncomesPage } from "@/pages/IncomesPage";
+import { ReceivablesPage } from "@/pages/ReceivablesPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -36,7 +37,7 @@ const router = createBrowserRouter([
       { path: "alelo", element: <AleloPage /> },
       { path: "bills", element: <BillsPage /> },
       { path: "savings", element: <PlaceholderPage id="savings" /> },
-      { path: "receivables", element: <PlaceholderPage id="receivables" /> },
+      { path: "receivables", element: <ReceivablesPage /> },
       { path: "market", element: <PlaceholderPage id="market" /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "settings/categories", element: <CategoriesPage /> },
