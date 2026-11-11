@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for BackupKind.
@@ -33,6 +34,30 @@ func (e BackupKind) Valid() bool {
 	case Manual:
 		return true
 	case Startup:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EntryKind.
+const (
+	EntryKindAdjustment EntryKind = "adjustment"
+	EntryKindExpense    EntryKind = "expense"
+	EntryKindIncome     EntryKind = "income"
+	EntryKindTransfer   EntryKind = "transfer"
+)
+
+// Valid indicates whether the value is a known member of the EntryKind enum.
+func (e EntryKind) Valid() bool {
+	switch e {
+	case EntryKindAdjustment:
+		return true
+	case EntryKindExpense:
+		return true
+	case EntryKindIncome:
+		return true
+	case EntryKindTransfer:
 		return true
 	default:
 		return false
@@ -73,6 +98,47 @@ func (e Theme) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// Account defines model for Account.
+type Account struct {
+	Active bool `json:"active"`
+
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents `json:"balanceCents"`
+	Id           int64 `json:"id"`
+
+	// InitialBalanceCents Amount in cents (RN-21).
+	InitialBalanceCents Cents  `json:"initialBalanceCents"`
+	Name                string `json:"name"`
+	PersonId            int64  `json:"personId"`
+	PersonName          string `json:"personName"`
+}
+
+// AccountCreate defines model for AccountCreate.
+type AccountCreate struct {
+	// InitialBalanceCents Amount in cents (RN-21).
+	InitialBalanceCents Cents  `json:"initialBalanceCents"`
+	Name                string `json:"name"`
+	PersonId            int64  `json:"personId"`
+}
+
+// AccountUpdate defines model for AccountUpdate.
+type AccountUpdate struct {
+	Active *bool `json:"active,omitempty"`
+
+	// InitialBalanceCents Amount in cents (RN-21).
+	InitialBalanceCents *Cents  `json:"initialBalanceCents,omitempty"`
+	Name                *string `json:"name,omitempty"`
+	PersonId            *int64  `json:"personId,omitempty"`
+}
+
+// AdjustmentCreate defines model for AdjustmentCreate.
+type AdjustmentCreate struct {
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents              `json:"balanceCents"`
+	Date         openapi_types.Date `json:"date"`
+	Description  *string            `json:"description,omitempty"`
 }
 
 // Backup defines model for Backup.
@@ -127,6 +193,35 @@ type CategoryUpdate struct {
 	Name   *string `json:"name,omitempty"`
 }
 
+// Cents Amount in cents (RN-21).
+type Cents = int64
+
+// Entry defines model for Entry.
+type Entry struct {
+	AccountId int64 `json:"accountId"`
+
+	// AmountCents Signed cents, positive enters the account and negative leaves it.
+	AmountCents  int64   `json:"amountCents"`
+	CategoryIcon *string `json:"categoryIcon,omitempty"`
+	CategoryId   *int64  `json:"categoryId,omitempty"`
+	CategoryName *string `json:"categoryName,omitempty"`
+	Confirmed    bool    `json:"confirmed"`
+
+	// CounterpartAccountName The other account of a transfer.
+	CounterpartAccountName *string            `json:"counterpartAccountName,omitempty"`
+	CreatedAt              time.Time          `json:"createdAt"`
+	CreatedByName          string             `json:"createdByName"`
+	Date                   openapi_types.Date `json:"date"`
+	Description            string             `json:"description"`
+	Id                     int64              `json:"id"`
+	Kind                   EntryKind          `json:"kind"`
+	ParentCategoryName     *string            `json:"parentCategoryName,omitempty"`
+	TransferId             *int64             `json:"transferId,omitempty"`
+}
+
+// EntryKind defines model for EntryKind.
+type EntryKind string
+
 // Error defines model for Error.
 type Error struct {
 	// Code Stable machine readable code.
@@ -134,6 +229,15 @@ type Error struct {
 
 	// Message Message in Portuguese, ready to show to the user.
 	Message string `json:"message"`
+}
+
+// ExpenseCreate defines model for ExpenseCreate.
+type ExpenseCreate struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	CategoryId  int64              `json:"categoryId"`
+	Date        openapi_types.Date `json:"date"`
+	Description *string            `json:"description,omitempty"`
 }
 
 // Health defines model for Health.
@@ -169,6 +273,27 @@ type Me struct {
 	Theme   Theme  `json:"theme"`
 }
 
+// Month Example: 2026-11
+type Month = string
+
+// MonthFlow defines model for MonthFlow.
+type MonthFlow struct {
+	// ExpenseCents Amount in cents (RN-21).
+	ExpenseCents Cents `json:"expenseCents"`
+
+	// IncomeCents Amount in cents (RN-21).
+	IncomeCents Cents `json:"incomeCents"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+}
+
+// Person defines model for Person.
+type Person struct {
+	Id   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 // Ping defines model for Ping.
 type Ping struct {
 	Status PingStatus `json:"status"`
@@ -183,8 +308,38 @@ type PreferencesUpdate struct {
 	Theme   *Theme `json:"theme,omitempty"`
 }
 
+// Statement defines model for Statement.
+type Statement struct {
+	// ClosingCents Amount in cents (RN-21).
+	ClosingCents Cents   `json:"closingCents"`
+	Entries      []Entry `json:"entries"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+
+	// OpeningCents Amount in cents (RN-21).
+	OpeningCents Cents `json:"openingCents"`
+}
+
 // Theme defines model for Theme.
 type Theme string
+
+// Transfer defines model for Transfer.
+type Transfer struct {
+	Id         int64 `json:"id"`
+	InEntryId  int64 `json:"inEntryId"`
+	OutEntryId int64 `json:"outEntryId"`
+}
+
+// TransferCreate defines model for TransferCreate.
+type TransferCreate struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents   Cents              `json:"amountCents"`
+	Date          openapi_types.Date `json:"date"`
+	Description   *string            `json:"description,omitempty"`
+	FromAccountId int64              `json:"fromAccountId"`
+	ToAccountId   int64              `json:"toAccountId"`
+}
 
 // Id defines model for Id.
 type Id = int64
@@ -204,11 +359,35 @@ type ServerError = Error
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
 
+// GetAccountStatementParams defines parameters for GetAccountStatement.
+type GetAccountStatementParams struct {
+	// Month Month as YYYY-MM.
+	Month Month `form:"month" json:"month"`
+}
+
 // ListCategoriesParams defines parameters for ListCategories.
 type ListCategoriesParams struct {
 	// IncludeInactive Also returns inactive categories, for the management screen.
 	IncludeInactive *bool `form:"includeInactive,omitempty" json:"includeInactive,omitempty"`
 }
+
+// GetMonthFlowParams defines parameters for GetMonthFlow.
+type GetMonthFlowParams struct {
+	// Month Month as YYYY-MM.
+	Month Month `form:"month" json:"month"`
+}
+
+// CreateAccountJSONRequestBody defines body for CreateAccount for application/json ContentType.
+type CreateAccountJSONRequestBody = AccountCreate
+
+// UpdateAccountJSONRequestBody defines body for UpdateAccount for application/json ContentType.
+type UpdateAccountJSONRequestBody = AccountUpdate
+
+// AdjustAccountBalanceJSONRequestBody defines body for AdjustAccountBalance for application/json ContentType.
+type AdjustAccountBalanceJSONRequestBody = AdjustmentCreate
+
+// AddAccountExpenseJSONRequestBody defines body for AddAccountExpense for application/json ContentType.
+type AddAccountExpenseJSONRequestBody = ExpenseCreate
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
@@ -225,8 +404,35 @@ type MoveCategoryJSONRequestBody = CategoryMove
 // UpdatePreferencesJSONRequestBody defines body for UpdatePreferences for application/json ContentType.
 type UpdatePreferencesJSONRequestBody = PreferencesUpdate
 
+// CreateTransferJSONRequestBody defines body for CreateTransfer for application/json ContentType.
+type CreateTransferJSONRequestBody = TransferCreate
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListAccounts Lists the bank accounts with their current balance (RF-04, RF-05).
+	// (GET /accounts)
+	ListAccounts(w http.ResponseWriter, r *http.Request)
+	// CreateAccount Registers a bank account (RF-04).
+	// (POST /accounts)
+	CreateAccount(w http.ResponseWriter, r *http.Request)
+	// DeleteAccount Deletes an account without entries.
+	// (DELETE /accounts/{id})
+	DeleteAccount(w http.ResponseWriter, r *http.Request, id Id)
+	// GetAccount Returns one account with its balance (RF-05).
+	// (GET /accounts/{id})
+	GetAccount(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateAccount Edits name, holder, initial balance or active state of an account.
+	// (PATCH /accounts/{id})
+	UpdateAccount(w http.ResponseWriter, r *http.Request, id Id)
+	// AdjustAccountBalance Sets the balance to the informed value, recording the difference as an adjustment (RF-06).
+	// (POST /accounts/{id}/adjustments)
+	AdjustAccountBalance(w http.ResponseWriter, r *http.Request, id Id)
+	// AddAccountExpense Records a one off expense paid from the account (section 5.6).
+	// (POST /accounts/{id}/expenses)
+	AddAccountExpense(w http.ResponseWriter, r *http.Request, id Id)
+	// GetAccountStatement Entries of the account in the month, with opening and closing balances (RF-05).
+	// (GET /accounts/{id}/statement)
+	GetAccountStatement(w http.ResponseWriter, r *http.Request, id Id, params GetAccountStatementParams)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -251,12 +457,21 @@ type ServerInterface interface {
 	// MoveCategory Moves a category under another parent or promotes it to top level (RF-50).
 	// (POST /categories/{id}/move)
 	MoveCategory(w http.ResponseWriter, r *http.Request, id Id)
+	// DeleteEntry Deletes an entry; either side of a transfer deletes the whole transfer.
+	// (DELETE /entries/{id})
+	DeleteEntry(w http.ResponseWriter, r *http.Request, id Id)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
 	// UpdatePreferences Changes theme and haptic feedback (RNF-14, RNF-25).
 	// (PATCH /me/preferences)
 	UpdatePreferences(w http.ResponseWriter, r *http.Request)
+	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
+	// (GET /month-flow)
+	GetMonthFlow(w http.ResponseWriter, r *http.Request, params GetMonthFlowParams)
+	// ListPersons Lists the people of the couple, holders of accounts and cards.
+	// (GET /persons)
+	ListPersons(w http.ResponseWriter, r *http.Request)
 	// Ping Liveness check used by the container health check.
 	// (GET /ping)
 	Ping(w http.ResponseWriter, r *http.Request)
@@ -272,6 +487,9 @@ type ServerInterface interface {
 	// GetHealth System health page data (section 8.5).
 	// (GET /system/health)
 	GetHealth(w http.ResponseWriter, r *http.Request)
+	// CreateTransfer Moves money between two accounts, not counted as income or spending (RF-07, RN-08).
+	// (POST /transfers)
+	CreateTransfer(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -282,6 +500,206 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListAccounts operation middleware
+func (siw *ServerInterfaceWrapper) ListAccounts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAccounts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAccount operation middleware
+func (siw *ServerInterfaceWrapper) CreateAccount(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAccount operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAccount operation middleware
+func (siw *ServerInterfaceWrapper) GetAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAccount operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAccount(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAccount(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdjustAccountBalance operation middleware
+func (siw *ServerInterfaceWrapper) AdjustAccountBalance(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdjustAccountBalance(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddAccountExpense operation middleware
+func (siw *ServerInterfaceWrapper) AddAccountExpense(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddAccountExpense(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAccountStatement operation middleware
+func (siw *ServerInterfaceWrapper) GetAccountStatement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetAccountStatementParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAccountStatement(w, r, id, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
@@ -450,6 +868,32 @@ func (siw *ServerInterfaceWrapper) MoveCategory(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteEntry operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEntry(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEntry(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMe operation middleware
 func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
 
@@ -469,6 +913,53 @@ func (siw *ServerInterfaceWrapper) UpdatePreferences(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdatePreferences(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMonthFlow operation middleware
+func (siw *ServerInterfaceWrapper) GetMonthFlow(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMonthFlowParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMonthFlow(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPersons operation middleware
+func (siw *ServerInterfaceWrapper) ListPersons(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPersons(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -539,6 +1030,20 @@ func (siw *ServerInterfaceWrapper) GetHealth(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealth(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTransfer operation middleware
+func (siw *ServerInterfaceWrapper) CreateTransfer(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTransfer(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -683,6 +1188,18 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/categories/{id}", wrapper.DeleteCategory)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/categories/{id}", wrapper.UpdateCategory)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/categories/{id}/move", wrapper.MoveCategory)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/persons", wrapper.ListPersons)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/accounts", wrapper.ListAccounts)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/accounts", wrapper.CreateAccount)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/accounts/{id}", wrapper.DeleteAccount)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/accounts/{id}", wrapper.GetAccount)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/accounts/{id}", wrapper.UpdateAccount)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/accounts/{id}/statement", wrapper.GetAccountStatement)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/accounts/{id}/adjustments", wrapper.AdjustAccountBalance)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/accounts/{id}/expenses", wrapper.AddAccountExpense)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/transfers", wrapper.CreateTransfer)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/entries/{id}", wrapper.DeleteEntry)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/month-flow", wrapper.GetMonthFlow)
 
 	return m
 }
@@ -696,6 +1213,515 @@ type NotFoundJSONResponse Error
 type ServerErrorJSONResponse Error
 
 type UnauthorizedJSONResponse Error
+
+type ListAccountsRequestObject struct {
+}
+
+type ListAccountsResponseObject interface {
+	VisitListAccountsResponse(w http.ResponseWriter) error
+}
+
+type ListAccounts200JSONResponse []Account
+
+func (response ListAccounts200JSONResponse) VisitListAccountsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAccounts401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAccounts401JSONResponse) VisitListAccountsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAccountRequestObject struct {
+	Body *CreateAccountJSONRequestBody
+}
+
+type CreateAccountResponseObject interface {
+	VisitCreateAccountResponse(w http.ResponseWriter) error
+}
+
+type CreateAccount201JSONResponse Account
+
+func (response CreateAccount201JSONResponse) VisitCreateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAccount400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateAccount400JSONResponse) VisitCreateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAccount401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateAccount401JSONResponse) VisitCreateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAccount409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateAccount409JSONResponse) VisitCreateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccountRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteAccountResponseObject interface {
+	VisitDeleteAccountResponse(w http.ResponseWriter) error
+}
+
+type DeleteAccount204Response struct {
+}
+
+func (response DeleteAccount204Response) VisitDeleteAccountResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAccount401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteAccount401JSONResponse) VisitDeleteAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteAccount404JSONResponse) VisitDeleteAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAccount409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteAccount409JSONResponse) VisitDeleteAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccountRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type GetAccountResponseObject interface {
+	VisitGetAccountResponse(w http.ResponseWriter) error
+}
+
+type GetAccount200JSONResponse Account
+
+func (response GetAccount200JSONResponse) VisitGetAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccount401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAccount401JSONResponse) VisitGetAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAccount404JSONResponse) VisitGetAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccountRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateAccountJSONRequestBody
+}
+
+type UpdateAccountResponseObject interface {
+	VisitUpdateAccountResponse(w http.ResponseWriter) error
+}
+
+type UpdateAccount200JSONResponse Account
+
+func (response UpdateAccount200JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccount400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAccount400JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccount401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAccount401JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateAccount404JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAccount409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateAccount409JSONResponse) VisitUpdateAccountResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustAccountBalanceRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AdjustAccountBalanceJSONRequestBody
+}
+
+type AdjustAccountBalanceResponseObject interface {
+	VisitAdjustAccountBalanceResponse(w http.ResponseWriter) error
+}
+
+type AdjustAccountBalance201JSONResponse Entry
+
+func (response AdjustAccountBalance201JSONResponse) VisitAdjustAccountBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustAccountBalance400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AdjustAccountBalance400JSONResponse) VisitAdjustAccountBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustAccountBalance401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AdjustAccountBalance401JSONResponse) VisitAdjustAccountBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustAccountBalance404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AdjustAccountBalance404JSONResponse) VisitAdjustAccountBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdjustAccountBalance409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AdjustAccountBalance409JSONResponse) VisitAdjustAccountBalanceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountExpenseRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddAccountExpenseJSONRequestBody
+}
+
+type AddAccountExpenseResponseObject interface {
+	VisitAddAccountExpenseResponse(w http.ResponseWriter) error
+}
+
+type AddAccountExpense201JSONResponse Entry
+
+func (response AddAccountExpense201JSONResponse) VisitAddAccountExpenseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountExpense400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddAccountExpense400JSONResponse) VisitAddAccountExpenseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountExpense401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddAccountExpense401JSONResponse) VisitAddAccountExpenseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountExpense404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddAccountExpense404JSONResponse) VisitAddAccountExpenseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountExpense409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddAccountExpense409JSONResponse) VisitAddAccountExpenseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccountStatementRequestObject struct {
+	Id     Id `json:"id"`
+	Params GetAccountStatementParams
+}
+
+type GetAccountStatementResponseObject interface {
+	VisitGetAccountStatementResponse(w http.ResponseWriter) error
+}
+
+type GetAccountStatement200JSONResponse Statement
+
+func (response GetAccountStatement200JSONResponse) VisitGetAccountStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccountStatement400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetAccountStatement400JSONResponse) VisitGetAccountStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccountStatement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAccountStatement401JSONResponse) VisitGetAccountStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAccountStatement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAccountStatement404JSONResponse) VisitGetAccountStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type LoginRequestObject struct {
 	Body *LoginJSONRequestBody
@@ -1099,6 +2125,50 @@ func (response MoveCategory409JSONResponse) VisitMoveCategoryResponse(w http.Res
 	return err
 }
 
+type DeleteEntryRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteEntryResponseObject interface {
+	VisitDeleteEntryResponse(w http.ResponseWriter) error
+}
+
+type DeleteEntry204Response struct {
+}
+
+func (response DeleteEntry204Response) VisitDeleteEntryResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteEntry401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteEntry401JSONResponse) VisitDeleteEntryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteEntry404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteEntry404JSONResponse) VisitDeleteEntryResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -1173,6 +2243,91 @@ func (response UpdatePreferences400JSONResponse) VisitUpdatePreferencesResponse(
 type UpdatePreferences401JSONResponse struct{ UnauthorizedJSONResponse }
 
 func (response UpdatePreferences401JSONResponse) VisitUpdatePreferencesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMonthFlowRequestObject struct {
+	Params GetMonthFlowParams
+}
+
+type GetMonthFlowResponseObject interface {
+	VisitGetMonthFlowResponse(w http.ResponseWriter) error
+}
+
+type GetMonthFlow200JSONResponse MonthFlow
+
+func (response GetMonthFlow200JSONResponse) VisitGetMonthFlowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMonthFlow400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetMonthFlow400JSONResponse) VisitGetMonthFlowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMonthFlow401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMonthFlow401JSONResponse) VisitGetMonthFlowResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPersonsRequestObject struct {
+}
+
+type ListPersonsResponseObject interface {
+	VisitListPersonsResponse(w http.ResponseWriter) error
+}
+
+type ListPersons200JSONResponse []Person
+
+func (response ListPersons200JSONResponse) VisitListPersonsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPersons401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPersons401JSONResponse) VisitListPersonsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1373,8 +2528,110 @@ func (response GetHealth401JSONResponse) VisitGetHealthResponse(w http.ResponseW
 	return err
 }
 
+type CreateTransferRequestObject struct {
+	Body *CreateTransferJSONRequestBody
+}
+
+type CreateTransferResponseObject interface {
+	VisitCreateTransferResponse(w http.ResponseWriter) error
+}
+
+type CreateTransfer201JSONResponse Transfer
+
+func (response CreateTransfer201JSONResponse) VisitCreateTransferResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTransfer400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateTransfer400JSONResponse) VisitCreateTransferResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTransfer401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateTransfer401JSONResponse) VisitCreateTransferResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTransfer404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateTransfer404JSONResponse) VisitCreateTransferResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateTransfer409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateTransfer409JSONResponse) VisitCreateTransferResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListAccounts Lists the bank accounts with their current balance (RF-04, RF-05).
+	// (GET /accounts)
+	ListAccounts(ctx context.Context, request ListAccountsRequestObject) (ListAccountsResponseObject, error)
+	// CreateAccount Registers a bank account (RF-04).
+	// (POST /accounts)
+	CreateAccount(ctx context.Context, request CreateAccountRequestObject) (CreateAccountResponseObject, error)
+	// DeleteAccount Deletes an account without entries.
+	// (DELETE /accounts/{id})
+	DeleteAccount(ctx context.Context, request DeleteAccountRequestObject) (DeleteAccountResponseObject, error)
+	// GetAccount Returns one account with its balance (RF-05).
+	// (GET /accounts/{id})
+	GetAccount(ctx context.Context, request GetAccountRequestObject) (GetAccountResponseObject, error)
+	// UpdateAccount Edits name, holder, initial balance or active state of an account.
+	// (PATCH /accounts/{id})
+	UpdateAccount(ctx context.Context, request UpdateAccountRequestObject) (UpdateAccountResponseObject, error)
+	// AdjustAccountBalance Sets the balance to the informed value, recording the difference as an adjustment (RF-06).
+	// (POST /accounts/{id}/adjustments)
+	AdjustAccountBalance(ctx context.Context, request AdjustAccountBalanceRequestObject) (AdjustAccountBalanceResponseObject, error)
+	// AddAccountExpense Records a one off expense paid from the account (section 5.6).
+	// (POST /accounts/{id}/expenses)
+	AddAccountExpense(ctx context.Context, request AddAccountExpenseRequestObject) (AddAccountExpenseResponseObject, error)
+	// GetAccountStatement Entries of the account in the month, with opening and closing balances (RF-05).
+	// (GET /accounts/{id}/statement)
+	GetAccountStatement(ctx context.Context, request GetAccountStatementRequestObject) (GetAccountStatementResponseObject, error)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -1399,12 +2656,21 @@ type StrictServerInterface interface {
 	// MoveCategory Moves a category under another parent or promotes it to top level (RF-50).
 	// (POST /categories/{id}/move)
 	MoveCategory(ctx context.Context, request MoveCategoryRequestObject) (MoveCategoryResponseObject, error)
+	// DeleteEntry Deletes an entry; either side of a transfer deletes the whole transfer.
+	// (DELETE /entries/{id})
+	DeleteEntry(ctx context.Context, request DeleteEntryRequestObject) (DeleteEntryResponseObject, error)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
 	// UpdatePreferences Changes theme and haptic feedback (RNF-14, RNF-25).
 	// (PATCH /me/preferences)
 	UpdatePreferences(ctx context.Context, request UpdatePreferencesRequestObject) (UpdatePreferencesResponseObject, error)
+	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
+	// (GET /month-flow)
+	GetMonthFlow(ctx context.Context, request GetMonthFlowRequestObject) (GetMonthFlowResponseObject, error)
+	// ListPersons Lists the people of the couple, holders of accounts and cards.
+	// (GET /persons)
+	ListPersons(ctx context.Context, request ListPersonsRequestObject) (ListPersonsResponseObject, error)
 	// Ping Liveness check used by the container health check.
 	// (GET /ping)
 	Ping(ctx context.Context, request PingRequestObject) (PingResponseObject, error)
@@ -1420,6 +2686,9 @@ type StrictServerInterface interface {
 	// GetHealth System health page data (section 8.5).
 	// (GET /system/health)
 	GetHealth(ctx context.Context, request GetHealthRequestObject) (GetHealthResponseObject, error)
+	// CreateTransfer Moves money between two accounts, not counted as income or spending (RF-07, RN-08).
+	// (POST /transfers)
+	CreateTransfer(ctx context.Context, request CreateTransferRequestObject) (CreateTransferResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1459,6 +2728,239 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListAccounts operation middleware
+func (sh *strictHandler) ListAccounts(w http.ResponseWriter, r *http.Request) {
+	var request ListAccountsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAccounts(ctx, request.(ListAccountsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAccounts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAccountsResponseObject); ok {
+		if err := validResponse.VisitListAccountsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAccount operation middleware
+func (sh *strictHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
+	var request CreateAccountRequestObject
+
+	var body CreateAccountJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAccount(ctx, request.(CreateAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAccountResponseObject); ok {
+		if err := validResponse.VisitCreateAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAccount operation middleware
+func (sh *strictHandler) DeleteAccount(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteAccountRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAccount(ctx, request.(DeleteAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAccountResponseObject); ok {
+		if err := validResponse.VisitDeleteAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAccount operation middleware
+func (sh *strictHandler) GetAccount(w http.ResponseWriter, r *http.Request, id Id) {
+	var request GetAccountRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAccount(ctx, request.(GetAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAccountResponseObject); ok {
+		if err := validResponse.VisitGetAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAccount operation middleware
+func (sh *strictHandler) UpdateAccount(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateAccountRequestObject
+
+	request.Id = id
+
+	var body UpdateAccountJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAccount(ctx, request.(UpdateAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAccountResponseObject); ok {
+		if err := validResponse.VisitUpdateAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdjustAccountBalance operation middleware
+func (sh *strictHandler) AdjustAccountBalance(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AdjustAccountBalanceRequestObject
+
+	request.Id = id
+
+	var body AdjustAccountBalanceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdjustAccountBalance(ctx, request.(AdjustAccountBalanceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdjustAccountBalance")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdjustAccountBalanceResponseObject); ok {
+		if err := validResponse.VisitAdjustAccountBalanceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddAccountExpense operation middleware
+func (sh *strictHandler) AddAccountExpense(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddAccountExpenseRequestObject
+
+	request.Id = id
+
+	var body AddAccountExpenseJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddAccountExpense(ctx, request.(AddAccountExpenseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddAccountExpense")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddAccountExpenseResponseObject); ok {
+		if err := validResponse.VisitAddAccountExpenseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAccountStatement operation middleware
+func (sh *strictHandler) GetAccountStatement(w http.ResponseWriter, r *http.Request, id Id, params GetAccountStatementParams) {
+	var request GetAccountStatementRequestObject
+
+	request.Id = id
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAccountStatement(ctx, request.(GetAccountStatementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAccountStatement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAccountStatementResponseObject); ok {
+		if err := validResponse.VisitGetAccountStatementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // Login operation middleware
@@ -1689,6 +3191,32 @@ func (sh *strictHandler) MoveCategory(w http.ResponseWriter, r *http.Request, id
 	}
 }
 
+// DeleteEntry operation middleware
+func (sh *strictHandler) DeleteEntry(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteEntryRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteEntry(ctx, request.(DeleteEntryRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteEntry")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteEntryResponseObject); ok {
+		if err := validResponse.VisitDeleteEntryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMe operation middleware
 func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	var request GetMeRequestObject
@@ -1737,6 +3265,56 @@ func (sh *strictHandler) UpdatePreferences(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdatePreferencesResponseObject); ok {
 		if err := validResponse.VisitUpdatePreferencesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMonthFlow operation middleware
+func (sh *strictHandler) GetMonthFlow(w http.ResponseWriter, r *http.Request, params GetMonthFlowParams) {
+	var request GetMonthFlowRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMonthFlow(ctx, request.(GetMonthFlowRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMonthFlow")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMonthFlowResponseObject); ok {
+		if err := validResponse.VisitGetMonthFlowResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPersons operation middleware
+func (sh *strictHandler) ListPersons(w http.ResponseWriter, r *http.Request) {
+	var request ListPersonsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPersons(ctx, request.(ListPersonsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPersons")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPersonsResponseObject); ok {
+		if err := validResponse.VisitListPersonsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1857,6 +3435,37 @@ func (sh *strictHandler) GetHealth(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthResponseObject); ok {
 		if err := validResponse.VisitGetHealthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateTransfer operation middleware
+func (sh *strictHandler) CreateTransfer(w http.ResponseWriter, r *http.Request) {
+	var request CreateTransferRequestObject
+
+	var body CreateTransferJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateTransfer(ctx, request.(CreateTransferRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateTransfer")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateTransferResponseObject); ok {
+		if err := validResponse.VisitCreateTransferResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

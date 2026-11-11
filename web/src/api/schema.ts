@@ -215,6 +215,172 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/persons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the people of the couple, holders of accounts and cards. */
+        get: operations["listPersons"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the bank accounts with their current balance (RF-04, RF-05). */
+        get: operations["listAccounts"];
+        put?: never;
+        /** Registers a bank account (RF-04). */
+        post: operations["createAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Returns one account with its balance (RF-05). */
+        get: operations["getAccount"];
+        put?: never;
+        post?: never;
+        /** Deletes an account without entries. */
+        delete: operations["deleteAccount"];
+        options?: never;
+        head?: never;
+        /** Edits name, holder, initial balance or active state of an account. */
+        patch: operations["updateAccount"];
+        trace?: never;
+    };
+    "/accounts/{id}/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Entries of the account in the month, with opening and closing balances (RF-05). */
+        get: operations["getAccountStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sets the balance to the informed value, recording the difference as an adjustment (RF-06). */
+        post: operations["adjustAccountBalance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Records a one off expense paid from the account (section 5.6). */
+        post: operations["addAccountExpense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Moves money between two accounts, not counted as income or spending (RF-07, RN-08). */
+        post: operations["createTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes an entry; either side of a transfer deletes the whole transfer. */
+        delete: operations["deleteEntry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/month-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08). */
+        get: operations["getMonthFlow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -313,6 +479,115 @@ export interface components {
             parentId?: number;
             /** @description Icon used when promoting a subcategory without one. */
             icon?: string;
+        };
+        /** @example 2026-11 */
+        Month: string;
+        /**
+         * Format: int64
+         * @description Amount in cents (RN-21).
+         */
+        Cents: number;
+        Person: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+        };
+        Account: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            initialBalanceCents: components["schemas"]["Cents"];
+            balanceCents: components["schemas"]["Cents"];
+            active: boolean;
+        };
+        AccountCreate: {
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            initialBalanceCents: components["schemas"]["Cents"];
+        };
+        AccountUpdate: {
+            name?: string;
+            /** Format: int64 */
+            personId?: number;
+            initialBalanceCents?: components["schemas"]["Cents"];
+            active?: boolean;
+        };
+        /** @enum {string} */
+        EntryKind: "expense" | "income" | "adjustment" | "transfer";
+        Entry: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            accountId: number;
+            kind: components["schemas"]["EntryKind"];
+            /**
+             * Format: int64
+             * @description Signed cents, positive enters the account and negative leaves it.
+             */
+            amountCents: number;
+            /** Format: date */
+            date: string;
+            confirmed: boolean;
+            /** Format: int64 */
+            categoryId?: number;
+            categoryName?: string;
+            parentCategoryName?: string;
+            categoryIcon?: string;
+            description: string;
+            /** Format: int64 */
+            transferId?: number;
+            /** @description The other account of a transfer. */
+            counterpartAccountName?: string;
+            createdByName: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        Statement: {
+            month: components["schemas"]["Month"];
+            openingCents: components["schemas"]["Cents"];
+            closingCents: components["schemas"]["Cents"];
+            entries: components["schemas"]["Entry"][];
+        };
+        AdjustmentCreate: {
+            balanceCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+            description?: string;
+        };
+        ExpenseCreate: {
+            amountCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+            /** Format: int64 */
+            categoryId: number;
+            description?: string;
+        };
+        TransferCreate: {
+            /** Format: int64 */
+            fromAccountId: number;
+            /** Format: int64 */
+            toAccountId: number;
+            amountCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+            description?: string;
+        };
+        Transfer: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            outEntryId: number;
+            /** Format: int64 */
+            inEntryId: number;
+        };
+        MonthFlow: {
+            month: components["schemas"]["Month"];
+            incomeCents: components["schemas"]["Cents"];
+            expenseCents: components["schemas"]["Cents"];
         };
     };
     responses: {
@@ -720,6 +995,315 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listPersons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description People of the couple. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Person"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accounts, active first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountCreate"];
+            };
+        };
+        responses: {
+            /** @description Created account. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated account. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getAccountStatement: {
+        parameters: {
+            query: {
+                /** @description Month as YYYY-MM. */
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Statement of the month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Statement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    adjustAccountBalance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdjustmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Adjustment entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    addAccountExpense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseCreate"];
+            };
+        };
+        responses: {
+            /** @description Expense entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createTransfer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferCreate"];
+            };
+        };
+        responses: {
+            /** @description Created transfer. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transfer"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMonthFlow: {
+        parameters: {
+            query: {
+                /** @description Month as YYYY-MM. */
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Totals of the month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthFlow"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

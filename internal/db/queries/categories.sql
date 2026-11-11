@@ -31,3 +31,9 @@ WHERE parent_id = ?;
 -- name: DeleteCategory :exec
 DELETE FROM categories
 WHERE id = ?;
+
+-- name: GetSelectableCategory :one
+SELECT c.id, c.active, p.active AS parent_active
+FROM categories c
+JOIN categories p ON p.id = c.parent_id
+WHERE c.id = ?;

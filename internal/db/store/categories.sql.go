@@ -98,6 +98,26 @@ func (q *Queries) GetCategory(ctx context.Context, id int64) (Category, error) {
 	return i, err
 }
 
+const getSelectableCategory = `-- name: GetSelectableCategory :one
+SELECT c.id, c.active, p.active AS parent_active
+FROM categories c
+JOIN categories p ON p.id = c.parent_id
+WHERE c.id = ?
+`
+
+type GetSelectableCategoryRow struct {
+	ID           int64
+	Active       bool
+	ParentActive bool
+}
+
+func (q *Queries) GetSelectableCategory(ctx context.Context, id int64) (GetSelectableCategoryRow, error) {
+	row := q.db.QueryRowContext(ctx, getSelectableCategory, id)
+	var i GetSelectableCategoryRow
+	err := row.Scan(&i.ID, &i.Active, &i.ParentActive)
+	return i, err
+}
+
 const listCategories = `-- name: ListCategories :many
 SELECT id, parent_id, name, icon, active, sort_order, created_by, created_at, updated_at
 FROM categories

@@ -423,3 +423,21 @@ func nullID(id *int64) sql.NullInt64 {
 func nullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: s != ""}
 }
+
+// ErrNotSelectable is returned when an entry points to a category that cannot classify it.
+var ErrNotSelectable = problem.Invalid("category_not_selectable", "Escolha uma subcategoria ativa.")
+
+// CheckSelectable ensures id is an active subcategory under an active parent (RN-18).
+func CheckSelectable(ctx context.Context, q *store.Queries, id int64) error {
+	c, err := q.GetSelectableCategory(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotSelectable
+	}
+	if err != nil {
+		return fmt.Errorf("check category: %w", err)
+	}
+	if !c.Active || !c.ParentActive {
+		return ErrNotSelectable
+	}
+	return nil
+}

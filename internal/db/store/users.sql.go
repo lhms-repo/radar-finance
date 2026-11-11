@@ -128,6 +128,40 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 	return i, err
 }
 
+const listPersons = `-- name: ListPersons :many
+SELECT id, name
+FROM persons
+ORDER BY id
+`
+
+type ListPersonsRow struct {
+	ID   int64
+	Name string
+}
+
+func (q *Queries) ListPersons(ctx context.Context) ([]ListPersonsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPersons)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonsRow{}
+	for rows.Next() {
+		var i ListPersonsRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT u.id, u.login, p.name AS person_name, u.created_at
 FROM users u

@@ -146,3 +146,22 @@ func (s *Service) List(ctx context.Context) ([]User, error) {
 	}
 	return out, nil
 }
+
+// Person is one person of the couple, holder of accounts, cards and incomes.
+type Person struct {
+	ID   int64
+	Name string
+}
+
+// ListPersons returns the people of the couple in creation order.
+func (s *Service) ListPersons(ctx context.Context) ([]Person, error) {
+	rows, err := store.New(s.conn).ListPersons(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list persons: %w", err)
+	}
+	out := make([]Person, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, Person{ID: r.ID, Name: r.Name})
+	}
+	return out, nil
+}

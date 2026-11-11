@@ -33,3 +33,8 @@ ORDER BY u.id;
 UPDATE users
 SET theme = ?, haptics = ?, updated_at = ?
 WHERE id = ?;
+
+-- name: ListPersons :many
+SELECT id, name
+FROM persons
+ORDER BY id;

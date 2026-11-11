@@ -9,6 +9,17 @@ import (
 	"time"
 )
 
+type Account struct {
+	ID                  int64
+	Name                string
+	PersonID            int64
+	InitialBalanceCents int64
+	Active              bool
+	CreatedBy           int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type Category struct {
 	ID        int64
 	ParentID  sql.NullInt64
@@ -21,6 +32,21 @@ type Category struct {
 	UpdatedAt time.Time
 }
 
+type Entry struct {
+	ID          int64
+	AccountID   int64
+	Kind        string
+	AmountCents int64
+	OccurredOn  string
+	Confirmed   bool
+	CategoryID  sql.NullInt64
+	Description string
+	TransferID  sql.NullInt64
+	CreatedBy   int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type Person struct {
 	ID        int64
 	Name      string
@@ -31,6 +57,16 @@ type Session struct {
 	Token    string
 	Data     []byte
 	ExpiryMs int64
+}
+
+type Transfer struct {
+	ID            int64
+	FromAccountID int64
+	ToAccountID   int64
+	AmountCents   int64
+	OccurredOn    string
+	CreatedBy     int64
+	CreatedAt     time.Time
 }
 
 type User struct {

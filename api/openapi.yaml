@@ -12,6 +12,7 @@ tags:
   - name: me
   - name: system
   - name: categories
+  - name: accounts
 paths:
   /ping:
     get:
@@ -299,6 +300,273 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /persons:
+    get:
+      operationId: listPersons
+      tags: [accounts]
+      summary: Lists the people of the couple, holders of accounts and cards.
+      responses:
+        "200":
+          description: People of the couple.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Person"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /accounts:
+    get:
+      operationId: listAccounts
+      tags: [accounts]
+      summary: Lists the bank accounts with their current balance (RF-04, RF-05).
+      responses:
+        "200":
+          description: Accounts, active first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Registers a bank account (RF-04).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountCreate"
+      responses:
+        "201":
+          description: Created account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /accounts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getAccount
+      tags: [accounts]
+      summary: Returns one account with its balance (RF-05).
+      responses:
+        "200":
+          description: The account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateAccount
+      tags: [accounts]
+      summary: Edits name, holder, initial balance or active state of an account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountUpdate"
+      responses:
+        "200":
+          description: Updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Deletes an account without entries.
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /accounts/{id}/statement:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getAccountStatement
+      tags: [accounts]
+      summary: Entries of the account in the month, with opening and closing balances (RF-05).
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Month as YYYY-MM.
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: Statement of the month.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Statement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /accounts/{id}/adjustments:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: adjustAccountBalance
+      tags: [accounts]
+      summary: Sets the balance to the informed value, recording the difference as an adjustment (RF-06).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdjustmentCreate"
+      responses:
+        "201":
+          description: Adjustment entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /accounts/{id}/expenses:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: addAccountExpense
+      tags: [accounts]
+      summary: Records a one off expense paid from the account (section 5.6).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExpenseCreate"
+      responses:
+        "201":
+          description: Expense entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /transfers:
+    post:
+      operationId: createTransfer
+      tags: [accounts]
+      summary: Moves money between two accounts, not counted as income or spending (RF-07, RN-08).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferCreate"
+      responses:
+        "201":
+          description: Created transfer.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /entries/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: deleteEntry
+      tags: [accounts]
+      summary: Deletes an entry; either side of a transfer deletes the whole transfer.
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /month-flow:
+    get:
+      operationId: getMonthFlow
+      tags: [accounts]
+      summary: Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Month as YYYY-MM.
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: Totals of the month.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonthFlow"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+
 components:
   parameters:
     Id:
@@ -522,6 +790,210 @@ components:
           type: string
           maxLength: 40
           description: Icon used when promoting a subcategory without one.
+
+    Month:
+      type: string
+      pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'
+      example: "2026-11"
+
+    Cents:
+      type: integer
+      format: int64
+      description: Amount in cents (RN-21).
+
+    Person:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+
+    Account:
+      type: object
+      required: [id, name, personId, personName, initialBalanceCents, balanceCents, active]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        personId:
+          type: integer
+          format: int64
+        personName:
+          type: string
+        initialBalanceCents:
+          $ref: "#/components/schemas/Cents"
+        balanceCents:
+          $ref: "#/components/schemas/Cents"
+        active:
+          type: boolean
+
+    AccountCreate:
+      type: object
+      required: [name, personId, initialBalanceCents]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        personId:
+          type: integer
+          format: int64
+        initialBalanceCents:
+          $ref: "#/components/schemas/Cents"
+
+    AccountUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        personId:
+          type: integer
+          format: int64
+        initialBalanceCents:
+          $ref: "#/components/schemas/Cents"
+        active:
+          type: boolean
+
+    EntryKind:
+      type: string
+      enum: [expense, income, adjustment, transfer]
+
+    Entry:
+      type: object
+      required: [id, accountId, kind, amountCents, date, confirmed, description, createdByName, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        accountId:
+          type: integer
+          format: int64
+        kind:
+          $ref: "#/components/schemas/EntryKind"
+        amountCents:
+          description: Signed cents, positive enters the account and negative leaves it.
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        confirmed:
+          type: boolean
+        categoryId:
+          type: integer
+          format: int64
+        categoryName:
+          type: string
+        parentCategoryName:
+          type: string
+        categoryIcon:
+          type: string
+        description:
+          type: string
+        transferId:
+          type: integer
+          format: int64
+        counterpartAccountName:
+          type: string
+          description: The other account of a transfer.
+        createdByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Statement:
+      type: object
+      required: [month, openingCents, closingCents, entries]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        openingCents:
+          $ref: "#/components/schemas/Cents"
+        closingCents:
+          $ref: "#/components/schemas/Cents"
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+
+    AdjustmentCreate:
+      type: object
+      required: [balanceCents, date]
+      properties:
+        balanceCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 120
+
+    ExpenseCreate:
+      type: object
+      required: [amountCents, date, categoryId]
+      properties:
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        categoryId:
+          type: integer
+          format: int64
+        description:
+          type: string
+          maxLength: 120
+
+    TransferCreate:
+      type: object
+      required: [fromAccountId, toAccountId, amountCents, date]
+      properties:
+        fromAccountId:
+          type: integer
+          format: int64
+        toAccountId:
+          type: integer
+          format: int64
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 120
+
+    Transfer:
+      type: object
+      required: [id, outEntryId, inEntryId]
+      properties:
+        id:
+          type: integer
+          format: int64
+        outEntryId:
+          type: integer
+          format: int64
+        inEntryId:
+          type: integer
+          format: int64
+
+    MonthFlow:
+      type: object
+      required: [month, incomeCents, expenseCents]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        incomeCents:
+          $ref: "#/components/schemas/Cents"
+        expenseCents:
+          $ref: "#/components/schemas/Cents"
 
 security:
   - session: []
