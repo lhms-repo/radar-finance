@@ -215,6 +215,23 @@ type InvoicePayment struct {
 	CreatedAt    time.Time
 }
 
+type Market struct {
+	ID           int64
+	Name         string
+	Neighborhood string
+	Cnpj         sql.NullString
+	Active       bool
+	CreatedBy    int64
+	CreatedAt    time.Time
+}
+
+type MarketSetting struct {
+	ID              int64
+	MaxMarkets      int64
+	MinSavingsCents int64
+	StaleDays       int64
+}
+
 type NotificationRead struct {
 	UserID int64
 	Key    string
@@ -231,6 +248,28 @@ type Party struct {
 type Person struct {
 	ID        int64
 	Name      string
+	CreatedAt time.Time
+}
+
+type Price struct {
+	ID         int64
+	ProductID  int64
+	MarketID   int64
+	PriceCents int64
+	ObservedOn string
+	Source     string
+	CreatedBy  int64
+	CreatedAt  time.Time
+}
+
+type Product struct {
+	ID        int64
+	Name      string
+	Brand     string
+	ByWeight  bool
+	SizeMilli int64
+	Unit      string
+	CreatedBy int64
 	CreatedAt time.Time
 }
 

@@ -23,6 +23,7 @@ tags:
   - name: savings
   - name: reports
   - name: imports
+  - name: market
 paths:
   /ping:
     get:
@@ -2236,6 +2237,278 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /market/markets:
+    get:
+      operationId: listMarkets
+      tags: [market]
+      summary: Lists the markets, active first (RF-65).
+      responses:
+        "200":
+          description: Markets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Market"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createMarket
+      tags: [market]
+      summary: Registers a market (RF-65).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarketInput"
+      responses:
+        "201":
+          description: Created market.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /market/markets/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateMarket
+      tags: [market]
+      summary: Renames or deactivates a market.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarketInput"
+      responses:
+        "200":
+          description: Updated market.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteMarket
+      tags: [market]
+      summary: Deletes a market without prices.
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /market/products:
+    get:
+      operationId: listProducts
+      tags: [market]
+      summary: Lists the products with the latest price in each market (RF-66, RN-22).
+      responses:
+        "200":
+          description: Products.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketProduct"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createProduct
+      tags: [market]
+      summary: Registers a branded product (RF-66).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Created product.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketProduct"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /market/products/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateProduct
+      tags: [market]
+      summary: Edits a product.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "200":
+          description: Updated product.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketProduct"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteProduct
+      tags: [market]
+      summary: Deletes a product without prices or list items.
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /market/products/{id}/prices:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: listProductPrices
+      tags: [market]
+      summary: Price history of a product in every market, newest first (RF-76).
+      responses:
+        "200":
+          description: Prices.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MarketPrice"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /market/prices:
+    post:
+      operationId: createPrice
+      tags: [market]
+      summary: Records a price typed by hand (RF-67, RF-70).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceInput"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /market/prices/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updatePrice
+      tags: [market]
+      summary: Corrects the value or the date of a price (RF-70).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PriceChange"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deletePrice
+      tags: [market]
+      summary: Deletes a wrong price (RF-70).
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /market/settings:
+    get:
+      operationId: getMarketSettings
+      tags: [market]
+      summary: Comparison settings shared by the couple (RF-74, RN-25).
+      responses:
+        "200":
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSettings"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateMarketSettings
+      tags: [market]
+      summary: Saves the comparison settings (RF-74, RN-25).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarketSettings"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   parameters:
     Id:
@@ -4392,6 +4665,168 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    Market:
+      type: object
+      required: [id, name, neighborhood, active, priceCount]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        neighborhood:
+          type: string
+        active:
+          type: boolean
+        priceCount:
+          type: integer
+          format: int64
+
+    MarketInput:
+      type: object
+      required: [name, neighborhood]
+      properties:
+        name:
+          type: string
+          maxLength: 60
+        neighborhood:
+          type: string
+          maxLength: 60
+        active:
+          type: boolean
+          description: Ignored on registration.
+
+    ProductUnit:
+      type: string
+      enum: [un, g, kg, ml, l]
+
+    ProductInput:
+      type: object
+      required: [name, brand, byWeight, sizeMilli, unit]
+      properties:
+        name:
+          type: string
+          maxLength: 60
+        brand:
+          type: string
+          maxLength: 40
+        byWeight:
+          type: boolean
+          description: Sold by weight and priced per kg; size and unit are ignored (RF-66).
+        sizeMilli:
+          type: integer
+          format: int64
+          description: Size in thousandths of the unit, 1500 for 1,5 L.
+        unit:
+          $ref: "#/components/schemas/ProductUnit"
+
+    LatestPrice:
+      type: object
+      required: [marketId, priceCents, date, stale]
+      properties:
+        marketId:
+          type: integer
+          format: int64
+        priceCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        stale:
+          type: boolean
+          description: Older than the configured number of days (RN-25).
+
+    MarketProduct:
+      type: object
+      required: [id, name, brand, byWeight, sizeMilli, unit, label, prices]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        brand:
+          type: string
+        byWeight:
+          type: boolean
+        sizeMilli:
+          type: integer
+          format: int64
+        unit:
+          $ref: "#/components/schemas/ProductUnit"
+        label:
+          type: string
+          description: Name, brand and size as shown, such as Café Três Corações 500 g.
+        prices:
+          type: array
+          description: Latest price in each market that has one (RN-22).
+          items:
+            $ref: "#/components/schemas/LatestPrice"
+
+    MarketPrice:
+      type: object
+      required: [id, marketId, marketName, neighborhood, priceCents, date, source]
+      properties:
+        id:
+          type: integer
+          format: int64
+        marketId:
+          type: integer
+          format: int64
+        marketName:
+          type: string
+        neighborhood:
+          type: string
+        priceCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        source:
+          type: string
+          enum: [manual, receipt]
+
+    PriceInput:
+      type: object
+      required: [productId, marketId, priceCents, date]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        marketId:
+          type: integer
+          format: int64
+        priceCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+
+    PriceChange:
+      type: object
+      required: [priceCents, date]
+      properties:
+        priceCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+
+    MarketSettings:
+      type: object
+      required: [maxMarkets, minSavingsCents, staleDays]
+      properties:
+        maxMarkets:
+          type: integer
+          minimum: 1
+          maximum: 5
+        minSavingsCents:
+          $ref: "#/components/schemas/Cents"
+        staleDays:
+          type: integer
+          minimum: 1
+          maximum: 365
 
 security:
   - session: []

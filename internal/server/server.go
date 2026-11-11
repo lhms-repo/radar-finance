@@ -29,6 +29,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/importer"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/market"
 	"github.com/italogfx/radar-finance/internal/notify"
 	"github.com/italogfx/radar-finance/internal/problem"
 	"github.com/italogfx/radar-finance/internal/receivable"
@@ -69,6 +70,7 @@ type Deps struct {
 	Reports       *report.Service
 	Notifications *notify.Service
 	Imports       *importer.Service
+	Market        *market.Service
 	Sessions      *scs.SessionManager
 	Backups       *backup.Service
 	Version       string

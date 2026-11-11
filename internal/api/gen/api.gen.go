@@ -60,19 +60,19 @@ func (e AleloStyle) Valid() bool {
 
 // Defines values for BackupKind.
 const (
-	Daily   BackupKind = "daily"
-	Manual  BackupKind = "manual"
-	Startup BackupKind = "startup"
+	BackupKindDaily   BackupKind = "daily"
+	BackupKindManual  BackupKind = "manual"
+	BackupKindStartup BackupKind = "startup"
 )
 
 // Valid indicates whether the value is a known member of the BackupKind enum.
 func (e BackupKind) Valid() bool {
 	switch e {
-	case Daily:
+	case BackupKindDaily:
 		return true
-	case Manual:
+	case BackupKindManual:
 		return true
-	case Startup:
+	case BackupKindStartup:
 		return true
 	default:
 		return false
@@ -325,6 +325,24 @@ func (e InvoiceStatus) Valid() bool {
 	}
 }
 
+// Defines values for MarketPriceSource.
+const (
+	MarketPriceSourceManual  MarketPriceSource = "manual"
+	MarketPriceSourceReceipt MarketPriceSource = "receipt"
+)
+
+// Valid indicates whether the value is a known member of the MarketPriceSource enum.
+func (e MarketPriceSource) Valid() bool {
+	switch e {
+	case MarketPriceSourceManual:
+		return true
+	case MarketPriceSourceReceipt:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NotificationKind.
 const (
 	NotificationKindBudgetOver     NotificationKind = "budget_over"
@@ -385,6 +403,33 @@ const (
 func (e PingStatus) Valid() bool {
 	switch e {
 	case PingStatusOk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ProductUnit.
+const (
+	G  ProductUnit = "g"
+	Kg ProductUnit = "kg"
+	L  ProductUnit = "l"
+	Ml ProductUnit = "ml"
+	Un ProductUnit = "un"
+)
+
+// Valid indicates whether the value is a known member of the ProductUnit enum.
+func (e ProductUnit) Valid() bool {
+	switch e {
+	case G:
+		return true
+	case Kg:
+		return true
+	case L:
+		return true
+	case Ml:
+		return true
+	case Un:
 		return true
 	default:
 		return false
@@ -1507,6 +1552,18 @@ type ItemShare struct {
 	Received    bool   `json:"received"`
 }
 
+// LatestPrice defines model for LatestPrice.
+type LatestPrice struct {
+	Date     openapi_types.Date `json:"date"`
+	MarketId int64              `json:"marketId"`
+
+	// PriceCents Amount in cents (RN-21).
+	PriceCents Cents `json:"priceCents"`
+
+	// Stale Older than the configured number of days (RN-25).
+	Stale bool `json:"stale"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Login string `json:"login"`
@@ -1516,6 +1573,64 @@ type LoginRequest struct {
 type LoginUser struct {
 	Login string `json:"login"`
 	Name  string `json:"name"`
+}
+
+// Market defines model for Market.
+type Market struct {
+	Active       bool   `json:"active"`
+	Id           int64  `json:"id"`
+	Name         string `json:"name"`
+	Neighborhood string `json:"neighborhood"`
+	PriceCount   int64  `json:"priceCount"`
+}
+
+// MarketInput defines model for MarketInput.
+type MarketInput struct {
+	// Active Ignored on registration.
+	Active       *bool  `json:"active,omitempty"`
+	Name         string `json:"name"`
+	Neighborhood string `json:"neighborhood"`
+}
+
+// MarketPrice defines model for MarketPrice.
+type MarketPrice struct {
+	Date         openapi_types.Date `json:"date"`
+	Id           int64              `json:"id"`
+	MarketId     int64              `json:"marketId"`
+	MarketName   string             `json:"marketName"`
+	Neighborhood string             `json:"neighborhood"`
+
+	// PriceCents Amount in cents (RN-21).
+	PriceCents Cents             `json:"priceCents"`
+	Source     MarketPriceSource `json:"source"`
+}
+
+// MarketPriceSource defines model for MarketPrice.Source.
+type MarketPriceSource string
+
+// MarketProduct defines model for MarketProduct.
+type MarketProduct struct {
+	Brand    string `json:"brand"`
+	ByWeight bool   `json:"byWeight"`
+	Id       int64  `json:"id"`
+
+	// Label Name, brand and size as shown, such as Café Três Corações 500 g.
+	Label string `json:"label"`
+	Name  string `json:"name"`
+
+	// Prices Latest price in each market that has one (RN-22).
+	Prices    []LatestPrice `json:"prices"`
+	SizeMilli int64         `json:"sizeMilli"`
+	Unit      ProductUnit   `json:"unit"`
+}
+
+// MarketSettings defines model for MarketSettings.
+type MarketSettings struct {
+	MaxMarkets int `json:"maxMarkets"`
+
+	// MinSavingsCents Amount in cents (RN-21).
+	MinSavingsCents Cents `json:"minSavingsCents"`
+	StaleDays       int   `json:"staleDays"`
 }
 
 // Me defines model for Me.
@@ -1664,6 +1779,40 @@ type PreferencesUpdate struct {
 	Haptics *bool  `json:"haptics,omitempty"`
 	Theme   *Theme `json:"theme,omitempty"`
 }
+
+// PriceChange defines model for PriceChange.
+type PriceChange struct {
+	Date openapi_types.Date `json:"date"`
+
+	// PriceCents Amount in cents (RN-21).
+	PriceCents Cents `json:"priceCents"`
+}
+
+// PriceInput defines model for PriceInput.
+type PriceInput struct {
+	Date     openapi_types.Date `json:"date"`
+	MarketId int64              `json:"marketId"`
+
+	// PriceCents Amount in cents (RN-21).
+	PriceCents Cents `json:"priceCents"`
+	ProductId  int64 `json:"productId"`
+}
+
+// ProductInput defines model for ProductInput.
+type ProductInput struct {
+	Brand string `json:"brand"`
+
+	// ByWeight Sold by weight and priced per kg; size and unit are ignored (RF-66).
+	ByWeight bool   `json:"byWeight"`
+	Name     string `json:"name"`
+
+	// SizeMilli Size in thousandths of the unit, 1500 for 1,5 L.
+	SizeMilli int64       `json:"sizeMilli"`
+	Unit      ProductUnit `json:"unit"`
+}
+
+// ProductUnit defines model for ProductUnit.
+type ProductUnit string
 
 // Purchase defines model for Purchase.
 type Purchase struct {
@@ -2166,6 +2315,27 @@ type UpdateIncomeJSONRequestBody = IncomeInput
 // ConfirmIncomeJSONRequestBody defines body for ConfirmIncome for application/json ContentType.
 type ConfirmIncomeJSONRequestBody = IncomeConfirm
 
+// CreateMarketJSONRequestBody defines body for CreateMarket for application/json ContentType.
+type CreateMarketJSONRequestBody = MarketInput
+
+// UpdateMarketJSONRequestBody defines body for UpdateMarket for application/json ContentType.
+type UpdateMarketJSONRequestBody = MarketInput
+
+// CreatePriceJSONRequestBody defines body for CreatePrice for application/json ContentType.
+type CreatePriceJSONRequestBody = PriceInput
+
+// UpdatePriceJSONRequestBody defines body for UpdatePrice for application/json ContentType.
+type UpdatePriceJSONRequestBody = PriceChange
+
+// CreateProductJSONRequestBody defines body for CreateProduct for application/json ContentType.
+type CreateProductJSONRequestBody = ProductInput
+
+// UpdateProductJSONRequestBody defines body for UpdateProduct for application/json ContentType.
+type UpdateProductJSONRequestBody = ProductInput
+
+// UpdateMarketSettingsJSONRequestBody defines body for UpdateMarketSettings for application/json ContentType.
+type UpdateMarketSettingsJSONRequestBody = MarketSettings
+
 // UpdatePreferencesJSONRequestBody defines body for UpdatePreferences for application/json ContentType.
 type UpdatePreferencesJSONRequestBody = PreferencesUpdate
 
@@ -2405,6 +2575,48 @@ type ServerInterface interface {
 	// ConfirmIncome Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13).
 	// (POST /incomes/{id}/confirm)
 	ConfirmIncome(w http.ResponseWriter, r *http.Request, id Id)
+	// ListMarkets Lists the markets, active first (RF-65).
+	// (GET /market/markets)
+	ListMarkets(w http.ResponseWriter, r *http.Request)
+	// CreateMarket Registers a market (RF-65).
+	// (POST /market/markets)
+	CreateMarket(w http.ResponseWriter, r *http.Request)
+	// DeleteMarket Deletes a market without prices.
+	// (DELETE /market/markets/{id})
+	DeleteMarket(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateMarket Renames or deactivates a market.
+	// (PUT /market/markets/{id})
+	UpdateMarket(w http.ResponseWriter, r *http.Request, id Id)
+	// CreatePrice Records a price typed by hand (RF-67, RF-70).
+	// (POST /market/prices)
+	CreatePrice(w http.ResponseWriter, r *http.Request)
+	// DeletePrice Deletes a wrong price (RF-70).
+	// (DELETE /market/prices/{id})
+	DeletePrice(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdatePrice Corrects the value or the date of a price (RF-70).
+	// (PUT /market/prices/{id})
+	UpdatePrice(w http.ResponseWriter, r *http.Request, id Id)
+	// ListProducts Lists the products with the latest price in each market (RF-66, RN-22).
+	// (GET /market/products)
+	ListProducts(w http.ResponseWriter, r *http.Request)
+	// CreateProduct Registers a branded product (RF-66).
+	// (POST /market/products)
+	CreateProduct(w http.ResponseWriter, r *http.Request)
+	// DeleteProduct Deletes a product without prices or list items.
+	// (DELETE /market/products/{id})
+	DeleteProduct(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateProduct Edits a product.
+	// (PUT /market/products/{id})
+	UpdateProduct(w http.ResponseWriter, r *http.Request, id Id)
+	// ListProductPrices Price history of a product in every market, newest first (RF-76).
+	// (GET /market/products/{id}/prices)
+	ListProductPrices(w http.ResponseWriter, r *http.Request, id Id)
+	// GetMarketSettings Comparison settings shared by the couple (RF-74, RN-25).
+	// (GET /market/settings)
+	GetMarketSettings(w http.ResponseWriter, r *http.Request)
+	// UpdateMarketSettings Saves the comparison settings (RF-74, RN-25).
+	// (PUT /market/settings)
+	UpdateMarketSettings(w http.ResponseWriter, r *http.Request)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -4187,6 +4399,286 @@ func (siw *ServerInterfaceWrapper) ConfirmIncome(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ListMarkets operation middleware
+func (siw *ServerInterfaceWrapper) ListMarkets(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMarkets(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMarket operation middleware
+func (siw *ServerInterfaceWrapper) CreateMarket(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMarket(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteMarket operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMarket(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteMarket(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMarket operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMarket(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMarket(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrice operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrice(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrice(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeletePrice operation middleware
+func (siw *ServerInterfaceWrapper) DeletePrice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePrice(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePrice operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePrice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePrice(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProducts operation middleware
+func (siw *ServerInterfaceWrapper) ListProducts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProducts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateProduct operation middleware
+func (siw *ServerInterfaceWrapper) CreateProduct(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateProduct(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteProduct operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProduct(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProduct(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateProduct operation middleware
+func (siw *ServerInterfaceWrapper) UpdateProduct(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateProduct(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListProductPrices operation middleware
+func (siw *ServerInterfaceWrapper) ListProductPrices(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProductPrices(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMarketSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetMarketSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMarketSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMarketSettings operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMarketSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMarketSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMe operation middleware
 func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
 
@@ -5132,6 +5624,20 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/imports", wrapper.ListImports)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/imports", wrapper.CommitImport)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/imports/{id}", wrapper.UndoImport)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/markets", wrapper.ListMarkets)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/markets", wrapper.CreateMarket)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/markets/{id}", wrapper.DeleteMarket)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/markets/{id}", wrapper.UpdateMarket)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/products", wrapper.ListProducts)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/products", wrapper.CreateProduct)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/products/{id}", wrapper.DeleteProduct)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/products/{id}", wrapper.UpdateProduct)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/products/{id}/prices", wrapper.ListProductPrices)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/prices", wrapper.CreatePrice)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/prices/{id}", wrapper.DeletePrice)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/prices/{id}", wrapper.UpdatePrice)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/settings", wrapper.GetMarketSettings)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/settings", wrapper.UpdateMarketSettings)
 
 	return m
 }
@@ -9300,6 +9806,768 @@ func (response ConfirmIncome409JSONResponse) VisitConfirmIncomeResponse(w http.R
 	return err
 }
 
+type ListMarketsRequestObject struct {
+}
+
+type ListMarketsResponseObject interface {
+	VisitListMarketsResponse(w http.ResponseWriter) error
+}
+
+type ListMarkets200JSONResponse []Market
+
+func (response ListMarkets200JSONResponse) VisitListMarketsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMarkets401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMarkets401JSONResponse) VisitListMarketsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMarketRequestObject struct {
+	Body *CreateMarketJSONRequestBody
+}
+
+type CreateMarketResponseObject interface {
+	VisitCreateMarketResponse(w http.ResponseWriter) error
+}
+
+type CreateMarket201JSONResponse Market
+
+func (response CreateMarket201JSONResponse) VisitCreateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMarket400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateMarket400JSONResponse) VisitCreateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMarket401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateMarket401JSONResponse) VisitCreateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMarket409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateMarket409JSONResponse) VisitCreateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMarketRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteMarketResponseObject interface {
+	VisitDeleteMarketResponse(w http.ResponseWriter) error
+}
+
+type DeleteMarket204Response struct {
+}
+
+func (response DeleteMarket204Response) VisitDeleteMarketResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteMarket401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteMarket401JSONResponse) VisitDeleteMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMarket404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteMarket404JSONResponse) VisitDeleteMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMarket409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteMarket409JSONResponse) VisitDeleteMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMarketRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateMarketJSONRequestBody
+}
+
+type UpdateMarketResponseObject interface {
+	VisitUpdateMarketResponse(w http.ResponseWriter) error
+}
+
+type UpdateMarket200JSONResponse Market
+
+func (response UpdateMarket200JSONResponse) VisitUpdateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMarket400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateMarket400JSONResponse) VisitUpdateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMarket401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMarket401JSONResponse) VisitUpdateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMarket404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateMarket404JSONResponse) VisitUpdateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMarket409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateMarket409JSONResponse) VisitUpdateMarketResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePriceRequestObject struct {
+	Body *CreatePriceJSONRequestBody
+}
+
+type CreatePriceResponseObject interface {
+	VisitCreatePriceResponse(w http.ResponseWriter) error
+}
+
+type CreatePrice204Response struct {
+}
+
+func (response CreatePrice204Response) VisitCreatePriceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CreatePrice400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreatePrice400JSONResponse) VisitCreatePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePrice401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrice401JSONResponse) VisitCreatePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePrice404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreatePrice404JSONResponse) VisitCreatePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePriceRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeletePriceResponseObject interface {
+	VisitDeletePriceResponse(w http.ResponseWriter) error
+}
+
+type DeletePrice204Response struct {
+}
+
+func (response DeletePrice204Response) VisitDeletePriceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeletePrice401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeletePrice401JSONResponse) VisitDeletePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePrice404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeletePrice404JSONResponse) VisitDeletePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePriceRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdatePriceJSONRequestBody
+}
+
+type UpdatePriceResponseObject interface {
+	VisitUpdatePriceResponse(w http.ResponseWriter) error
+}
+
+type UpdatePrice204Response struct {
+}
+
+func (response UpdatePrice204Response) VisitUpdatePriceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UpdatePrice400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdatePrice400JSONResponse) VisitUpdatePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePrice401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdatePrice401JSONResponse) VisitUpdatePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdatePrice404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdatePrice404JSONResponse) VisitUpdatePriceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProductsRequestObject struct {
+}
+
+type ListProductsResponseObject interface {
+	VisitListProductsResponse(w http.ResponseWriter) error
+}
+
+type ListProducts200JSONResponse []MarketProduct
+
+func (response ListProducts200JSONResponse) VisitListProductsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProducts401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListProducts401JSONResponse) VisitListProductsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProductRequestObject struct {
+	Body *CreateProductJSONRequestBody
+}
+
+type CreateProductResponseObject interface {
+	VisitCreateProductResponse(w http.ResponseWriter) error
+}
+
+type CreateProduct201JSONResponse MarketProduct
+
+func (response CreateProduct201JSONResponse) VisitCreateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProduct400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateProduct400JSONResponse) VisitCreateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProduct401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateProduct401JSONResponse) VisitCreateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateProduct409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateProduct409JSONResponse) VisitCreateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProductRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteProductResponseObject interface {
+	VisitDeleteProductResponse(w http.ResponseWriter) error
+}
+
+type DeleteProduct204Response struct {
+}
+
+func (response DeleteProduct204Response) VisitDeleteProductResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProduct401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteProduct401JSONResponse) VisitDeleteProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProduct404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteProduct404JSONResponse) VisitDeleteProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteProduct409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteProduct409JSONResponse) VisitDeleteProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProductRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateProductJSONRequestBody
+}
+
+type UpdateProductResponseObject interface {
+	VisitUpdateProductResponse(w http.ResponseWriter) error
+}
+
+type UpdateProduct200JSONResponse MarketProduct
+
+func (response UpdateProduct200JSONResponse) VisitUpdateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProduct400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateProduct400JSONResponse) VisitUpdateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProduct401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateProduct401JSONResponse) VisitUpdateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProduct404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateProduct404JSONResponse) VisitUpdateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateProduct409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateProduct409JSONResponse) VisitUpdateProductResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProductPricesRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type ListProductPricesResponseObject interface {
+	VisitListProductPricesResponse(w http.ResponseWriter) error
+}
+
+type ListProductPrices200JSONResponse []MarketPrice
+
+func (response ListProductPrices200JSONResponse) VisitListProductPricesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProductPrices401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListProductPrices401JSONResponse) VisitListProductPricesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProductPrices404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListProductPrices404JSONResponse) VisitListProductPricesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMarketSettingsRequestObject struct {
+}
+
+type GetMarketSettingsResponseObject interface {
+	VisitGetMarketSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetMarketSettings200JSONResponse MarketSettings
+
+func (response GetMarketSettings200JSONResponse) VisitGetMarketSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMarketSettings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMarketSettings401JSONResponse) VisitGetMarketSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMarketSettingsRequestObject struct {
+	Body *UpdateMarketSettingsJSONRequestBody
+}
+
+type UpdateMarketSettingsResponseObject interface {
+	VisitUpdateMarketSettingsResponse(w http.ResponseWriter) error
+}
+
+type UpdateMarketSettings204Response struct {
+}
+
+func (response UpdateMarketSettings204Response) VisitUpdateMarketSettingsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UpdateMarketSettings400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateMarketSettings400JSONResponse) VisitUpdateMarketSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMarketSettings401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMarketSettings401JSONResponse) VisitUpdateMarketSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -11050,6 +12318,48 @@ type StrictServerInterface interface {
 	// ConfirmIncome Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13).
 	// (POST /incomes/{id}/confirm)
 	ConfirmIncome(ctx context.Context, request ConfirmIncomeRequestObject) (ConfirmIncomeResponseObject, error)
+	// ListMarkets Lists the markets, active first (RF-65).
+	// (GET /market/markets)
+	ListMarkets(ctx context.Context, request ListMarketsRequestObject) (ListMarketsResponseObject, error)
+	// CreateMarket Registers a market (RF-65).
+	// (POST /market/markets)
+	CreateMarket(ctx context.Context, request CreateMarketRequestObject) (CreateMarketResponseObject, error)
+	// DeleteMarket Deletes a market without prices.
+	// (DELETE /market/markets/{id})
+	DeleteMarket(ctx context.Context, request DeleteMarketRequestObject) (DeleteMarketResponseObject, error)
+	// UpdateMarket Renames or deactivates a market.
+	// (PUT /market/markets/{id})
+	UpdateMarket(ctx context.Context, request UpdateMarketRequestObject) (UpdateMarketResponseObject, error)
+	// CreatePrice Records a price typed by hand (RF-67, RF-70).
+	// (POST /market/prices)
+	CreatePrice(ctx context.Context, request CreatePriceRequestObject) (CreatePriceResponseObject, error)
+	// DeletePrice Deletes a wrong price (RF-70).
+	// (DELETE /market/prices/{id})
+	DeletePrice(ctx context.Context, request DeletePriceRequestObject) (DeletePriceResponseObject, error)
+	// UpdatePrice Corrects the value or the date of a price (RF-70).
+	// (PUT /market/prices/{id})
+	UpdatePrice(ctx context.Context, request UpdatePriceRequestObject) (UpdatePriceResponseObject, error)
+	// ListProducts Lists the products with the latest price in each market (RF-66, RN-22).
+	// (GET /market/products)
+	ListProducts(ctx context.Context, request ListProductsRequestObject) (ListProductsResponseObject, error)
+	// CreateProduct Registers a branded product (RF-66).
+	// (POST /market/products)
+	CreateProduct(ctx context.Context, request CreateProductRequestObject) (CreateProductResponseObject, error)
+	// DeleteProduct Deletes a product without prices or list items.
+	// (DELETE /market/products/{id})
+	DeleteProduct(ctx context.Context, request DeleteProductRequestObject) (DeleteProductResponseObject, error)
+	// UpdateProduct Edits a product.
+	// (PUT /market/products/{id})
+	UpdateProduct(ctx context.Context, request UpdateProductRequestObject) (UpdateProductResponseObject, error)
+	// ListProductPrices Price history of a product in every market, newest first (RF-76).
+	// (GET /market/products/{id}/prices)
+	ListProductPrices(ctx context.Context, request ListProductPricesRequestObject) (ListProductPricesResponseObject, error)
+	// GetMarketSettings Comparison settings shared by the couple (RF-74, RN-25).
+	// (GET /market/settings)
+	GetMarketSettings(ctx context.Context, request GetMarketSettingsRequestObject) (GetMarketSettingsResponseObject, error)
+	// UpdateMarketSettings Saves the comparison settings (RF-74, RN-25).
+	// (PUT /market/settings)
+	UpdateMarketSettings(ctx context.Context, request UpdateMarketSettingsRequestObject) (UpdateMarketSettingsResponseObject, error)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -13181,6 +14491,405 @@ func (sh *strictHandler) ConfirmIncome(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ConfirmIncomeResponseObject); ok {
 		if err := validResponse.VisitConfirmIncomeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMarkets operation middleware
+func (sh *strictHandler) ListMarkets(w http.ResponseWriter, r *http.Request) {
+	var request ListMarketsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMarkets(ctx, request.(ListMarketsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMarkets")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMarketsResponseObject); ok {
+		if err := validResponse.VisitListMarketsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMarket operation middleware
+func (sh *strictHandler) CreateMarket(w http.ResponseWriter, r *http.Request) {
+	var request CreateMarketRequestObject
+
+	var body CreateMarketJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMarket(ctx, request.(CreateMarketRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMarket")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMarketResponseObject); ok {
+		if err := validResponse.VisitCreateMarketResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteMarket operation middleware
+func (sh *strictHandler) DeleteMarket(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteMarketRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteMarket(ctx, request.(DeleteMarketRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteMarket")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteMarketResponseObject); ok {
+		if err := validResponse.VisitDeleteMarketResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMarket operation middleware
+func (sh *strictHandler) UpdateMarket(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateMarketRequestObject
+
+	request.Id = id
+
+	var body UpdateMarketJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMarket(ctx, request.(UpdateMarketRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMarket")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMarketResponseObject); ok {
+		if err := validResponse.VisitUpdateMarketResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrice operation middleware
+func (sh *strictHandler) CreatePrice(w http.ResponseWriter, r *http.Request) {
+	var request CreatePriceRequestObject
+
+	var body CreatePriceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrice(ctx, request.(CreatePriceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePriceResponseObject); ok {
+		if err := validResponse.VisitCreatePriceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeletePrice operation middleware
+func (sh *strictHandler) DeletePrice(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeletePriceRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePrice(ctx, request.(DeletePriceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePrice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePriceResponseObject); ok {
+		if err := validResponse.VisitDeletePriceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePrice operation middleware
+func (sh *strictHandler) UpdatePrice(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdatePriceRequestObject
+
+	request.Id = id
+
+	var body UpdatePriceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePrice(ctx, request.(UpdatePriceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePrice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePriceResponseObject); ok {
+		if err := validResponse.VisitUpdatePriceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProducts operation middleware
+func (sh *strictHandler) ListProducts(w http.ResponseWriter, r *http.Request) {
+	var request ListProductsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProducts(ctx, request.(ListProductsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProducts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProductsResponseObject); ok {
+		if err := validResponse.VisitListProductsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateProduct operation middleware
+func (sh *strictHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
+	var request CreateProductRequestObject
+
+	var body CreateProductJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateProduct(ctx, request.(CreateProductRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateProduct")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateProductResponseObject); ok {
+		if err := validResponse.VisitCreateProductResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteProduct operation middleware
+func (sh *strictHandler) DeleteProduct(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteProductRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProduct(ctx, request.(DeleteProductRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProduct")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProductResponseObject); ok {
+		if err := validResponse.VisitDeleteProductResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateProduct operation middleware
+func (sh *strictHandler) UpdateProduct(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateProductRequestObject
+
+	request.Id = id
+
+	var body UpdateProductJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateProduct(ctx, request.(UpdateProductRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateProduct")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateProductResponseObject); ok {
+		if err := validResponse.VisitUpdateProductResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListProductPrices operation middleware
+func (sh *strictHandler) ListProductPrices(w http.ResponseWriter, r *http.Request, id Id) {
+	var request ListProductPricesRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProductPrices(ctx, request.(ListProductPricesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProductPrices")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProductPricesResponseObject); ok {
+		if err := validResponse.VisitListProductPricesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMarketSettings operation middleware
+func (sh *strictHandler) GetMarketSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetMarketSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMarketSettings(ctx, request.(GetMarketSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMarketSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMarketSettingsResponseObject); ok {
+		if err := validResponse.VisitGetMarketSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMarketSettings operation middleware
+func (sh *strictHandler) UpdateMarketSettings(w http.ResponseWriter, r *http.Request) {
+	var request UpdateMarketSettingsRequestObject
+
+	var body UpdateMarketSettingsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMarketSettings(ctx, request.(UpdateMarketSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMarketSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMarketSettingsResponseObject); ok {
+		if err := validResponse.VisitUpdateMarketSettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
