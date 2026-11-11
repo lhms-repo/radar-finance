@@ -1,4 +1,4 @@
-import { Clock, History, Pencil, Plus, Search, Store, Trash2 } from "lucide-react";
+import { Clock, History, Pencil, Plus, ReceiptText, Search, Store, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription } from "@/components/ui/card";
@@ -17,9 +17,11 @@ import {
   useDeleteMarket,
   useDeletePrice,
   useDeleteProduct,
+  useDeleteReceipt,
   useMarkets,
   useProductPrices,
   useProducts,
+  useReceipts,
   useSaveMarket,
   useSaveProduct,
   useUpdatePrice,
@@ -433,5 +435,36 @@ function MarketDialog({ state, onClose }: { state: Market | "new" | null; onClos
         </DialogActions>
       </form>
     </Dialog>
+  );
+}
+
+/** Receipts already read, with the removal of a wrong one and its prices. */
+export function ReceiptsTab() {
+  const receipts = useReceipts();
+  const remove = useDeleteReceipt();
+  return (
+    <Card className="p-2">
+      <ul className="flex flex-col">
+        {(receipts.data ?? []).map((r) => (
+          <li key={r.id} className="flex items-center gap-3 border-b px-2 py-2.5 last:border-b-0">
+            <ReceiptText className="size-4 shrink-0 text-primary" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">
+                {r.marketName}, {formatDate(r.issuedOn)}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {r.priceCount} {r.priceCount === 1 ? "preço" : "preços"} de {r.itemCount} itens · lida por {r.createdByName}
+              </span>
+            </span>
+            <Money cents={r.totalCents} className="text-sm" />
+            <Button variant="ghost" size="icon-sm" aria-label={`Remover nota de ${r.marketName} de ${formatDate(r.issuedOn)}`} disabled={remove.isPending} onClick={() => remove.mutate(r.id)}>
+              <Trash2 />
+            </Button>
+          </li>
+        ))}
+        {receipts.data?.length === 0 && <li className="px-2 py-6 text-center text-sm text-muted-foreground">As notas lidas aparecem aqui.</li>}
+      </ul>
+      {remove.error && <p className="px-2 text-sm text-destructive">{remove.error.message}</p>}
+    </Card>
   );
 }

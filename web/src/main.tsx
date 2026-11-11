@@ -23,6 +23,7 @@ import { SavingsPage } from "@/pages/SavingsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { MarketPage } from "@/pages/MarketPage";
 import { OverviewPage } from "@/pages/OverviewPage";
+import { ReceiptPage } from "@/pages/ReceiptPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import "./index.css";
 
@@ -45,6 +46,7 @@ const router = createBrowserRouter([
       { path: "savings", element: <SavingsPage /> },
       { path: "receivables", element: <ReceivablesPage /> },
       { path: "market", element: <MarketPage /> },
+      { path: "market/receipt", element: <ReceiptPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "settings/categories", element: <CategoriesPage /> },
       { path: "settings/accounts", element: <AccountsPage /> },

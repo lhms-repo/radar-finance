@@ -127,3 +127,43 @@ export function formatSizeMilli(milli: number): string {
   const frac = milli % 1000;
   return frac ? `${whole},${String(frac).padStart(3, "0").replace(/0+$/, "")}` : String(whole);
 }
+
+export type ReceiptPreview = components["schemas"]["ReceiptPreview"];
+export type ReceiptLine = components["schemas"]["ReceiptLine"];
+export type ReceiptCommit = components["schemas"]["ReceiptCommit"];
+export type ReceiptRecord = components["schemas"]["ReceiptRecord"];
+
+/** Downloads the receipt of the QR code and shows the learned links (RF-68, RF-69). */
+export function usePreviewReceipt() {
+  return useMutation({
+    mutationFn: async (body: components["schemas"]["ReceiptPreviewRequest"]) => unwrap(await api.POST("/market/receipts/preview", { body })),
+  });
+}
+
+/** Records the receipt prices and the learned links (RF-68, RF-69). */
+export function useCommitReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: ReceiptCommit) => unwrap(await api.POST("/market/receipts", { body })),
+    onSuccess: (r) => {
+      haptic();
+      toast.success("Nota registrada", { description: `${r.prices} ${r.prices === 1 ? "preço novo" : "preços novos"}, ${r.ignored} ${r.ignored === 1 ? "linha ignorada" : "linhas ignoradas"}.` });
+      for (const key of MARKET_KEYS) void qc.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+/** Loads the receipts already read. */
+export function useReceipts() {
+  return useQuery({ queryKey: ["market", "receipts"], queryFn: async () => unwrap(await api.GET("/market/receipts")) });
+}
+
+/** Removes a receipt and its prices. */
+export function useDeleteReceipt() {
+  return useMarketMutation(async (id: number) => noContent(await api.DELETE("/market/receipts/{id}", { params: { path: { id } } })), "Nota removida");
+}
+
+/** Writes a receipt quantity in thousandths, such as 1,288 kg or 2 un. */
+export function formatQuantity(milli: number, unit: string): string {
+  return `${formatSizeMilli(milli)} ${unit.toLowerCase()}`;
+}

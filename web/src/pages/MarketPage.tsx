@@ -1,30 +1,38 @@
-import { Settings2 } from "lucide-react";
+import { ScanLine, Settings2 } from "lucide-react";
 import { useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Segmented } from "@/components/ui/segmented";
-import { MarketsTab, ProductsTab } from "@/features/market/catalog";
+import { MarketsTab, ProductsTab, ReceiptsTab } from "@/features/market/catalog";
 import { useMarketSettings, useSaveMarketSettings, type MarketSettings } from "@/features/market/api";
 
 /** Tabs of the market screen. */
-type Tab = "products" | "markets";
+type Tab = "products" | "markets" | "receipts";
 
 /** Market screen: products and prices, markets and the comparison settings (section 2.14). */
 export function MarketPage() {
   const [params, setParams] = useSearchParams();
-  const tab: Tab = params.get("tab") === "markets" ? "markets" : "products";
+  const navigate = useNavigate();
+  const raw = params.get("tab");
+  const tab: Tab = raw === "markets" || raw === "receipts" ? raw : "products";
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <h1 className="px-1 text-lg font-semibold">Mercado</h1>
-        <Button variant="ghost" size="icon" aria-label="Ajustes da comparação" onClick={() => setSettingsOpen(true)}>
-          <Settings2 />
-        </Button>
+        <span className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" aria-label="Ajustes da comparação" onClick={() => setSettingsOpen(true)}>
+            <Settings2 />
+          </Button>
+          <Button onClick={() => navigate("/market/receipt")}>
+            <ScanLine />
+            Ler nota
+          </Button>
+        </span>
       </div>
       <Segmented<Tab>
         ariaLabel="Seção"
@@ -32,11 +40,14 @@ export function MarketPage() {
         options={[
           { value: "products", label: "Produtos" },
           { value: "markets", label: "Mercados" },
+          { value: "receipts", label: "Notas" },
         ]}
         onChange={(v) => setParams(v === "products" ? {} : { tab: v }, { replace: true })}
         className="self-start"
       />
-      {tab === "products" ? <ProductsTab /> : <MarketsTab />}
+      {tab === "products" && <ProductsTab />}
+      {tab === "markets" && <MarketsTab />}
+      {tab === "receipts" && <ReceiptsTab />}
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
