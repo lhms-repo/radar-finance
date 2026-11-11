@@ -1,0 +1,39 @@
+{
+  "name": "Radar",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "remoteUser": "dev",
+  "containerEnv": {
+    "TZ": "America/Sao_Paulo"
+  },
+  "mounts": [
+    "source=radar-go-cache,target=/home/dev/.cache,type=volume",
+    "source=radar-go-mod,target=/go/pkg/mod,type=volume"
+  ],
+  "forwardPorts": [8080, 5173],
+  "portsAttributes": {
+    "8080": { "label": "API Go" },
+    "5173": { "label": "Vite" }
+  },
+  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.cache /go/pkg/mod && make setup",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "ms-playwright.playwright",
+        "42crunch.vscode-openapi",
+        "editorconfig.editorconfig"
+      ],
+      "settings": {
+        "go.toolsManagement.autoUpdate": false,
+        "go.lintTool": "golangci-lint",
+        "go.lintFlags": ["--fast-only"],
+        "editor.formatOnSave": true,
+        "files.eol": "\n"
+      }
+    }
+  }
+}

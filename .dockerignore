@@ -1,0 +1,17 @@
+.git
+.devcontainer
+bin
+tmp
+backups
+docs
+deploy/.env
+deploy/certs
+.pnpm-store
+web/node_modules
+web/dist
+web/test-results
+web/playwright-report
+tools/nfce-poc/samples
+**/*.db
+**/*.db-wal
+**/*.db-shm

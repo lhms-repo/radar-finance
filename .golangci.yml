@@ -1,0 +1,36 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - sqlclosecheck
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (io.ReadCloser).Close
+        - (*os.File).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Rows).Close
+  exclusions:
+    generated: lax
+    rules:
+      # Test helpers close response bodies in t.Cleanup, which bodyclose cannot see.
+      - path: _test\.go
+        linters:
+          - bodyclose
+    paths:
+      - internal/api/gen
+      - internal/db/store
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/italogfx/radar-finance
