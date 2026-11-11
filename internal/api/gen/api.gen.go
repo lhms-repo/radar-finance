@@ -61,6 +61,27 @@ func (e BackupKind) Valid() bool {
 	}
 }
 
+// Defines values for BudgetStatusLevel.
+const (
+	BudgetStatusLevelOk      BudgetStatusLevel = "ok"
+	BudgetStatusLevelOver    BudgetStatusLevel = "over"
+	BudgetStatusLevelWarning BudgetStatusLevel = "warning"
+)
+
+// Valid indicates whether the value is a known member of the BudgetStatusLevel enum.
+func (e BudgetStatusLevel) Valid() bool {
+	switch e {
+	case BudgetStatusLevelOk:
+		return true
+	case BudgetStatusLevelOver:
+		return true
+	case BudgetStatusLevelWarning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CardColor.
 const (
 	Blue     CardColor = "blue"
@@ -151,6 +172,33 @@ func (e EntryKind) Valid() bool {
 	}
 }
 
+// Defines values for ForecastGroupKey.
+const (
+	ForecastGroupKeyBills    ForecastGroupKey = "bills"
+	ForecastGroupKeyDayToDay ForecastGroupKey = "day_to_day"
+	ForecastGroupKeyHousing  ForecastGroupKey = "housing"
+	ForecastGroupKeyInvoices ForecastGroupKey = "invoices"
+	ForecastGroupKeySavings  ForecastGroupKey = "savings"
+)
+
+// Valid indicates whether the value is a known member of the ForecastGroupKey enum.
+func (e ForecastGroupKey) Valid() bool {
+	switch e {
+	case ForecastGroupKeyBills:
+		return true
+	case ForecastGroupKeyDayToDay:
+		return true
+	case ForecastGroupKeyHousing:
+		return true
+	case ForecastGroupKeyInvoices:
+		return true
+	case ForecastGroupKeySavings:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IncomeKind.
 const (
 	Eventual  IncomeKind = "eventual"
@@ -192,22 +240,73 @@ func (e InvoiceItemKind) Valid() bool {
 
 // Defines values for InvoiceStatus.
 const (
-	Closed  InvoiceStatus = "closed"
-	Open    InvoiceStatus = "open"
-	Overdue InvoiceStatus = "overdue"
-	Paid    InvoiceStatus = "paid"
+	InvoiceStatusClosed  InvoiceStatus = "closed"
+	InvoiceStatusOpen    InvoiceStatus = "open"
+	InvoiceStatusOverdue InvoiceStatus = "overdue"
+	InvoiceStatusPaid    InvoiceStatus = "paid"
 )
 
 // Valid indicates whether the value is a known member of the InvoiceStatus enum.
 func (e InvoiceStatus) Valid() bool {
 	switch e {
-	case Closed:
+	case InvoiceStatusClosed:
 		return true
-	case Open:
+	case InvoiceStatusOpen:
 		return true
-	case Overdue:
+	case InvoiceStatusOverdue:
 		return true
-	case Paid:
+	case InvoiceStatusPaid:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationKind.
+const (
+	NotificationKindBudgetOver     NotificationKind = "budget_over"
+	NotificationKindBudgetWarning  NotificationKind = "budget_warning"
+	NotificationKindDueSoon        NotificationKind = "due_soon"
+	NotificationKindIncomeEnding   NotificationKind = "income_ending"
+	NotificationKindOverdue        NotificationKind = "overdue"
+	NotificationKindSavingsPending NotificationKind = "savings_pending"
+)
+
+// Valid indicates whether the value is a known member of the NotificationKind enum.
+func (e NotificationKind) Valid() bool {
+	switch e {
+	case NotificationKindBudgetOver:
+		return true
+	case NotificationKindBudgetWarning:
+		return true
+	case NotificationKindDueSoon:
+		return true
+	case NotificationKindIncomeEnding:
+		return true
+	case NotificationKindOverdue:
+		return true
+	case NotificationKindSavingsPending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NotificationSeverity.
+const (
+	NotificationSeverityDanger  NotificationSeverity = "danger"
+	NotificationSeverityInfo    NotificationSeverity = "info"
+	NotificationSeverityWarning NotificationSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the NotificationSeverity enum.
+func (e NotificationSeverity) Valid() bool {
+	switch e {
+	case NotificationSeverityDanger:
+		return true
+	case NotificationSeverityInfo:
+		return true
+	case NotificationSeverityWarning:
 		return true
 	default:
 		return false
@@ -216,13 +315,13 @@ func (e InvoiceStatus) Valid() bool {
 
 // Defines values for PingStatus.
 const (
-	Ok PingStatus = "ok"
+	PingStatusOk PingStatus = "ok"
 )
 
 // Valid indicates whether the value is a known member of the PingStatus enum.
 func (e PingStatus) Valid() bool {
 	switch e {
-	case Ok:
+	case PingStatusOk:
 		return true
 	default:
 		return false
@@ -259,6 +358,27 @@ func (e SavingsMoveKind) Valid() bool {
 	case Deposit:
 		return true
 	case Withdrawal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SearchLineSource.
+const (
+	SearchLineSourceAccount SearchLineSource = "account"
+	SearchLineSourceAlelo   SearchLineSource = "alelo"
+	SearchLineSourceCard    SearchLineSource = "card"
+)
+
+// Valid indicates whether the value is a known member of the SearchLineSource enum.
+func (e SearchLineSource) Valid() bool {
+	switch e {
+	case SearchLineSourceAccount:
+		return true
+	case SearchLineSourceAlelo:
+		return true
+	case SearchLineSourceCard:
 		return true
 	default:
 		return false
@@ -608,6 +728,31 @@ type BillPaymentCreate struct {
 	Date        *openapi_types.Date `json:"date,omitempty"`
 }
 
+// BudgetSet defines model for BudgetSet.
+type BudgetSet struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents `json:"amountCents"`
+}
+
+// BudgetStatus defines model for BudgetStatus.
+type BudgetStatus struct {
+	// BudgetCents Amount in cents (RN-21).
+	BudgetCents Cents             `json:"budgetCents"`
+	CategoryId  int64             `json:"categoryId"`
+	Icon        string            `json:"icon"`
+	Level       BudgetStatusLevel `json:"level"`
+	Name        string            `json:"name"`
+
+	// SpentCents Amount in cents (RN-21).
+	SpentCents Cents `json:"spentCents"`
+
+	// UsedBp Spending over budget in basis points, not capped.
+	UsedBp int `json:"usedBp"`
+}
+
+// BudgetStatusLevel defines model for BudgetStatus.Level.
+type BudgetStatusLevel string
+
 // Card defines model for Card.
 type Card struct {
 	Active     bool      `json:"active"`
@@ -707,6 +852,18 @@ type CategoryMove struct {
 	ParentId *int64 `json:"parentId,omitempty"`
 }
 
+// CategorySpend defines model for CategorySpend.
+type CategorySpend struct {
+	// Cents Amount in cents (RN-21).
+	Cents Cents  `json:"cents"`
+	Icon  string `json:"icon"`
+
+	// Id Zero for card credits without a category.
+	Id   int64      `json:"id"`
+	Name string     `json:"name"`
+	Subs []SpendSub `json:"subs"`
+}
+
 // CategoryUpdate defines model for CategoryUpdate.
 type CategoryUpdate struct {
 	Active *bool   `json:"active,omitempty"`
@@ -720,6 +877,44 @@ type Cents = int64
 // ChargeMessage defines model for ChargeMessage.
 type ChargeMessage struct {
 	Text string `json:"text"`
+}
+
+// Closing defines model for Closing.
+type Closing struct {
+	// IncomeCents Amount in cents (RN-21).
+	IncomeCents Cents `json:"incomeCents"`
+
+	// ReceivablePendingCents Amount in cents (RN-21).
+	ReceivablePendingCents Cents `json:"receivablePendingCents"`
+
+	// ReceivedCents Amount in cents (RN-21).
+	ReceivedCents Cents `json:"receivedCents"`
+
+	// SavedCents Amount in cents (RN-21).
+	SavedCents Cents `json:"savedCents"`
+
+	// SpendingCents Amount in cents (RN-21).
+	SpendingCents Cents `json:"spendingCents"`
+}
+
+// Commitment defines model for Commitment.
+type Commitment struct {
+	Bp int `json:"bp"`
+
+	// CardCents Amount in cents (RN-21).
+	CardCents Cents `json:"cardCents"`
+
+	// FinancingCents Amount in cents (RN-21).
+	FinancingCents Cents `json:"financingCents"`
+
+	// IncomeCents Amount in cents (RN-21).
+	IncomeCents Cents `json:"incomeCents"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
 }
 
 // CreditInput defines model for CreditInput.
@@ -852,6 +1047,38 @@ type FinancingUpdate struct {
 	Name       string `json:"name"`
 }
 
+// Forecast defines model for Forecast.
+type Forecast struct {
+	BalanceBp int `json:"balanceBp"`
+
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents `json:"balanceCents"`
+
+	// ExpectedCents Amount in cents (RN-21).
+	ExpectedCents Cents           `json:"expectedCents"`
+	Groups        []ForecastGroup `json:"groups"`
+
+	// IncomeCents Amount in cents (RN-21).
+	IncomeCents Cents `json:"incomeCents"`
+
+	// OutCents Amount in cents (RN-21).
+	OutCents Cents `json:"outCents"`
+
+	// ReceivedCents Amount in cents (RN-21).
+	ReceivedCents Cents `json:"receivedCents"`
+}
+
+// ForecastGroup defines model for ForecastGroup.
+type ForecastGroup struct {
+	// Cents Amount in cents (RN-21).
+	Cents   Cents            `json:"cents"`
+	Key     ForecastGroupKey `json:"key"`
+	ShareBp int              `json:"shareBp"`
+}
+
+// ForecastGroupKey defines model for ForecastGroup.Key.
+type ForecastGroupKey string
+
 // Health defines model for Health.
 type Health struct {
 	BackupError   *string    `json:"backupError,omitempty"`
@@ -863,6 +1090,22 @@ type Health struct {
 	StartedAt     time.Time  `json:"startedAt"`
 	UptimeSeconds int64      `json:"uptimeSeconds"`
 	Version       string     `json:"version"`
+}
+
+// Housing defines model for Housing.
+type Housing struct {
+	CoupleBp int `json:"coupleBp"`
+
+	// CoupleIncomeCents Amount in cents (RN-21).
+	CoupleIncomeCents Cents `json:"coupleIncomeCents"`
+
+	// HousingCents Amount in cents (RN-21).
+	HousingCents Cents `json:"housingCents"`
+	PersonBp     int   `json:"personBp"`
+
+	// PersonIncomeCents Amount in cents (RN-21).
+	PersonIncomeCents Cents `json:"personIncomeCents"`
+	ReferenceBp       int   `json:"referenceBp"`
 }
 
 // Income defines model for Income.
@@ -1105,6 +1348,64 @@ type MonthFlow struct {
 	Month Month `json:"month"`
 }
 
+// MonthSpend defines model for MonthSpend.
+type MonthSpend struct {
+	Categories []CategorySpend `json:"categories"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
+// NetWorth defines model for NetWorth.
+type NetWorth struct {
+	// AccountsCents Amount in cents (RN-21).
+	AccountsCents Cents `json:"accountsCents"`
+
+	// CardDebtCents Amount in cents (RN-21).
+	CardDebtCents Cents `json:"cardDebtCents"`
+
+	// FinancingCents Amount in cents (RN-21).
+	FinancingCents Cents `json:"financingCents"`
+
+	// NetCents Amount in cents (RN-21).
+	NetCents Cents `json:"netCents"`
+
+	// SavingsCents Amount in cents (RN-21).
+	SavingsCents Cents `json:"savingsCents"`
+}
+
+// Notification defines model for Notification.
+type Notification struct {
+	Date     openapi_types.Date   `json:"date"`
+	Key      string               `json:"key"`
+	Kind     NotificationKind     `json:"kind"`
+	Link     string               `json:"link"`
+	Message  string               `json:"message"`
+	Read     bool                 `json:"read"`
+	Severity NotificationSeverity `json:"severity"`
+	Title    string               `json:"title"`
+}
+
+// NotificationKind defines model for Notification.Kind.
+type NotificationKind string
+
+// NotificationSeverity defines model for Notification.Severity.
+type NotificationSeverity string
+
+// NotificationList defines model for NotificationList.
+type NotificationList struct {
+	Items  []Notification `json:"items"`
+	Unread int            `json:"unread"`
+}
+
+// NotificationRead defines model for NotificationRead.
+type NotificationRead struct {
+	Keys *[]string `json:"keys,omitempty"`
+}
+
 // OneOffIncome defines model for OneOffIncome.
 type OneOffIncome struct {
 	AccountName string `json:"accountName"`
@@ -1122,6 +1423,18 @@ type OneOffIncomeCreate struct {
 	AmountCents Cents              `json:"amountCents"`
 	Date        openapi_types.Date `json:"date"`
 	Description *string            `json:"description,omitempty"`
+}
+
+// Overview defines model for Overview.
+type Overview struct {
+	Closing     Closing      `json:"closing"`
+	Commitments []Commitment `json:"commitments"`
+	Forecast    Forecast     `json:"forecast"`
+	Housing     Housing      `json:"housing"`
+
+	// Month Example: 2026-11
+	Month    Month    `json:"month"`
+	NetWorth NetWorth `json:"netWorth"`
 }
 
 // Party defines model for Party.
@@ -1384,6 +1697,35 @@ type SavingsWithdrawalCreate struct {
 	Reason      string             `json:"reason"`
 }
 
+// SearchLine defines model for SearchLine.
+type SearchLine struct {
+	AccountName string `json:"accountName"`
+
+	// AmountCents Signed cents, money out negative.
+	AmountCents        int64              `json:"amountCents"`
+	CardName           string             `json:"cardName"`
+	CategoryId         *int64             `json:"categoryId,omitempty"`
+	CategoryName       string             `json:"categoryName"`
+	Date               openapi_types.Date `json:"date"`
+	Description        string             `json:"description"`
+	Id                 int64              `json:"id"`
+	Kind               string             `json:"kind"`
+	ParentCategoryName string             `json:"parentCategoryName"`
+	PersonName         string             `json:"personName"`
+	Source             SearchLineSource   `json:"source"`
+}
+
+// SearchLineSource defines model for SearchLine.Source.
+type SearchLineSource string
+
+// SpendSub defines model for SpendSub.
+type SpendSub struct {
+	// Cents Amount in cents (RN-21).
+	Cents Cents  `json:"cents"`
+	Id    int64  `json:"id"`
+	Name  string `json:"name"`
+}
+
 // SplitInput Divides the purchase between the couple and other people (RF-24, RF-25).
 type SplitInput struct {
 	// CoupleParts Equal parts kept by the couple; the couple keeps the leftover cents.
@@ -1471,6 +1813,11 @@ type GetBillMonthParams struct {
 	Month Month `form:"month" json:"month"`
 }
 
+// ListBudgetsParams defines parameters for ListBudgets.
+type ListBudgetsParams struct {
+	Month Month `form:"month" json:"month"`
+}
+
 // GetCardForecastParams defines parameters for GetCardForecast.
 type GetCardForecastParams struct {
 	Count *int `form:"count,omitempty" json:"count,omitempty"`
@@ -1493,9 +1840,31 @@ type GetMonthFlowParams struct {
 	Month Month `form:"month" json:"month"`
 }
 
+// GetOverviewParams defines parameters for GetOverview.
+type GetOverviewParams struct {
+	Month Month `form:"month" json:"month"`
+}
+
+// GetSpendingParams defines parameters for GetSpending.
+type GetSpendingParams struct {
+	From Month `form:"from" json:"from"`
+	To   Month `form:"to" json:"to"`
+}
+
 // GetSavingsMonthParams defines parameters for GetSavingsMonth.
 type GetSavingsMonthParams struct {
 	Month Month `form:"month" json:"month"`
+}
+
+// SearchEntriesParams defines parameters for SearchEntries.
+type SearchEntriesParams struct {
+	From       openapi_types.Date `form:"from" json:"from"`
+	To         openapi_types.Date `form:"to" json:"to"`
+	CategoryId *int64             `form:"categoryId,omitempty" json:"categoryId,omitempty"`
+	AccountId  *int64             `form:"accountId,omitempty" json:"accountId,omitempty"`
+	CardId     *int64             `form:"cardId,omitempty" json:"cardId,omitempty"`
+	PersonId   *int64             `form:"personId,omitempty" json:"personId,omitempty"`
+	Text       *string            `form:"text,omitempty" json:"text,omitempty"`
 }
 
 // CreateAccountJSONRequestBody defines body for CreateAccount for application/json ContentType.
@@ -1539,6 +1908,9 @@ type SetBillActualJSONRequestBody = BillActual
 
 // PayBillJSONRequestBody defines body for PayBill for application/json ContentType.
 type PayBillJSONRequestBody = BillPaymentCreate
+
+// SetBudgetJSONRequestBody defines body for SetBudget for application/json ContentType.
+type SetBudgetJSONRequestBody = BudgetSet
 
 // CreateCardJSONRequestBody defines body for CreateCard for application/json ContentType.
 type CreateCardJSONRequestBody = CardInput
@@ -1590,6 +1962,9 @@ type ConfirmIncomeJSONRequestBody = IncomeConfirm
 
 // UpdatePreferencesJSONRequestBody defines body for UpdatePreferences for application/json ContentType.
 type UpdatePreferencesJSONRequestBody = PreferencesUpdate
+
+// MarkNotificationsReadJSONRequestBody defines body for MarkNotificationsRead for application/json ContentType.
+type MarkNotificationsReadJSONRequestBody = NotificationRead
 
 // UpdatePurchaseJSONRequestBody defines body for UpdatePurchase for application/json ContentType.
 type UpdatePurchaseJSONRequestBody = PurchaseInput
@@ -1704,6 +2079,12 @@ type ServerInterface interface {
 	// PayBill Pays the bill of the month as spending of its category (RF-37).
 	// (POST /bills/{id}/months/{month}/payment)
 	PayBill(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// ListBudgets Budgets compared with the spending of the month, the most critical first (RF-51, RF-52).
+	// (GET /budgets)
+	ListBudgets(w http.ResponseWriter, r *http.Request, params ListBudgetsParams)
+	// SetBudget Sets the monthly budget of a top level category; zero removes it (RF-51).
+	// (PUT /budgets/{id})
+	SetBudget(w http.ResponseWriter, r *http.Request, id Id)
 	// ListCards Lists the cards with limit use and current invoice (RF-14, RF-20).
 	// (GET /cards)
 	ListCards(w http.ResponseWriter, r *http.Request)
@@ -1803,6 +2184,15 @@ type ServerInterface interface {
 	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
 	// (GET /month-flow)
 	GetMonthFlow(w http.ResponseWriter, r *http.Request, params GetMonthFlowParams)
+	// ListNotifications Current warnings of the user with the unread count (RF-64).
+	// (GET /notifications)
+	ListNotifications(w http.ResponseWriter, r *http.Request)
+	// MarkNotificationsRead Marks notifications as read; without keys marks all.
+	// (POST /notifications/read)
+	MarkNotificationsRead(w http.ResponseWriter, r *http.Request)
+	// GetOverview Expected balance, housing share, month closing, net worth and future commitments (RF-58, RF-60 to RF-62, section 5.3).
+	// (GET /overview)
+	GetOverview(w http.ResponseWriter, r *http.Request, params GetOverviewParams)
 	// ListParties Names of the people already used in splits, for suggestions (RF-27).
 	// (GET /parties)
 	ListParties(w http.ResponseWriter, r *http.Request)
@@ -1836,6 +2226,9 @@ type ServerInterface interface {
 	// UpdateRecurrence Edits a recurrence; a new price applies from the current invoice on.
 	// (PUT /recurrences/{id})
 	UpdateRecurrence(w http.ResponseWriter, r *http.Request, id Id)
+	// GetSpending Spending of each month by category, couple share only (RF-59, RN-04).
+	// (GET /reports/spending)
+	GetSpending(w http.ResponseWriter, r *http.Request, params GetSpendingParams)
 	// GetSavingsMonth Savings boxes as seen in the month, with the base, suggestions and estimates (RF-45, RF-48, RN-09 to RN-12).
 	// (GET /savings)
 	GetSavingsMonth(w http.ResponseWriter, r *http.Request, params GetSavingsMonthParams)
@@ -1854,6 +2247,9 @@ type ServerInterface interface {
 	// WithdrawSavings Takes money out of a box into an account, with a reason (RF-47, RN-08).
 	// (POST /savings/{id}/withdrawals)
 	WithdrawSavings(w http.ResponseWriter, r *http.Request, id Id)
+	// SearchEntries Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
+	// (GET /search)
+	SearchEntries(w http.ResponseWriter, r *http.Request, params SearchEntriesParams)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(w http.ResponseWriter, r *http.Request)
@@ -2592,6 +2988,65 @@ func (siw *ServerInterfaceWrapper) PayBill(w http.ResponseWriter, r *http.Reques
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PayBill(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBudgets operation middleware
+func (siw *ServerInterfaceWrapper) ListBudgets(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListBudgetsParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBudgets(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetBudget operation middleware
+func (siw *ServerInterfaceWrapper) SetBudget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetBudget(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3415,6 +3870,67 @@ func (siw *ServerInterfaceWrapper) GetMonthFlow(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// ListNotifications operation middleware
+func (siw *ServerInterfaceWrapper) ListNotifications(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListNotifications(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MarkNotificationsRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkNotificationsRead(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetOverview operation middleware
+func (siw *ServerInterfaceWrapper) GetOverview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetOverviewParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOverview(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListParties operation middleware
 func (siw *ServerInterfaceWrapper) ListParties(w http.ResponseWriter, r *http.Request) {
 
@@ -3641,6 +4157,52 @@ func (siw *ServerInterfaceWrapper) UpdateRecurrence(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// GetSpending operation middleware
+func (siw *ServerInterfaceWrapper) GetSpending(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSpendingParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSpending(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSavingsMonth operation middleware
 func (siw *ServerInterfaceWrapper) GetSavingsMonth(w http.ResponseWriter, r *http.Request) {
 
@@ -3783,6 +4345,117 @@ func (siw *ServerInterfaceWrapper) WithdrawSavings(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.WithdrawSavings(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SearchEntries operation middleware
+func (siw *ServerInterfaceWrapper) SearchEntries(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchEntriesParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "categoryId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "categoryId", r.URL.Query(), &params.CategoryId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "categoryId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "categoryId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "accountId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "accountId", r.URL.Query(), &params.AccountId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "accountId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "accountId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "cardId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cardId", r.URL.Query(), &params.CardId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cardId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cardId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "personId" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "personId", r.URL.Query(), &params.PersonId, runtime.BindQueryParameterOptions{Type: "integer", Format: "int64"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "personId"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "personId", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "text" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "text", r.URL.Query(), &params.Text, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "text"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "text", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SearchEntries(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4066,6 +4739,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/savings/{id}", wrapper.UpdateSavingsBox)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/savings/{id}/deposits", wrapper.DepositSavings)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/savings/{id}/withdrawals", wrapper.WithdrawSavings)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reports/spending", wrapper.GetSpending)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/budgets", wrapper.ListBudgets)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/budgets/{id}", wrapper.SetBudget)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/overview", wrapper.GetOverview)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/search", wrapper.SearchEntries)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/notifications", wrapper.ListNotifications)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/notifications/read", wrapper.MarkNotificationsRead)
 
 	return m
 }
@@ -5803,6 +6483,101 @@ func (response PayBill409JSONResponse) VisitPayBillResponse(w http.ResponseWrite
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBudgetsRequestObject struct {
+	Params ListBudgetsParams
+}
+
+type ListBudgetsResponseObject interface {
+	VisitListBudgetsResponse(w http.ResponseWriter) error
+}
+
+type ListBudgets200JSONResponse []BudgetStatus
+
+func (response ListBudgets200JSONResponse) VisitListBudgetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBudgets400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListBudgets400JSONResponse) VisitListBudgetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBudgets401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListBudgets401JSONResponse) VisitListBudgetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBudgetRequestObject struct {
+	Id   Id `json:"id"`
+	Body *SetBudgetJSONRequestBody
+}
+
+type SetBudgetResponseObject interface {
+	VisitSetBudgetResponse(w http.ResponseWriter) error
+}
+
+type SetBudget204Response struct {
+}
+
+func (response SetBudget204Response) VisitSetBudgetResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SetBudget400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetBudget400JSONResponse) VisitSetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBudget401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetBudget401JSONResponse) VisitSetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -7845,6 +8620,121 @@ func (response GetMonthFlow401JSONResponse) VisitGetMonthFlowResponse(w http.Res
 	return err
 }
 
+type ListNotificationsRequestObject struct {
+}
+
+type ListNotificationsResponseObject interface {
+	VisitListNotificationsResponse(w http.ResponseWriter) error
+}
+
+type ListNotifications200JSONResponse NotificationList
+
+func (response ListNotifications200JSONResponse) VisitListNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListNotifications401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListNotifications401JSONResponse) VisitListNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkNotificationsReadRequestObject struct {
+	Body *MarkNotificationsReadJSONRequestBody
+}
+
+type MarkNotificationsReadResponseObject interface {
+	VisitMarkNotificationsReadResponse(w http.ResponseWriter) error
+}
+
+type MarkNotificationsRead204Response struct {
+}
+
+func (response MarkNotificationsRead204Response) VisitMarkNotificationsReadResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type MarkNotificationsRead401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response MarkNotificationsRead401JSONResponse) VisitMarkNotificationsReadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOverviewRequestObject struct {
+	Params GetOverviewParams
+}
+
+type GetOverviewResponseObject interface {
+	VisitGetOverviewResponse(w http.ResponseWriter) error
+}
+
+type GetOverview200JSONResponse Overview
+
+func (response GetOverview200JSONResponse) VisitGetOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOverview400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetOverview400JSONResponse) VisitGetOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetOverview401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetOverview401JSONResponse) VisitGetOverviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListPartiesRequestObject struct {
 }
 
@@ -8409,6 +9299,56 @@ func (response UpdateRecurrence409JSONResponse) VisitUpdateRecurrenceResponse(w 
 	return err
 }
 
+type GetSpendingRequestObject struct {
+	Params GetSpendingParams
+}
+
+type GetSpendingResponseObject interface {
+	VisitGetSpendingResponse(w http.ResponseWriter) error
+}
+
+type GetSpending200JSONResponse []MonthSpend
+
+func (response GetSpending200JSONResponse) VisitGetSpendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSpending400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetSpending400JSONResponse) VisitGetSpendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSpending401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSpending401JSONResponse) VisitGetSpendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetSavingsMonthRequestObject struct {
 	Params GetSavingsMonthParams
 }
@@ -8790,6 +9730,56 @@ func (response WithdrawSavings409JSONResponse) VisitWithdrawSavingsResponse(w ht
 	return err
 }
 
+type SearchEntriesRequestObject struct {
+	Params SearchEntriesParams
+}
+
+type SearchEntriesResponseObject interface {
+	VisitSearchEntriesResponse(w http.ResponseWriter) error
+}
+
+type SearchEntries200JSONResponse []SearchLine
+
+func (response SearchEntries200JSONResponse) VisitSearchEntriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchEntries400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SearchEntries400JSONResponse) VisitSearchEntriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SearchEntries401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SearchEntries401JSONResponse) VisitSearchEntriesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListBackupsRequestObject struct {
 }
 
@@ -9125,6 +10115,12 @@ type StrictServerInterface interface {
 	// PayBill Pays the bill of the month as spending of its category (RF-37).
 	// (POST /bills/{id}/months/{month}/payment)
 	PayBill(ctx context.Context, request PayBillRequestObject) (PayBillResponseObject, error)
+	// ListBudgets Budgets compared with the spending of the month, the most critical first (RF-51, RF-52).
+	// (GET /budgets)
+	ListBudgets(ctx context.Context, request ListBudgetsRequestObject) (ListBudgetsResponseObject, error)
+	// SetBudget Sets the monthly budget of a top level category; zero removes it (RF-51).
+	// (PUT /budgets/{id})
+	SetBudget(ctx context.Context, request SetBudgetRequestObject) (SetBudgetResponseObject, error)
 	// ListCards Lists the cards with limit use and current invoice (RF-14, RF-20).
 	// (GET /cards)
 	ListCards(ctx context.Context, request ListCardsRequestObject) (ListCardsResponseObject, error)
@@ -9224,6 +10220,15 @@ type StrictServerInterface interface {
 	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
 	// (GET /month-flow)
 	GetMonthFlow(ctx context.Context, request GetMonthFlowRequestObject) (GetMonthFlowResponseObject, error)
+	// ListNotifications Current warnings of the user with the unread count (RF-64).
+	// (GET /notifications)
+	ListNotifications(ctx context.Context, request ListNotificationsRequestObject) (ListNotificationsResponseObject, error)
+	// MarkNotificationsRead Marks notifications as read; without keys marks all.
+	// (POST /notifications/read)
+	MarkNotificationsRead(ctx context.Context, request MarkNotificationsReadRequestObject) (MarkNotificationsReadResponseObject, error)
+	// GetOverview Expected balance, housing share, month closing, net worth and future commitments (RF-58, RF-60 to RF-62, section 5.3).
+	// (GET /overview)
+	GetOverview(ctx context.Context, request GetOverviewRequestObject) (GetOverviewResponseObject, error)
 	// ListParties Names of the people already used in splits, for suggestions (RF-27).
 	// (GET /parties)
 	ListParties(ctx context.Context, request ListPartiesRequestObject) (ListPartiesResponseObject, error)
@@ -9257,6 +10262,9 @@ type StrictServerInterface interface {
 	// UpdateRecurrence Edits a recurrence; a new price applies from the current invoice on.
 	// (PUT /recurrences/{id})
 	UpdateRecurrence(ctx context.Context, request UpdateRecurrenceRequestObject) (UpdateRecurrenceResponseObject, error)
+	// GetSpending Spending of each month by category, couple share only (RF-59, RN-04).
+	// (GET /reports/spending)
+	GetSpending(ctx context.Context, request GetSpendingRequestObject) (GetSpendingResponseObject, error)
 	// GetSavingsMonth Savings boxes as seen in the month, with the base, suggestions and estimates (RF-45, RF-48, RN-09 to RN-12).
 	// (GET /savings)
 	GetSavingsMonth(ctx context.Context, request GetSavingsMonthRequestObject) (GetSavingsMonthResponseObject, error)
@@ -9275,6 +10283,9 @@ type StrictServerInterface interface {
 	// WithdrawSavings Takes money out of a box into an account, with a reason (RF-47, RN-08).
 	// (POST /savings/{id}/withdrawals)
 	WithdrawSavings(ctx context.Context, request WithdrawSavingsRequestObject) (WithdrawSavingsResponseObject, error)
+	// SearchEntries Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
+	// (GET /search)
+	SearchEntries(ctx context.Context, request SearchEntriesRequestObject) (SearchEntriesResponseObject, error)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(ctx context.Context, request ListBackupsRequestObject) (ListBackupsResponseObject, error)
@@ -10164,6 +11175,65 @@ func (sh *strictHandler) PayBill(w http.ResponseWriter, r *http.Request, id Id, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PayBillResponseObject); ok {
 		if err := validResponse.VisitPayBillResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBudgets operation middleware
+func (sh *strictHandler) ListBudgets(w http.ResponseWriter, r *http.Request, params ListBudgetsParams) {
+	var request ListBudgetsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBudgets(ctx, request.(ListBudgetsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBudgets")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBudgetsResponseObject); ok {
+		if err := validResponse.VisitListBudgetsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetBudget operation middleware
+func (sh *strictHandler) SetBudget(w http.ResponseWriter, r *http.Request, id Id) {
+	var request SetBudgetRequestObject
+
+	request.Id = id
+
+	var body SetBudgetJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetBudget(ctx, request.(SetBudgetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetBudget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetBudgetResponseObject); ok {
+		if err := validResponse.VisitSetBudgetResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -11134,6 +12204,87 @@ func (sh *strictHandler) GetMonthFlow(w http.ResponseWriter, r *http.Request, pa
 	}
 }
 
+// ListNotifications operation middleware
+func (sh *strictHandler) ListNotifications(w http.ResponseWriter, r *http.Request) {
+	var request ListNotificationsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListNotifications(ctx, request.(ListNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListNotificationsResponseObject); ok {
+		if err := validResponse.VisitListNotificationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MarkNotificationsRead operation middleware
+func (sh *strictHandler) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
+	var request MarkNotificationsReadRequestObject
+
+	var body MarkNotificationsReadJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkNotificationsRead(ctx, request.(MarkNotificationsReadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkNotificationsRead")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkNotificationsReadResponseObject); ok {
+		if err := validResponse.VisitMarkNotificationsReadResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetOverview operation middleware
+func (sh *strictHandler) GetOverview(w http.ResponseWriter, r *http.Request, params GetOverviewParams) {
+	var request GetOverviewRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOverview(ctx, request.(GetOverviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOverview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOverviewResponseObject); ok {
+		if err := validResponse.VisitGetOverviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListParties operation middleware
 func (sh *strictHandler) ListParties(w http.ResponseWriter, r *http.Request) {
 	var request ListPartiesRequestObject
@@ -11431,6 +12582,32 @@ func (sh *strictHandler) UpdateRecurrence(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// GetSpending operation middleware
+func (sh *strictHandler) GetSpending(w http.ResponseWriter, r *http.Request, params GetSpendingParams) {
+	var request GetSpendingRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSpending(ctx, request.(GetSpendingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSpending")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSpendingResponseObject); ok {
+		if err := validResponse.VisitGetSpendingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetSavingsMonth operation middleware
 func (sh *strictHandler) GetSavingsMonth(w http.ResponseWriter, r *http.Request, params GetSavingsMonthParams) {
 	var request GetSavingsMonthRequestObject
@@ -11606,6 +12783,32 @@ func (sh *strictHandler) WithdrawSavings(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(WithdrawSavingsResponseObject); ok {
 		if err := validResponse.VisitWithdrawSavingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SearchEntries operation middleware
+func (sh *strictHandler) SearchEntries(w http.ResponseWriter, r *http.Request, params SearchEntriesParams) {
+	var request SearchEntriesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SearchEntries(ctx, request.(SearchEntriesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SearchEntries")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SearchEntriesResponseObject); ok {
+		if err := validResponse.VisitSearchEntriesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

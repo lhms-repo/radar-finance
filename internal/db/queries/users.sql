@@ -12,13 +12,13 @@ RETURNING *;
 SELECT count(*) FROM users;
 
 -- name: GetUserByLogin :one
-SELECT u.id, u.login, u.theme, u.haptics, p.name AS person_name
+SELECT u.id, u.login, u.theme, u.haptics, u.person_id, p.name AS person_name
 FROM users u
 JOIN persons p ON p.id = u.person_id
 WHERE u.login = ?;
 
 -- name: GetUserByID :one
-SELECT u.id, u.login, u.theme, u.haptics, p.name AS person_name
+SELECT u.id, u.login, u.theme, u.haptics, u.person_id, p.name AS person_name
 FROM users u
 JOIN persons p ON p.id = u.person_id
 WHERE u.id = ?;

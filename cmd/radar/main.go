@@ -30,7 +30,9 @@ import (
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/notify"
 	"github.com/italogfx/radar-finance/internal/receivable"
+	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
 	"github.com/italogfx/radar-finance/internal/server"
 	"github.com/italogfx/radar-finance/web"
@@ -116,26 +118,29 @@ func serve(log *slog.Logger) error {
 	go auth.CleanupSessions(ctx, conn, time.Hour, log)
 
 	cards, bills, financings := card.NewService(conn), bill.NewService(conn), financing.NewService(conn)
+	sav, reports := savings.NewService(conn), report.NewService(conn, cards)
 	handler := server.New(server.Deps{
-		Config:      cfg,
-		DB:          conn,
-		Accounts:    accounts,
-		Categories:  category.NewService(conn),
-		Ledger:      ledger.NewService(conn),
-		Incomes:     income.NewService(conn),
-		Cards:       cards,
-		Bills:       bills,
-		Financings:  financings,
-		Agenda:      agenda.NewService(bills, financings, cards),
-		Alelo:       alelo.NewService(conn),
-		Receivables: receivable.NewService(conn),
-		Savings:     savings.NewService(conn),
-		Sessions:    sessions,
-		Backups:     backups,
-		Version:     version,
-		StartedAt:   time.Now(),
-		Log:         log,
-		Assets:      web.Assets(),
+		Config:        cfg,
+		DB:            conn,
+		Accounts:      accounts,
+		Categories:    category.NewService(conn),
+		Ledger:        ledger.NewService(conn),
+		Incomes:       income.NewService(conn),
+		Cards:         cards,
+		Bills:         bills,
+		Financings:    financings,
+		Agenda:        agenda.NewService(bills, financings, cards),
+		Alelo:         alelo.NewService(conn),
+		Receivables:   receivable.NewService(conn),
+		Savings:       sav,
+		Reports:       reports,
+		Notifications: notify.NewService(conn, agenda.NewService(bills, financings, cards), reports, sav, income.NewService(conn)),
+		Sessions:      sessions,
+		Backups:       backups,
+		Version:       version,
+		StartedAt:     time.Now(),
+		Log:           log,
+		Assets:        web.Assets(),
 	})
 	srv := &http.Server{
 		Addr:              cfg.Addr,

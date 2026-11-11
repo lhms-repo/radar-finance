@@ -28,8 +28,10 @@ import (
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/notify"
 	"github.com/italogfx/radar-finance/internal/problem"
 	"github.com/italogfx/radar-finance/internal/receivable"
+	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
 )
 
@@ -50,24 +52,26 @@ const contentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 
 
 // Deps holds everything the HTTP layer needs.
 type Deps struct {
-	Config      config.Config
-	DB          *sql.DB
-	Accounts    *account.Service
-	Categories  *category.Service
-	Ledger      *ledger.Service
-	Incomes     *income.Service
-	Cards       *card.Service
-	Bills       *bill.Service
-	Financings  *financing.Service
-	Agenda      *agenda.Service
-	Alelo       *alelo.Service
-	Receivables *receivable.Service
-	Savings     *savings.Service
-	Sessions    *scs.SessionManager
-	Backups     *backup.Service
-	Version     string
-	StartedAt   time.Time
-	Log         *slog.Logger
+	Config        config.Config
+	DB            *sql.DB
+	Accounts      *account.Service
+	Categories    *category.Service
+	Ledger        *ledger.Service
+	Incomes       *income.Service
+	Cards         *card.Service
+	Bills         *bill.Service
+	Financings    *financing.Service
+	Agenda        *agenda.Service
+	Alelo         *alelo.Service
+	Receivables   *receivable.Service
+	Savings       *savings.Service
+	Reports       *report.Service
+	Notifications *notify.Service
+	Sessions      *scs.SessionManager
+	Backups       *backup.Service
+	Version       string
+	StartedAt     time.Time
+	Log           *slog.Logger
 	// Assets is the built frontend, or nil when Vite serves it in development.
 	Assets fs.FS
 }

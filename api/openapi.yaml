@@ -21,6 +21,7 @@ tags:
   - name: alelo
   - name: receivables
   - name: savings
+  - name: reports
 paths:
   /ping:
     get:
@@ -1885,6 +1886,193 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /reports/spending:
+    get:
+      operationId: getSpending
+      tags: [reports]
+      summary: Spending of each month by category, couple share only (RF-59, RN-04).
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Month"
+        - name: to
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: One entry per month.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonthSpend"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /budgets:
+    get:
+      operationId: listBudgets
+      tags: [reports]
+      summary: Budgets compared with the spending of the month, the most critical first (RF-51, RF-52).
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: Budget status.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BudgetStatus"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /budgets/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: setBudget
+      tags: [reports]
+      summary: Sets the monthly budget of a top level category; zero removes it (RF-51).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BudgetSet"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /overview:
+    get:
+      operationId: getOverview
+      tags: [reports]
+      summary: Expected balance, housing share, month closing, net worth and future commitments (RF-58, RF-60 to RF-62, section 5.3).
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: Indicators of the month.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Overview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /search:
+    get:
+      operationId: searchEntries
+      tags: [reports]
+      summary: Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: categoryId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: accountId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: cardId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: personId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: text
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lines found, newest first, up to 500.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchLine"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [reports]
+      summary: Current warnings of the user with the unread count (RF-64).
+      responses:
+        "200":
+          description: Notifications.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /notifications/read:
+    post:
+      operationId: markNotificationsRead
+      tags: [reports]
+      summary: Marks notifications as read; without keys marks all.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRead"
+      responses:
+        "204":
+          description: Saved.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   parameters:
     Id:
@@ -3577,6 +3765,273 @@ components:
         reason:
           type: string
           maxLength: 120
+
+    SpendSub:
+      type: object
+      required: [id, name, cents]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        cents:
+          $ref: "#/components/schemas/Cents"
+
+    CategorySpend:
+      type: object
+      required: [id, name, icon, cents, subs]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Zero for card credits without a category.
+        name:
+          type: string
+        icon:
+          type: string
+        cents:
+          $ref: "#/components/schemas/Cents"
+        subs:
+          type: array
+          items:
+            $ref: "#/components/schemas/SpendSub"
+
+    MonthSpend:
+      type: object
+      required: [month, totalCents, categories]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategorySpend"
+
+    BudgetStatus:
+      type: object
+      required: [categoryId, name, icon, budgetCents, spentCents, usedBp, level]
+      properties:
+        categoryId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        icon:
+          type: string
+        budgetCents:
+          $ref: "#/components/schemas/Cents"
+        spentCents:
+          $ref: "#/components/schemas/Cents"
+        usedBp:
+          type: integer
+          description: Spending over budget in basis points, not capped.
+        level:
+          type: string
+          enum: [ok, warning, over]
+
+    BudgetSet:
+      type: object
+      required: [amountCents]
+      properties:
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+
+    ForecastGroup:
+      type: object
+      required: [key, cents, shareBp]
+      properties:
+        key:
+          type: string
+          enum: [housing, invoices, bills, day_to_day, savings]
+        cents:
+          $ref: "#/components/schemas/Cents"
+        shareBp:
+          type: integer
+
+    Forecast:
+      type: object
+      required: [incomeCents, receivedCents, expectedCents, groups, outCents, balanceCents, balanceBp]
+      properties:
+        incomeCents:
+          $ref: "#/components/schemas/Cents"
+        receivedCents:
+          $ref: "#/components/schemas/Cents"
+        expectedCents:
+          $ref: "#/components/schemas/Cents"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/ForecastGroup"
+        outCents:
+          $ref: "#/components/schemas/Cents"
+        balanceCents:
+          $ref: "#/components/schemas/Cents"
+        balanceBp:
+          type: integer
+
+    Housing:
+      type: object
+      required: [housingCents, coupleIncomeCents, personIncomeCents, coupleBp, personBp, referenceBp]
+      properties:
+        housingCents:
+          $ref: "#/components/schemas/Cents"
+        coupleIncomeCents:
+          $ref: "#/components/schemas/Cents"
+        personIncomeCents:
+          $ref: "#/components/schemas/Cents"
+        coupleBp:
+          type: integer
+        personBp:
+          type: integer
+        referenceBp:
+          type: integer
+
+    Commitment:
+      type: object
+      required: [month, cardCents, financingCents, totalCents, incomeCents, bp]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        cardCents:
+          $ref: "#/components/schemas/Cents"
+        financingCents:
+          $ref: "#/components/schemas/Cents"
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        incomeCents:
+          $ref: "#/components/schemas/Cents"
+        bp:
+          type: integer
+
+    Closing:
+      type: object
+      required: [incomeCents, spendingCents, savedCents, receivablePendingCents, receivedCents]
+      properties:
+        incomeCents:
+          $ref: "#/components/schemas/Cents"
+        spendingCents:
+          $ref: "#/components/schemas/Cents"
+        savedCents:
+          $ref: "#/components/schemas/Cents"
+        receivablePendingCents:
+          $ref: "#/components/schemas/Cents"
+        receivedCents:
+          $ref: "#/components/schemas/Cents"
+
+    NetWorth:
+      type: object
+      required: [accountsCents, savingsCents, financingCents, cardDebtCents, netCents]
+      properties:
+        accountsCents:
+          $ref: "#/components/schemas/Cents"
+        savingsCents:
+          $ref: "#/components/schemas/Cents"
+        financingCents:
+          $ref: "#/components/schemas/Cents"
+        cardDebtCents:
+          $ref: "#/components/schemas/Cents"
+        netCents:
+          $ref: "#/components/schemas/Cents"
+
+    Overview:
+      type: object
+      required: [month, forecast, housing, closing, netWorth, commitments]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        forecast:
+          $ref: "#/components/schemas/Forecast"
+        housing:
+          $ref: "#/components/schemas/Housing"
+        closing:
+          $ref: "#/components/schemas/Closing"
+        netWorth:
+          $ref: "#/components/schemas/NetWorth"
+        commitments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Commitment"
+
+    SearchLine:
+      type: object
+      required: [source, id, date, description, amountCents, kind, categoryName, parentCategoryName, accountName, cardName, personName]
+      properties:
+        source:
+          type: string
+          enum: [account, card, alelo]
+        id:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+        amountCents:
+          description: Signed cents, money out negative.
+          type: integer
+          format: int64
+        kind:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        categoryName:
+          type: string
+        parentCategoryName:
+          type: string
+        accountName:
+          type: string
+        cardName:
+          type: string
+        personName:
+          type: string
+
+    Notification:
+      type: object
+      required: [key, kind, severity, title, message, link, date, read]
+      properties:
+        key:
+          type: string
+        kind:
+          type: string
+          enum: [overdue, budget_over, due_soon, budget_warning, savings_pending, income_ending]
+        severity:
+          type: string
+          enum: [danger, warning, info]
+        title:
+          type: string
+        message:
+          type: string
+        link:
+          type: string
+        date:
+          type: string
+          format: date
+        read:
+          type: boolean
+
+    NotificationList:
+      type: object
+      required: [items, unread]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        unread:
+          type: integer
+
+    NotificationRead:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: string
 
 security:
   - session: []

@@ -73,7 +73,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT u.id, u.login, u.theme, u.haptics, p.name AS person_name
+SELECT u.id, u.login, u.theme, u.haptics, u.person_id, p.name AS person_name
 FROM users u
 JOIN persons p ON p.id = u.person_id
 WHERE u.id = ?
@@ -84,6 +84,7 @@ type GetUserByIDRow struct {
 	Login      string
 	Theme      string
 	Haptics    bool
+	PersonID   int64
 	PersonName string
 }
 
@@ -95,13 +96,14 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 		&i.Login,
 		&i.Theme,
 		&i.Haptics,
+		&i.PersonID,
 		&i.PersonName,
 	)
 	return i, err
 }
 
 const getUserByLogin = `-- name: GetUserByLogin :one
-SELECT u.id, u.login, u.theme, u.haptics, p.name AS person_name
+SELECT u.id, u.login, u.theme, u.haptics, u.person_id, p.name AS person_name
 FROM users u
 JOIN persons p ON p.id = u.person_id
 WHERE u.login = ?
@@ -112,6 +114,7 @@ type GetUserByLoginRow struct {
 	Login      string
 	Theme      string
 	Haptics    bool
+	PersonID   int64
 	PersonName string
 }
 
@@ -123,6 +126,7 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 		&i.Login,
 		&i.Theme,
 		&i.Haptics,
+		&i.PersonID,
 		&i.PersonName,
 	)
 	return i, err

@@ -1125,6 +1125,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/spending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spending of each month by category, couple share only (RF-59, RN-04). */
+        get: operations["getSpending"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Budgets compared with the spending of the month, the most critical first (RF-51, RF-52). */
+        get: operations["listBudgets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/budgets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets the monthly budget of a top level category; zero removes it (RF-51). */
+        put: operations["setBudget"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Expected balance, housing share, month closing, net worth and future commitments (RF-58, RF-60 to RF-62, section 5.3). */
+        get: operations["getOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63). */
+        get: operations["searchEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current warnings of the user with the unread count (RF-64). */
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Marks notifications as read; without keys marks all. */
+        post: operations["markNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1989,6 +2110,138 @@ export interface components {
             /** Format: date */
             date: string;
             reason: string;
+        };
+        SpendSub: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            cents: components["schemas"]["Cents"];
+        };
+        CategorySpend: {
+            /**
+             * Format: int64
+             * @description Zero for card credits without a category.
+             */
+            id: number;
+            name: string;
+            icon: string;
+            cents: components["schemas"]["Cents"];
+            subs: components["schemas"]["SpendSub"][];
+        };
+        MonthSpend: {
+            month: components["schemas"]["Month"];
+            totalCents: components["schemas"]["Cents"];
+            categories: components["schemas"]["CategorySpend"][];
+        };
+        BudgetStatus: {
+            /** Format: int64 */
+            categoryId: number;
+            name: string;
+            icon: string;
+            budgetCents: components["schemas"]["Cents"];
+            spentCents: components["schemas"]["Cents"];
+            /** @description Spending over budget in basis points, not capped. */
+            usedBp: number;
+            /** @enum {string} */
+            level: "ok" | "warning" | "over";
+        };
+        BudgetSet: {
+            amountCents: components["schemas"]["Cents"];
+        };
+        ForecastGroup: {
+            /** @enum {string} */
+            key: "housing" | "invoices" | "bills" | "day_to_day" | "savings";
+            cents: components["schemas"]["Cents"];
+            shareBp: number;
+        };
+        Forecast: {
+            incomeCents: components["schemas"]["Cents"];
+            receivedCents: components["schemas"]["Cents"];
+            expectedCents: components["schemas"]["Cents"];
+            groups: components["schemas"]["ForecastGroup"][];
+            outCents: components["schemas"]["Cents"];
+            balanceCents: components["schemas"]["Cents"];
+            balanceBp: number;
+        };
+        Housing: {
+            housingCents: components["schemas"]["Cents"];
+            coupleIncomeCents: components["schemas"]["Cents"];
+            personIncomeCents: components["schemas"]["Cents"];
+            coupleBp: number;
+            personBp: number;
+            referenceBp: number;
+        };
+        Commitment: {
+            month: components["schemas"]["Month"];
+            cardCents: components["schemas"]["Cents"];
+            financingCents: components["schemas"]["Cents"];
+            totalCents: components["schemas"]["Cents"];
+            incomeCents: components["schemas"]["Cents"];
+            bp: number;
+        };
+        Closing: {
+            incomeCents: components["schemas"]["Cents"];
+            spendingCents: components["schemas"]["Cents"];
+            savedCents: components["schemas"]["Cents"];
+            receivablePendingCents: components["schemas"]["Cents"];
+            receivedCents: components["schemas"]["Cents"];
+        };
+        NetWorth: {
+            accountsCents: components["schemas"]["Cents"];
+            savingsCents: components["schemas"]["Cents"];
+            financingCents: components["schemas"]["Cents"];
+            cardDebtCents: components["schemas"]["Cents"];
+            netCents: components["schemas"]["Cents"];
+        };
+        Overview: {
+            month: components["schemas"]["Month"];
+            forecast: components["schemas"]["Forecast"];
+            housing: components["schemas"]["Housing"];
+            closing: components["schemas"]["Closing"];
+            netWorth: components["schemas"]["NetWorth"];
+            commitments: components["schemas"]["Commitment"][];
+        };
+        SearchLine: {
+            /** @enum {string} */
+            source: "account" | "card" | "alelo";
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            date: string;
+            description: string;
+            /**
+             * Format: int64
+             * @description Signed cents, money out negative.
+             */
+            amountCents: number;
+            kind: string;
+            /** Format: int64 */
+            categoryId?: number;
+            categoryName: string;
+            parentCategoryName: string;
+            accountName: string;
+            cardName: string;
+            personName: string;
+        };
+        Notification: {
+            key: string;
+            /** @enum {string} */
+            kind: "overdue" | "budget_over" | "due_soon" | "budget_warning" | "savings_pending" | "income_ending";
+            /** @enum {string} */
+            severity: "danger" | "warning" | "info";
+            title: string;
+            message: string;
+            link: string;
+            /** Format: date */
+            date: string;
+            read: boolean;
+        };
+        NotificationList: {
+            items: components["schemas"]["Notification"][];
+            unread: number;
+        };
+        NotificationRead: {
+            keys?: string[];
         };
     };
     responses: {
@@ -4203,6 +4456,179 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    getSpending: {
+        parameters: {
+            query: {
+                from: components["schemas"]["Month"];
+                to: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthSpend"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listBudgets: {
+        parameters: {
+            query: {
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Budget status. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BudgetStatus"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    setBudget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BudgetSet"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getOverview: {
+        parameters: {
+            query: {
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Indicators of the month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    searchEntries: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                categoryId?: number;
+                accountId?: number;
+                cardId?: number;
+                personId?: number;
+                text?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Lines found, newest first, up to 500. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchLine"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notifications. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationList"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    markNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationRead"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

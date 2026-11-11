@@ -27,11 +27,12 @@ var validThemes = map[string]bool{"system": true, "light": true, "dark": true}
 
 // User is the public view of a user.
 type User struct {
-	ID      int64
-	Login   string
-	Name    string
-	Theme   string
-	Haptics bool
+	ID       int64
+	PersonID int64
+	Login    string
+	Name     string
+	Theme    string
+	Haptics  bool
 }
 
 // Preferences holds optional preference changes; nil fields stay unchanged.
@@ -81,7 +82,7 @@ func (s *Service) Create(ctx context.Context, login, name string) (User, error) 
 	if err != nil {
 		return User{}, err
 	}
-	return User{ID: u.ID, Login: u.Login, Name: name, Theme: u.Theme, Haptics: u.Haptics}, nil
+	return User{ID: u.ID, PersonID: u.PersonID, Login: u.Login, Name: name, Theme: u.Theme, Haptics: u.Haptics}, nil
 }
 
 // GetByLogin returns the user with the given login.
@@ -93,7 +94,7 @@ func (s *Service) GetByLogin(ctx context.Context, login string) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	return User{ID: row.ID, Login: row.Login, Name: row.PersonName, Theme: row.Theme, Haptics: row.Haptics}, nil
+	return User{ID: row.ID, PersonID: row.PersonID, Login: row.Login, Name: row.PersonName, Theme: row.Theme, Haptics: row.Haptics}, nil
 }
 
 // Get returns the user with the given ID.
@@ -105,7 +106,7 @@ func (s *Service) Get(ctx context.Context, id int64) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	return User{ID: row.ID, Login: row.Login, Name: row.PersonName, Theme: row.Theme, Haptics: row.Haptics}, nil
+	return User{ID: row.ID, PersonID: row.PersonID, Login: row.Login, Name: row.PersonName, Theme: row.Theme, Haptics: row.Haptics}, nil
 }
 
 // UpdatePreferences changes theme and haptic feedback for the user.
