@@ -14,7 +14,9 @@ import { MoneyFlow } from "@/components/ui/money-flow";
 import { MoneyInput } from "@/components/ui/money-input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
+import { Segmented } from "@/components/ui/segmented";
 import { usePersons } from "@/features/accounts/api";
+import { AleloTudoVisual } from "@/features/alelo/AleloVisual";
 import {
   useAddAleloPurchase,
   useAleloCards,
@@ -66,9 +68,32 @@ export function AleloPage() {
       )}
 
       {list.length > 0 && (
-        <div role="listbox" aria-label="Cartões Alelo" className="grid grid-cols-2 gap-3">
+        <div role="listbox" aria-label="Cartões Alelo" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {list.map((c) => {
             const active = c.id === selected?.id;
+            if (c.style === "tudo")
+              return (
+                <motion.button
+                  key={c.id}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  aria-label={c.name}
+                  onClick={() => {
+                    haptic();
+                    setSelectedId(c.id);
+                  }}
+                  animate={{ scale: active ? 1 : 0.97, opacity: c.active ? 1 : 0.6 }}
+                  transition={spring}
+                  className="flex flex-col gap-2 text-left"
+                >
+                  <AleloTudoVisual personName={c.personName} name={c.name} className={cn(active && "ring-3 ring-primary/40")} />
+                  <span className="flex items-baseline justify-between gap-2 px-1">
+                    <span className="text-xs text-muted-foreground">Saldo</span>
+                    <MoneyFlow cents={c.balanceCents} className="text-base font-semibold" />
+                  </span>
+                </motion.button>
+              );
             return (
               <motion.button
                 key={c.id}
@@ -236,6 +261,7 @@ const aleloSchema = z.object({
   monthlyCreditCents: z.number().int().positive("Informe o crédito mensal."),
   creditDay: z.number({ message: "Informe o dia." }).int().min(1, "De 1 a 31.").max(31, "De 1 a 31."),
   initialBalanceCents: z.number().int().min(0),
+  style: z.enum(["classic", "tudo"]),
   active: z.boolean(),
 });
 
@@ -255,6 +281,7 @@ function AleloFormDialog({ state, onClose }: { state: AleloCard | "new" | null; 
       monthlyCreditCents: editing?.monthlyCreditCents ?? 0,
       creditDay: editing?.creditDay ?? 1,
       initialBalanceCents: 0,
+      style: editing?.style ?? "tudo",
       active: editing?.active ?? true,
     },
   });
@@ -302,6 +329,24 @@ function AleloFormDialog({ state, onClose }: { state: AleloCard | "new" | null; 
           <Field label="Cai dia" htmlFor="alelo-day" error={errors.creditDay?.message}>
             <Input id="alelo-day" type="number" inputMode="numeric" min={1} max={31} {...form.register("creditDay", { valueAsNumber: true })} />
           </Field>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Visual</span>
+          <Controller
+            control={form.control}
+            name="style"
+            render={({ field }) => (
+              <Segmented<AleloCard["style"]>
+                ariaLabel="Visual"
+                value={field.value}
+                options={[
+                  { value: "tudo", label: "Alelo Tudo" },
+                  { value: "classic", label: "Clássico" },
+                ]}
+                onChange={field.onChange}
+              />
+            )}
+          />
         </div>
         {!editing && (
           <Field label="Saldo hoje" htmlFor="alelo-balance">

@@ -16,7 +16,7 @@ func TestAleloRoutes(t *testing.T) {
 		ID int64 `json:"id"`
 	}
 	_ = json.NewDecoder(get(t, c, srv.URL+"/api/persons").Body).Decode(&persons)
-	resp := postJSON(t, c, srv, "/api/alelo", fmt.Sprintf(`{"name":"Alelo Ana","personId":%d,"monthlyCreditCents":80000,"creditDay":5,"initialBalanceCents":12000}`, persons[0].ID))
+	resp := postJSON(t, c, srv, "/api/alelo", fmt.Sprintf(`{"name":"Alelo Ana","personId":%d,"monthlyCreditCents":80000,"creditDay":5,"initialBalanceCents":12000,"style":"tudo"}`, persons[0].ID))
 	var card struct {
 		ID         int64  `json:"id"`
 		StartMonth string `json:"startMonth"`

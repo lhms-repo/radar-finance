@@ -48,6 +48,7 @@ const COLORS: { value: CardColor; label: string; swatch: string }[] = [
   { value: "orange", label: "Laranja", swatch: "#ff7a1a" },
   { value: "gold", label: "Dourado", swatch: "#d9b456" },
   { value: "silver", label: "Prata", swatch: "#c9ccd2" },
+  { value: "nubank_croma", label: "Nubank Croma", swatch: "linear-gradient(135deg, #dcd6c4, #b9b199)" },
 ];
 
 const dateField = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data.");
@@ -60,7 +61,7 @@ const cardSchema = z.object({
   closingDay: z.number({ message: "Informe o dia." }).int().min(1, "De 1 a 31.").max(31, "De 1 a 31."),
   dueDay: z.number({ message: "Informe o dia." }).int().min(1, "De 1 a 31.").max(31, "De 1 a 31."),
   lastDigits: z.string().regex(/^(\d{4})?$/, "Informe os 4 últimos dígitos."),
-  color: z.enum(["graphite", "purple", "blue", "green", "red", "orange", "gold", "silver"]),
+  color: z.enum(["graphite", "purple", "blue", "green", "red", "orange", "gold", "silver", "nubank_croma"]),
   finish: z.enum(["metal", "matte"]),
 });
 type CardValues = z.infer<typeof cardSchema>;
@@ -168,15 +169,17 @@ export function CardFormDialog({ open, card, onClose }: { open: boolean; card?: 
             ))}
           </div>
         </div>
-        <Segmented<CardFinish>
-          ariaLabel="Acabamento"
-          value={v.finish ?? "metal"}
-          options={[
-            { value: "metal", label: "Metálico" },
-            { value: "matte", label: "Fosco" },
-          ]}
-          onChange={(value) => form.setValue("finish", value)}
-        />
+        {v.color !== "nubank_croma" && (
+          <Segmented<CardFinish>
+            ariaLabel="Acabamento"
+            value={v.finish ?? "metal"}
+            options={[
+              { value: "metal", label: "Metálico" },
+              { value: "matte", label: "Fosco" },
+            ]}
+            onChange={(value) => form.setValue("finish", value)}
+          />
+        )}
         <FieldError message={mutation.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

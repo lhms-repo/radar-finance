@@ -14,13 +14,13 @@ WHERE id = ?;
 
 -- name: CreateAleloCard :one
 INSERT INTO alelo_cards (name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month,
-                         created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         style, created_by, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateAleloCard :exec
 UPDATE alelo_cards
-SET name = ?, person_id = ?, monthly_credit_cents = ?, credit_day = ?, active = ?, updated_at = ?
+SET name = ?, person_id = ?, monthly_credit_cents = ?, credit_day = ?, style = ?, active = ?, updated_at = ?
 WHERE id = ?;
 
 -- name: DeleteAleloCard :exec

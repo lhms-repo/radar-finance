@@ -145,7 +145,7 @@ func newWorld(t *testing.T) *world {
 	_, err = w.recv.MarkReceived(ctx, w.userID, receivable.Receipt{ItemIDs: []int64{people[0].Items[0].ID}, AccountID: w.nubank, Date: d(2026, time.November, 12)})
 	must(err)
 
-	aleloCard, err := w.alelo.Create(ctx, w.userID, alelo.Input{Name: "Alelo Ana", PersonID: w.persons[0], MonthlyCreditCents: 80_000, CreditDay: 5})
+	aleloCard, err := w.alelo.Create(ctx, w.userID, alelo.Input{Name: "Alelo Ana", PersonID: w.persons[0], MonthlyCreditCents: 80_000, CreditDay: 5, Style: "tudo"})
 	must(err)
 	_, err = w.alelo.AddPurchase(ctx, w.userID, alelo.Purchase{AleloID: aleloCard.ID, Date: d(2026, time.November, 9), Description: "Mercado", AmountCents: 32_000})
 	must(err)

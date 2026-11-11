@@ -2840,7 +2840,8 @@ components:
 
     CardColor:
       type: string
-      enum: [graphite, purple, blue, green, red, orange, gold, silver]
+      description: Color of the card drawing; nubank_croma draws the Nubank Croma face and ignores the finish.
+      enum: [graphite, purple, blue, green, red, orange, gold, silver, nubank_croma]
 
     CardFinish:
       type: string
@@ -3592,10 +3593,17 @@ components:
         paidCount:
           type: integer
 
+    AleloStyle:
+      type: string
+      description: Look of the card drawing, the classic green or the Alelo Tudo identity.
+      enum: [classic, tudo]
+
     AleloInput:
       type: object
-      required: [name, personId, monthlyCreditCents, creditDay, initialBalanceCents]
+      required: [name, personId, monthlyCreditCents, creditDay, initialBalanceCents, style]
       properties:
+        style:
+          $ref: "#/components/schemas/AleloStyle"
         name:
           type: string
           maxLength: 40
@@ -3611,8 +3619,10 @@ components:
 
     AleloUpdate:
       type: object
-      required: [name, personId, monthlyCreditCents, creditDay, active]
+      required: [name, personId, monthlyCreditCents, creditDay, style, active]
       properties:
+        style:
+          $ref: "#/components/schemas/AleloStyle"
         name:
           type: string
           maxLength: 40
@@ -3628,8 +3638,10 @@ components:
 
     AleloCard:
       type: object
-      required: [id, name, personId, personName, monthlyCreditCents, creditDay, balanceCents, startMonth, active]
+      required: [id, name, personId, personName, monthlyCreditCents, creditDay, balanceCents, startMonth, style, active]
       properties:
+        style:
+          $ref: "#/components/schemas/AleloStyle"
         id:
           type: integer
           format: int64

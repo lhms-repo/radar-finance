@@ -29,7 +29,7 @@ const (
 
 // Colors and finishes of the card drawing (section 5.4); graphite with metal is the main card look.
 var (
-	colors   = map[string]bool{"graphite": true, "purple": true, "blue": true, "green": true, "red": true, "orange": true, "gold": true, "silver": true}
+	colors   = map[string]bool{"graphite": true, "purple": true, "blue": true, "green": true, "red": true, "orange": true, "gold": true, "silver": true, "nubank_croma": true}
 	finishes = map[string]bool{"metal": true, "matte": true}
 )
 

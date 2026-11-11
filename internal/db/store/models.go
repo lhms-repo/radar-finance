@@ -32,6 +32,7 @@ type AleloCard struct {
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	Style               string
 }
 
 type AleloCredit struct {

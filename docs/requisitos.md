@@ -276,7 +276,7 @@ A interface segue a referência enviada: menu lateral fixo, navegação por mês
 
 ### 5.4 Visual dos cartões
 
-Cada cartão é desenhado como um cartão físico, com cor e acabamento configuráveis, nome, titular, final do número, vencimento e limite livre. O cartão principal usa acabamento escuro e metálico.
+Cada cartão é desenhado como um cartão físico, com cor e acabamento configuráveis, nome, titular, final do número, vencimento e limite livre. O cartão principal usa acabamento escuro e metálico. Entre as cores há a opção Nubank Croma, que reproduz a face do cartão real: cinza cromado com granulado, logo roxa, marca Mastercard e chip só em contorno. Os cartões Alelo podem usar o visual Alelo Tudo, vertical, verde-limão com a linha que passa pelo chip e vira a haste do "d" de "tudo", ou o visual clássico verde.
 
 ### 5.5 Navegação
 

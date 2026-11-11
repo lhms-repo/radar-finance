@@ -40,6 +40,24 @@ func (e AgendaKind) Valid() bool {
 	}
 }
 
+// Defines values for AleloStyle.
+const (
+	Classic AleloStyle = "classic"
+	Tudo    AleloStyle = "tudo"
+)
+
+// Valid indicates whether the value is a known member of the AleloStyle enum.
+func (e AleloStyle) Valid() bool {
+	switch e {
+	case Classic:
+		return true
+	case Tudo:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackupKind.
 const (
 	Daily   BackupKind = "daily"
@@ -84,14 +102,15 @@ func (e BudgetStatusLevel) Valid() bool {
 
 // Defines values for CardColor.
 const (
-	Blue     CardColor = "blue"
-	Gold     CardColor = "gold"
-	Graphite CardColor = "graphite"
-	Green    CardColor = "green"
-	Orange   CardColor = "orange"
-	Purple   CardColor = "purple"
-	Red      CardColor = "red"
-	Silver   CardColor = "silver"
+	Blue        CardColor = "blue"
+	Gold        CardColor = "gold"
+	Graphite    CardColor = "graphite"
+	Green       CardColor = "green"
+	NubankCroma CardColor = "nubank_croma"
+	Orange      CardColor = "orange"
+	Purple      CardColor = "purple"
+	Red         CardColor = "red"
+	Silver      CardColor = "silver"
 )
 
 // Valid indicates whether the value is a known member of the CardColor enum.
@@ -104,6 +123,8 @@ func (e CardColor) Valid() bool {
 	case Graphite:
 		return true
 	case Green:
+		return true
+	case NubankCroma:
 		return true
 	case Orange:
 		return true
@@ -582,6 +603,9 @@ type AleloCard struct {
 
 	// StartMonth Example: 2026-11
 	StartMonth Month `json:"startMonth"`
+
+	// Style Look of the card drawing, the classic green or the Alelo Tudo identity.
+	Style AleloStyle `json:"style"`
 }
 
 // AleloCreditCreate defines model for AleloCreditCreate.
@@ -602,6 +626,9 @@ type AleloInput struct {
 	MonthlyCreditCents Cents  `json:"monthlyCreditCents"`
 	Name               string `json:"name"`
 	PersonId           int64  `json:"personId"`
+
+	// Style Look of the card drawing, the classic green or the Alelo Tudo identity.
+	Style AleloStyle `json:"style"`
 }
 
 // AleloMonth defines model for AleloMonth.
@@ -650,6 +677,9 @@ type AleloPurchaseCreate struct {
 	Description string             `json:"description"`
 }
 
+// AleloStyle Look of the card drawing, the classic green or the Alelo Tudo identity.
+type AleloStyle string
+
 // AleloUpdate defines model for AleloUpdate.
 type AleloUpdate struct {
 	Active    bool `json:"active"`
@@ -659,6 +689,9 @@ type AleloUpdate struct {
 	MonthlyCreditCents Cents  `json:"monthlyCreditCents"`
 	Name               string `json:"name"`
 	PersonId           int64  `json:"personId"`
+
+	// Style Look of the card drawing, the classic green or the Alelo Tudo identity.
+	Style AleloStyle `json:"style"`
 }
 
 // AliasRule defines model for AliasRule.
@@ -814,9 +847,11 @@ type BudgetStatusLevel string
 
 // Card defines model for Card.
 type Card struct {
-	Active     bool      `json:"active"`
-	ClosingDay int       `json:"closingDay"`
-	Color      CardColor `json:"color"`
+	Active     bool `json:"active"`
+	ClosingDay int  `json:"closingDay"`
+
+	// Color Color of the card drawing; nubank_croma draws the Nubank Croma face and ignores the finish.
+	Color CardColor `json:"color"`
 
 	// CurrentInvoice Example: 2026-11
 	CurrentInvoice Month      `json:"currentInvoice"`
@@ -838,7 +873,7 @@ type Card struct {
 	PersonName     string `json:"personName"`
 }
 
-// CardColor defines model for CardColor.
+// CardColor Color of the card drawing; nubank_croma draws the Nubank Croma face and ignores the finish.
 type CardColor string
 
 // CardFinish defines model for CardFinish.
@@ -846,10 +881,12 @@ type CardFinish string
 
 // CardInput defines model for CardInput.
 type CardInput struct {
-	ClosingDay int        `json:"closingDay"`
-	Color      CardColor  `json:"color"`
-	DueDay     int        `json:"dueDay"`
-	Finish     CardFinish `json:"finish"`
+	ClosingDay int `json:"closingDay"`
+
+	// Color Color of the card drawing; nubank_croma draws the Nubank Croma face and ignores the finish.
+	Color  CardColor  `json:"color"`
+	DueDay int        `json:"dueDay"`
+	Finish CardFinish `json:"finish"`
 
 	// LastDigits Last four digits of the card number.
 	LastDigits *string `json:"lastDigits,omitempty"`
@@ -862,11 +899,13 @@ type CardInput struct {
 
 // CardUpdate defines model for CardUpdate.
 type CardUpdate struct {
-	Active     bool       `json:"active"`
-	ClosingDay int        `json:"closingDay"`
-	Color      CardColor  `json:"color"`
-	DueDay     int        `json:"dueDay"`
-	Finish     CardFinish `json:"finish"`
+	Active     bool `json:"active"`
+	ClosingDay int  `json:"closingDay"`
+
+	// Color Color of the card drawing; nubank_croma draws the Nubank Croma face and ignores the finish.
+	Color  CardColor  `json:"color"`
+	DueDay int        `json:"dueDay"`
+	Finish CardFinish `json:"finish"`
 
 	// LastDigits Last four digits of the card number.
 	LastDigits *string `json:"lastDigits,omitempty"`

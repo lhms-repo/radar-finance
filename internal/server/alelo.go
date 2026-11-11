@@ -29,7 +29,7 @@ func (a *API) CreateAlelo(ctx context.Context, req gen.CreateAleloRequestObject)
 	}
 	b := req.Body
 	c, err := a.d.Alelo.Create(ctx, auth.UserID(ctx), alelo.Input{
-		Name: b.Name, PersonID: b.PersonId, MonthlyCreditCents: b.MonthlyCreditCents, CreditDay: b.CreditDay, InitialBalanceCents: b.InitialBalanceCents,
+		Name: b.Name, PersonID: b.PersonId, MonthlyCreditCents: b.MonthlyCreditCents, CreditDay: b.CreditDay, InitialBalanceCents: b.InitialBalanceCents, Style: string(b.Style),
 	})
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (a *API) UpdateAlelo(ctx context.Context, req gen.UpdateAleloRequestObject)
 	}
 	b := req.Body
 	c, err := a.d.Alelo.Update(ctx, req.Id, alelo.Changes{
-		Name: b.Name, PersonID: b.PersonId, MonthlyCreditCents: b.MonthlyCreditCents, CreditDay: b.CreditDay, Active: b.Active,
+		Name: b.Name, PersonID: b.PersonId, MonthlyCreditCents: b.MonthlyCreditCents, CreditDay: b.CreditDay, Style: string(b.Style), Active: b.Active,
 	})
 	if err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (a *API) DeleteAleloPurchase(ctx context.Context, req gen.DeleteAleloPurcha
 func toAleloCard(c alelo.Card) gen.AleloCard {
 	return gen.AleloCard{
 		Id: c.ID, Name: c.Name, PersonId: c.PersonID, PersonName: c.PersonName, MonthlyCreditCents: c.MonthlyCreditCents,
-		CreditDay: c.CreditDay, BalanceCents: c.BalanceCents, StartMonth: c.StartMonth.String(), Active: c.Active,
+		CreditDay: c.CreditDay, BalanceCents: c.BalanceCents, StartMonth: c.StartMonth.String(), Style: gen.AleloStyle(c.Style), Active: c.Active,
 	}
 }
 

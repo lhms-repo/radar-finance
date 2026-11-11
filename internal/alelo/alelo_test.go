@@ -56,7 +56,7 @@ func date(y int, m time.Month, d int) civil.Date { return civil.Date{Year: y, Mo
 
 // card returns a valid input: R$ 800,00 every 5th, R$ 120,00 left today.
 func (f fixture) card() Input {
-	return Input{Name: "Alelo Ana", PersonID: f.persons[0], MonthlyCreditCents: 80_000, CreditDay: 5, InitialBalanceCents: 12_000}
+	return Input{Name: "Alelo Ana", PersonID: f.persons[0], MonthlyCreditCents: 80_000, CreditDay: 5, InitialBalanceCents: 12_000, Style: "tudo"}
 }
 
 // TestCreate validates the Alelo registration with its starting balance (RF-31).
@@ -70,6 +70,8 @@ func TestCreate(t *testing.T) {
 	}{
 		{name: "valid", mod: func(*Input) {}},
 		{name: "zero starting balance", mod: func(in *Input) { in.Name, in.InitialBalanceCents = "Alelo Bruno", 0 }},
+		{name: "classic look", mod: func(in *Input) { in.Name, in.Style = "Alelo Classico", "classic" }},
+		{name: "unknown look", mod: func(in *Input) { in.Name, in.Style = "X", "pink" }, wantErr: ErrInvalidStyle},
 		{name: "empty name", mod: func(in *Input) { in.Name = "" }, wantErr: ErrNameRequired},
 		{name: "duplicate name", mod: func(in *Input) { in.Name = "alelo ana" }, wantErr: ErrDuplicateName},
 		{name: "zero credit", mod: func(in *Input) { in.Name, in.MonthlyCreditCents = "X", 0 }, wantErr: ledger.ErrAmountRequired},
@@ -85,7 +87,7 @@ func TestCreate(t *testing.T) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
-			if err == nil && (c.BalanceCents != in.InitialBalanceCents || c.StartMonth.String() != "2026-11" || c.PersonName == "") {
+			if err == nil && (c.BalanceCents != in.InitialBalanceCents || c.StartMonth.String() != "2026-11" || c.PersonName == "" || c.Style != in.Style) {
 				t.Fatalf("card = %+v", c)
 			}
 		})

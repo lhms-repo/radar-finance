@@ -1640,8 +1640,11 @@ export interface components {
             date: string;
             description?: string;
         };
-        /** @enum {string} */
-        CardColor: "graphite" | "purple" | "blue" | "green" | "red" | "orange" | "gold" | "silver";
+        /**
+         * @description Color of the card drawing; nubank_croma draws the Nubank Croma face and ignores the finish.
+         * @enum {string}
+         */
+        CardColor: "graphite" | "purple" | "blue" | "green" | "red" | "orange" | "gold" | "silver" | "nubank_croma";
         /** @enum {string} */
         CardFinish: "metal" | "matte";
         CardInput: {
@@ -2036,7 +2039,13 @@ export interface components {
             count: number;
             paidCount: number;
         };
+        /**
+         * @description Look of the card drawing, the classic green or the Alelo Tudo identity.
+         * @enum {string}
+         */
+        AleloStyle: "classic" | "tudo";
         AleloInput: {
+            style: components["schemas"]["AleloStyle"];
             name: string;
             /** Format: int64 */
             personId: number;
@@ -2045,6 +2054,7 @@ export interface components {
             initialBalanceCents: components["schemas"]["Cents"];
         };
         AleloUpdate: {
+            style: components["schemas"]["AleloStyle"];
             name: string;
             /** Format: int64 */
             personId: number;
@@ -2053,6 +2063,7 @@ export interface components {
             active: boolean;
         };
         AleloCard: {
+            style: components["schemas"]["AleloStyle"];
             /** Format: int64 */
             id: number;
             name: string;

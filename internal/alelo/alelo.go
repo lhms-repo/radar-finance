@@ -23,6 +23,9 @@ import (
 // GroceriesKey is the system key of Alimentação, Compras para casa (RN-15).
 const GroceriesKey = "groceries"
 
+// styles are the looks of the card drawing: the classic green and the Alelo Tudo identity.
+var styles = map[string]bool{"classic": true, "tudo": true}
+
 // maxName is the longest card name accepted, in characters.
 const maxName = 40
 
@@ -42,6 +45,7 @@ var (
 	ErrCreditNotFound      = problem.NotFound("alelo_credit_not_found", "Crédito não encontrado.")
 	ErrDescriptionRequired = problem.Invalid("alelo_description_required", "Descreva a compra.")
 	ErrPurchaseNotFound    = problem.NotFound("alelo_purchase_not_found", "Compra não encontrada.")
+	ErrInvalidStyle        = problem.Invalid("alelo_style_invalid", "Escolha o visual do cartão.")
 )
 
 // Card is an Alelo card with its current balance.
@@ -54,6 +58,7 @@ type Card struct {
 	CreditDay          int
 	BalanceCents       int64
 	StartMonth         civil.Month
+	Style              string
 	Active             bool
 }
 
@@ -64,6 +69,7 @@ type Input struct {
 	MonthlyCreditCents  int64
 	CreditDay           int
 	InitialBalanceCents int64
+	Style               string
 }
 
 // Changes edits a card; the starting balance stays as registered.
@@ -72,6 +78,7 @@ type Changes struct {
 	PersonID           int64
 	MonthlyCreditCents int64
 	CreditDay          int
+	Style              string
 	Active             bool
 }
 
@@ -151,7 +158,7 @@ func (s *Service) List(ctx context.Context) ([]Card, error) {
 		}
 		out = append(out, Card{
 			ID: r.ID, Name: r.Name, PersonID: r.PersonID, PersonName: r.PersonName, MonthlyCreditCents: r.MonthlyCreditCents,
-			CreditDay: int(r.CreditDay), BalanceCents: r.BalanceCents, StartMonth: start, Active: r.Active,
+			CreditDay: int(r.CreditDay), BalanceCents: r.BalanceCents, StartMonth: start, Style: r.Style, Active: r.Active,
 		})
 	}
 	return out, nil
@@ -173,7 +180,7 @@ func (s *Service) Get(ctx context.Context, id int64) (Card, error) {
 
 // Create registers a card; credits are planned from the current month (RF-31).
 func (s *Service) Create(ctx context.Context, userID int64, in Input) (Card, error) {
-	name, err := validate(in.Name, in.MonthlyCreditCents, in.CreditDay)
+	name, err := validate(in.Name, in.MonthlyCreditCents, in.CreditDay, in.Style)
 	if err != nil {
 		return Card{}, err
 	}
@@ -188,7 +195,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Card, err
 		now := s.now().UTC()
 		c, err := q.CreateAleloCard(ctx, store.CreateAleloCardParams{
 			Name: name, PersonID: in.PersonID, MonthlyCreditCents: in.MonthlyCreditCents, CreditDay: int64(in.CreditDay),
-			InitialBalanceCents: in.InitialBalanceCents, StartMonth: s.today().MonthOf().String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			InitialBalanceCents: in.InitialBalanceCents, StartMonth: s.today().MonthOf().String(), Style: in.Style, CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
 		})
 		if err != nil {
 			return fmt.Errorf("create alelo card: %w", err)
@@ -204,7 +211,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Card, err
 
 // Update edits a card.
 func (s *Service) Update(ctx context.Context, id int64, c Changes) (Card, error) {
-	name, err := validate(c.Name, c.MonthlyCreditCents, c.CreditDay)
+	name, err := validate(c.Name, c.MonthlyCreditCents, c.CreditDay, c.Style)
 	if err != nil {
 		return Card{}, err
 	}
@@ -217,7 +224,7 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Card, error)
 		}
 		return q.UpdateAleloCard(ctx, store.UpdateAleloCardParams{
 			Name: name, PersonID: c.PersonID, MonthlyCreditCents: c.MonthlyCreditCents, CreditDay: int64(c.CreditDay),
-			Active: c.Active, UpdatedAt: s.now().UTC(), ID: id,
+			Style: c.Style, Active: c.Active, UpdatedAt: s.now().UTC(), ID: id,
 		})
 	})
 	if err != nil {
@@ -390,7 +397,7 @@ func (s *Service) DeletePurchase(ctx context.Context, id int64) error {
 }
 
 // validate trims the name and checks name, monthly credit and credit day.
-func validate(name string, credit int64, day int) (string, error) {
+func validate(name string, credit int64, day int, style string) (string, error) {
 	name = strings.TrimSpace(name)
 	switch {
 	case name == "":
@@ -399,6 +406,8 @@ func validate(name string, credit int64, day int) (string, error) {
 		return "", ErrNameTooLong
 	case day < 1 || day > 31:
 		return "", ErrInvalidDay
+	case !styles[style]:
+		return "", ErrInvalidStyle
 	}
 	return name, ledger.CheckPositive(credit)
 }
@@ -437,7 +446,7 @@ func getCard(ctx context.Context, q *store.Queries, id int64) (Card, error) {
 	}
 	return Card{
 		ID: r.ID, Name: r.Name, PersonID: r.PersonID, MonthlyCreditCents: r.MonthlyCreditCents, CreditDay: int(r.CreditDay),
-		StartMonth: start, Active: r.Active,
+		StartMonth: start, Style: r.Style, Active: r.Active,
 	}, nil
 }
 

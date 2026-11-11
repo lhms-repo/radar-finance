@@ -34,9 +34,9 @@ func (q *Queries) AleloBalanceBefore(ctx context.Context, arg AleloBalanceBefore
 
 const createAleloCard = `-- name: CreateAleloCard :one
 INSERT INTO alelo_cards (name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month,
-                         created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month, active, created_by, created_at, updated_at
+                         style, created_by, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month, active, created_by, created_at, updated_at, style
 `
 
 type CreateAleloCardParams struct {
@@ -46,6 +46,7 @@ type CreateAleloCardParams struct {
 	CreditDay           int64
 	InitialBalanceCents int64
 	StartMonth          string
+	Style               string
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
@@ -59,6 +60,7 @@ func (q *Queries) CreateAleloCard(ctx context.Context, arg CreateAleloCardParams
 		arg.CreditDay,
 		arg.InitialBalanceCents,
 		arg.StartMonth,
+		arg.Style,
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -76,6 +78,7 @@ func (q *Queries) CreateAleloCard(ctx context.Context, arg CreateAleloCardParams
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Style,
 	)
 	return i, err
 }
@@ -185,7 +188,7 @@ func (q *Queries) DeleteAleloPurchase(ctx context.Context, id int64) error {
 }
 
 const getAleloCard = `-- name: GetAleloCard :one
-SELECT id, name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month, active, created_by, created_at, updated_at
+SELECT id, name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month, active, created_by, created_at, updated_at, style
 FROM alelo_cards
 WHERE id = ?
 `
@@ -205,6 +208,7 @@ func (q *Queries) GetAleloCard(ctx context.Context, id int64) (AleloCard, error)
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Style,
 	)
 	return i, err
 }
@@ -271,7 +275,7 @@ func (q *Queries) GetCategoryBySystemKey(ctx context.Context, systemKey sql.Null
 }
 
 const listAleloCards = `-- name: ListAleloCards :many
-SELECT c.id, c.name, c.person_id, c.monthly_credit_cents, c.credit_day, c.initial_balance_cents, c.start_month, c.active, c.created_by, c.created_at, c.updated_at, p.name AS person_name,
+SELECT c.id, c.name, c.person_id, c.monthly_credit_cents, c.credit_day, c.initial_balance_cents, c.start_month, c.active, c.created_by, c.created_at, c.updated_at, c.style, p.name AS person_name,
        CAST(c.initial_balance_cents
             + coalesce((SELECT sum(amount_cents) FROM alelo_credits cr WHERE cr.alelo_id = c.id), 0)
             - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id), 0) AS INTEGER) AS balance_cents
@@ -292,6 +296,7 @@ type ListAleloCardsRow struct {
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	Style               string
 	PersonName          string
 	BalanceCents        int64
 }
@@ -317,6 +322,7 @@ func (q *Queries) ListAleloCards(ctx context.Context) ([]ListAleloCardsRow, erro
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Style,
 			&i.PersonName,
 			&i.BalanceCents,
 		); err != nil {
@@ -395,7 +401,7 @@ func (q *Queries) ListAleloPurchases(ctx context.Context, arg ListAleloPurchases
 
 const updateAleloCard = `-- name: UpdateAleloCard :exec
 UPDATE alelo_cards
-SET name = ?, person_id = ?, monthly_credit_cents = ?, credit_day = ?, active = ?, updated_at = ?
+SET name = ?, person_id = ?, monthly_credit_cents = ?, credit_day = ?, style = ?, active = ?, updated_at = ?
 WHERE id = ?
 `
 
@@ -404,6 +410,7 @@ type UpdateAleloCardParams struct {
 	PersonID           int64
 	MonthlyCreditCents int64
 	CreditDay          int64
+	Style              string
 	Active             bool
 	UpdatedAt          time.Time
 	ID                 int64
@@ -415,6 +422,7 @@ func (q *Queries) UpdateAleloCard(ctx context.Context, arg UpdateAleloCardParams
 		arg.PersonID,
 		arg.MonthlyCreditCents,
 		arg.CreditDay,
+		arg.Style,
 		arg.Active,
 		arg.UpdatedAt,
 		arg.ID,
