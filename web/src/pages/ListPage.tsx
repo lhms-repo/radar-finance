@@ -21,6 +21,7 @@ import {
   useUpdateListItem,
   type ListItem,
 } from "@/features/market/api";
+import { ListComparison } from "@/features/market/comparison";
 import { fade, spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,7 @@ export function ListPage() {
           {l.items.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Adicione os produtos da compra.</p>}
         </Card>
       )}
+      {l && l.items.length > 0 && <ListComparison listId={l.id} />}
       {l && <RenameDialog open={renaming} id={l.id} name={l.name} onClose={() => setRenaming(false)} />}
     </div>
   );

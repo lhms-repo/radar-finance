@@ -234,3 +234,14 @@ export function useSetPicked() {
     noContent(await api.PUT("/market/list-items/{id}/picked", { params: { path: { id } }, body: { picked } })),
   );
 }
+
+export type Comparison = components["schemas"]["Comparison"];
+
+/** Loads the ranking and the best split of a list (RF-72 to RF-75). */
+export function useListComparison(id: number) {
+  return useQuery({
+    queryKey: ["market", "comparison", id],
+    queryFn: async () => unwrap(await api.GET("/market/lists/{id}/comparison", { params: { path: { id } } })),
+    placeholderData: (prev) => prev,
+  });
+}

@@ -157,3 +157,40 @@ test("market: a shopping list is shared live between the two users (RF-71)", asy
   await expect(bruno.getByText("3 un")).toBeVisible();
   await other.close();
 });
+
+test("market: ranking of the markets and best split of a list (RF-72, RF-73, RN-23, RN-24)", async ({ page }, testInfo) => {
+  test.slow();
+  const tag = testInfo.project.name;
+  const day = new Date(Date.now() - 3 * 86_400_000);
+  const date = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  /** Posts JSON with the session of the page and returns the body. */
+  const post = async (path: string, data: object) => {
+    const res = await page.request.post(path, { data });
+    expect(res.ok(), `${path}: ${await res.text()}`).toBeTruthy();
+    return res.status() === 204 ? { id: 0 } : ((await res.json()) as { id: number });
+  };
+  const m1 = await post("/api/market/markets", { name: `Mercado Um ${tag}`, neighborhood: "" });
+  const m2 = await post("/api/market/markets", { name: `Mercado Dois ${tag}`, neighborhood: "" });
+  const p1 = await post("/api/market/products", { name: "Feijão", brand: `Marca R ${tag}`, byWeight: false, sizeMilli: 1000, unit: "kg" });
+  const p2 = await post("/api/market/products", { name: "Azeite", brand: `Marca R ${tag}`, byWeight: false, sizeMilli: 500_000, unit: "ml" });
+  // Um: 10,00 + 30,00 = 40,00. Dois: 25,00 + 14,00 = 39,00. Split: feijão no Um e azeite no Dois = 24,00.
+  for (const [m, p, cents] of [
+    [m1, p1, 1000],
+    [m1, p2, 3000],
+    [m2, p1, 2500],
+    [m2, p2, 1400],
+  ] as const) {
+    await post("/api/market/prices", { productId: p.id, marketId: m.id, priceCents: cents, date });
+  }
+  const list = await post("/api/market/lists", { name: `Ranking ${tag}` });
+  await post(`/api/market/lists/${list.id}/items`, { productId: p1.id, quantityMilli: 1000 });
+  await post(`/api/market/lists/${list.id}/items`, { productId: p2.id, quantityMilli: 1000 });
+
+  await page.goto(`/market/lists/${list.id}`);
+  const ranking = page.getByRole("region", { name: "Ranking dos mercados" }).getByRole("listitem");
+  await expect(ranking.nth(0)).toContainText(`Mercado Dois ${tag}`);
+  await expect(ranking.nth(0)).toContainText("R$ 39,00");
+  await expect(ranking.nth(1)).toContainText(`Mercado Um ${tag}`);
+  await expect(page.getByText("Economia de R$ 15,00 sobre o melhor mercado único")).toBeVisible();
+  await expect(page.getByText("Em 2 mercados, até 2 permitidos")).toBeVisible();
+});
