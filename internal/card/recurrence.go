@@ -288,3 +288,36 @@ func nullMonth(m *civil.Month) sql.NullString {
 
 // monthIndex orders months as a single number.
 func monthIndex(m civil.Month) int { return m.Year*12 + int(m.Month) }
+
+// Charge is what a recurrence bills on one invoice.
+type Charge struct {
+	Month      civil.Month
+	CardID     int64
+	CategoryID int64
+	Cents      int64
+}
+
+// RecurrenceCharges lists what every recurrence bills on the invoices from first to last, for the reports (RF-59).
+func (s *Service) RecurrenceCharges(ctx context.Context, first, last civil.Month) ([]Charge, error) {
+	q := store.New(s.conn)
+	rows, err := q.ListCards(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list cards: %w", err)
+	}
+	var out []Charge
+	for _, r := range rows {
+		c := Card{ID: r.ID, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
+		recs, err := s.recurrences(ctx, q, c)
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range recs {
+			for m := first; monthIndex(m) <= monthIndex(last); m = m.Add(1) {
+				if cents := rec.priceIn(m); cents > 0 {
+					out = append(out, Charge{Month: m, CardID: c.ID, CategoryID: rec.CategoryID, Cents: cents})
+				}
+			}
+		}
+	}
+	return out, nil
+}
