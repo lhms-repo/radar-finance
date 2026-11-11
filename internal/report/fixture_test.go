@@ -47,6 +47,13 @@ func d(y int, m time.Month, day int) civil.Date { return civil.Date{Year: y, Mon
 // nov is the month every test looks at.
 var nov = civil.Month{Year: 2026, Month: time.November}
 
+// newReport builds the report service of the world, with today on 2026-11-11.
+func newReport(w *world) *Service {
+	s := NewService(w.conn, w.cards)
+	s.today = func() civil.Date { return d(2026, time.November, 11) }
+	return s
+}
+
 // newWorld opens a fresh database and registers the fictional month:
 //
 //	card Nubank (closes 3, due 10): November invoice has an air conditioner of 300,00 in 3x split
@@ -75,7 +82,8 @@ func newWorld(t *testing.T) *world {
 	persons, _ := users.ListPersons(ctx)
 	w := &world{
 		conn: conn, userID: ana.ID, persons: [2]int64{persons[0].ID, persons[1].ID}, cat: map[string]int64{},
-		ledger: ledger.NewService(conn), cards: card.NewService(conn), bills: bill.NewService(conn), financings: financing.NewService(conn),
+		ledger: ledger.NewService(conn), cards: card.NewService(conn).WithToday(func() civil.Date { return d(2026, time.November, 11) }),
+		bills: bill.NewService(conn), financings: financing.NewService(conn),
 		incomes: income.NewService(conn), alelo: alelo.NewService(conn), savings: savings.NewService(conn), recv: receivable.NewService(conn),
 	}
 	loadCategories(t, conn, w.cat)

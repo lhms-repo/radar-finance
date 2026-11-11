@@ -33,7 +33,7 @@ JOIN accounts a ON a.id = e.account_id
 WHERE e.income_id IS NOT NULL AND e.income_month = ?;
 
 -- name: ListOneOffIncomes :many
-SELECT e.id, e.amount_cents, e.occurred_on, e.description, e.account_id, a.name AS account_name
+SELECT e.id, e.amount_cents, e.occurred_on, e.description, e.account_id, a.name AS account_name, a.person_id
 FROM entries e
 JOIN accounts a ON a.id = e.account_id
 WHERE e.kind = 'income' AND e.income_id IS NULL AND e.confirmed

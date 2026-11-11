@@ -36,3 +36,44 @@ ON CONFLICT (category_id) DO UPDATE SET amount_cents = excluded.amount_cents, up
 -- name: DeleteBudget :exec
 DELETE FROM budgets
 WHERE category_id = ?;
+
+-- name: DayToDaySpending :one
+-- One off expenses paid from accounts in the period, without bill and financing payments.
+SELECT CAST(coalesce(-sum(e.amount_cents), 0) AS INTEGER) AS cents
+FROM entries e
+WHERE e.kind = 'expense' AND e.confirmed AND e.bill_id IS NULL
+  AND e.id NOT IN (SELECT entry_id FROM financing_events WHERE entry_id IS NOT NULL)
+  AND e.occurred_on >= sqlc.arg(first_day) AND e.occurred_on <= sqlc.arg(last_day);
+
+-- name: CardInstallmentsByMonth :many
+-- Couple share of card installments by invoice month, without recurrences (RF-60).
+SELECT i.invoice_month AS month,
+       CAST(sum(i.amount_cents - coalesce((
+           SELECT sum(si.amount_cents) FROM split_installments si JOIN splits s ON s.id = si.split_id
+           WHERE s.purchase_id = i.purchase_id AND si.number = i.number
+       ), 0)) AS INTEGER) AS cents
+FROM installments i
+WHERE i.invoice_month >= sqlc.arg(first_month) AND i.invoice_month <= sqlc.arg(last_month)
+GROUP BY i.invoice_month;
+
+-- name: AccountsTotal :one
+SELECT CAST(coalesce(sum(a.initial_balance_cents), 0) + coalesce((SELECT sum(amount_cents) FROM entries WHERE confirmed), 0) AS INTEGER) AS cents
+FROM accounts a;
+
+-- name: SavedInPeriod :one
+-- Deposits minus withdrawals of the savings boxes in the period, by date (RF-61).
+SELECT CAST(coalesce(-sum(amount_cents), 0) AS INTEGER) AS cents
+FROM entries
+WHERE kind IN ('savings_deposit', 'savings_withdrawal') AND occurred_on >= sqlc.arg(first_day) AND occurred_on <= sqlc.arg(last_day);
+
+-- name: ReceivedInPeriod :one
+-- Shares paid back by other people in the period, by date (RF-61).
+SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS cents
+FROM entries
+WHERE kind = 'receivable' AND occurred_on >= sqlc.arg(first_day) AND occurred_on <= sqlc.arg(last_day);
+
+-- name: IncomeInPeriod :one
+-- Confirmed income that fell in the period, by date, like the base of the savings (RN-09).
+SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS cents
+FROM entries
+WHERE kind = 'income' AND confirmed AND occurred_on >= sqlc.arg(first_day) AND occurred_on <= sqlc.arg(last_day);

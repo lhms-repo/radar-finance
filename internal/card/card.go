@@ -311,3 +311,9 @@ func idPtr(v sql.NullInt64) *int64 {
 	}
 	return &v.Int64
 }
+
+// WithToday replaces the clock of the service, so other packages can test date dependent results.
+func (s *Service) WithToday(today func() civil.Date) *Service {
+	s.today = today
+	return s
+}

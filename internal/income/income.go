@@ -92,6 +92,7 @@ type Occurrence struct {
 	IncomeID      int64
 	Kind          Kind
 	Name          string
+	PersonID      int64
 	PersonName    string
 	AccountID     int64
 	AccountName   string
@@ -106,7 +107,9 @@ type Occurrence struct {
 
 // OneOff is an income received outside the registered ones (RF-13).
 type OneOff struct {
-	EntryID     int64
+	EntryID int64
+	// PersonID is the holder of the account that received it.
+	PersonID    int64
 	AmountCents int64
 	Date        civil.Date
 	Description string
@@ -279,7 +282,7 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 			continue
 		}
 		o := Occurrence{
-			IncomeID: inc.ID, Kind: inc.Kind, Name: inc.Name, PersonName: inc.PersonName, AccountID: inc.AccountID,
+			IncomeID: inc.ID, Kind: inc.Kind, Name: inc.Name, PersonID: inc.PersonID, PersonName: inc.PersonName, AccountID: inc.AccountID,
 			AccountName: inc.AccountName, ExpectedOn: on, ExpectedCents: inc.AmountCents,
 		}
 		if c, done := byIncome[inc.ID]; done {
@@ -303,7 +306,7 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 		if err != nil {
 			return MonthView{}, err
 		}
-		view.OneOffs = append(view.OneOffs, OneOff{EntryID: r.ID, AmountCents: r.AmountCents, Date: d, Description: r.Description, AccountName: r.AccountName})
+		view.OneOffs = append(view.OneOffs, OneOff{EntryID: r.ID, PersonID: r.PersonID, AmountCents: r.AmountCents, Date: d, Description: r.Description, AccountName: r.AccountName})
 		view.ReceivedCents += r.AmountCents
 	}
 	return view, nil

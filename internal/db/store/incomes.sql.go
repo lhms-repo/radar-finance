@@ -254,7 +254,7 @@ func (q *Queries) ListIncomes(ctx context.Context) ([]ListIncomesRow, error) {
 }
 
 const listOneOffIncomes = `-- name: ListOneOffIncomes :many
-SELECT e.id, e.amount_cents, e.occurred_on, e.description, e.account_id, a.name AS account_name
+SELECT e.id, e.amount_cents, e.occurred_on, e.description, e.account_id, a.name AS account_name, a.person_id
 FROM entries e
 JOIN accounts a ON a.id = e.account_id
 WHERE e.kind = 'income' AND e.income_id IS NULL AND e.confirmed
@@ -274,6 +274,7 @@ type ListOneOffIncomesRow struct {
 	Description string
 	AccountID   int64
 	AccountName string
+	PersonID    int64
 }
 
 func (q *Queries) ListOneOffIncomes(ctx context.Context, arg ListOneOffIncomesParams) ([]ListOneOffIncomesRow, error) {
@@ -292,6 +293,7 @@ func (q *Queries) ListOneOffIncomes(ctx context.Context, arg ListOneOffIncomesPa
 			&i.Description,
 			&i.AccountID,
 			&i.AccountName,
+			&i.PersonID,
 		); err != nil {
 			return nil, err
 		}

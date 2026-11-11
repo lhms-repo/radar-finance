@@ -361,3 +361,33 @@ func paymentsByMonth(ctx context.Context, q *store.Queries, cardID int64) (map[c
 	}
 	return out, nil
 }
+
+// ClosedDebt sums what is left to pay on every closed or overdue invoice of every card, for the net worth (RF-62).
+// Open invoices and future installments are not debt yet; they are commitments (RF-60).
+func (s *Service) ClosedDebt(ctx context.Context) (int64, error) {
+	q := store.New(s.conn)
+	rows, err := q.ListCards(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list cards: %w", err)
+	}
+	var debt int64
+	for _, r := range rows {
+		c := Card{ID: r.ID, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
+		totals, err := s.monthTotals(ctx, q, c)
+		if err != nil {
+			return 0, err
+		}
+		payments, err := paymentsByMonth(ctx, q, c.ID)
+		if err != nil {
+			return 0, err
+		}
+		for m, total := range totals {
+			_, paid := payments[m]
+			if st := s.status(c, m, paid, total); st != StatusClosed && st != StatusOverdue {
+				continue
+			}
+			debt += max(0, total-payments[m].AmountCents)
+		}
+	}
+	return debt, nil
+}
