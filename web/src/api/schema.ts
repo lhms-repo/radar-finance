@@ -672,6 +672,101 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/bills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the fixed bills (RF-35). */
+        get: operations["listBills"];
+        put?: never;
+        /** Registers a fixed bill (RF-35). */
+        post: operations["createBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bills/month": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bills due in the month with expected, real and paid amounts (RF-36, RF-37, RN-14). */
+        get: operations["getBillMonth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bills/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replaces the fields of a bill; months with a real amount keep it. */
+        put: operations["updateBill"];
+        post?: never;
+        /** Deletes a bill without payments. */
+        delete: operations["deleteBill"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bills/{id}/months/{month}/actual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Informs the real amount of the month; zero clears it (RF-36, RN-14). */
+        put: operations["setBillActual"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/bills/{id}/months/{month}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pays the bill of the month as spending of its category (RF-37). */
+        post: operations["payBill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1165,6 +1260,80 @@ export interface components {
             amountCents: components["schemas"]["Cents"];
             startMonth: components["schemas"]["Month"];
             endMonth?: components["schemas"]["Month"];
+        };
+        BillInput: {
+            name: string;
+            /** Format: int64 */
+            categoryId: number;
+            /** Format: int64 */
+            accountId: number;
+            dueDay: number;
+            expectedCents: components["schemas"]["Cents"];
+            startMonth: components["schemas"]["Month"];
+            endMonth?: components["schemas"]["Month"];
+        };
+        Bill: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            categoryId: number;
+            categoryName: string;
+            parentCategoryName?: string;
+            categoryIcon?: string;
+            /** Format: int64 */
+            accountId: number;
+            accountName: string;
+            dueDay: number;
+            expectedCents: components["schemas"]["Cents"];
+            startMonth: components["schemas"]["Month"];
+            endMonth?: components["schemas"]["Month"];
+        };
+        BillOccurrence: {
+            /** Format: int64 */
+            billId: number;
+            name: string;
+            /** Format: int64 */
+            categoryId: number;
+            categoryName: string;
+            parentCategoryName?: string;
+            categoryIcon?: string;
+            /** Format: int64 */
+            accountId: number;
+            accountName: string;
+            /** Format: date */
+            dueOn: string;
+            expectedCents: components["schemas"]["Cents"];
+            actualCents?: components["schemas"]["Cents"];
+            /**
+             * Format: int64
+             * @description Real amount when informed, otherwise the expected one (RN-14).
+             */
+            amountCents: number;
+            paid: boolean;
+            /** Format: int64 */
+            entryId?: number;
+            /** Format: date */
+            paidOn?: string;
+            paidCents?: components["schemas"]["Cents"];
+            paidFrom?: string;
+        };
+        BillMonth: {
+            month: components["schemas"]["Month"];
+            bills: components["schemas"]["BillOccurrence"][];
+            totalCents: components["schemas"]["Cents"];
+            paidCents: components["schemas"]["Cents"];
+            paidCount: number;
+        };
+        BillActual: {
+            actualCents: components["schemas"]["Cents"];
+        };
+        BillPaymentCreate: {
+            amountCents?: components["schemas"]["Cents"];
+            /** Format: int64 */
+            accountId?: number;
+            /** Format: date */
+            date?: string;
         };
     };
     responses: {
@@ -2491,6 +2660,191 @@ export interface operations {
                 };
                 content?: never;
             };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listBills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bills by due day. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillInput"];
+            };
+        };
+        responses: {
+            /** @description Created bill. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getBillMonth: {
+        parameters: {
+            query: {
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Bills of the month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillMonth"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillInput"];
+            };
+        };
+        responses: {
+            /** @description Updated bill. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Bill"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    setBillActual: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillActual"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    payBill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillPaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description Payment entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];

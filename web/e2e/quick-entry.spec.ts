@@ -54,9 +54,9 @@ test("quick entry: card purchase, cash expense and one off income (section 5.6)"
   await page.getByRole("button", { name: /R\$ 45,90/ }).first().click();
   await expect(page.getByText("Pizzaria Ficticia")).toBeVisible();
 
-  // Cash expense: no type selector, account comes in the details.
+  // Cash expense, variable: the account comes in the details.
   await shortcut(page, "Despesa");
-  await expect(sheet.getByRole("radiogroup", { name: "Tipo" })).toBeHidden();
+  await expect(sheet.getByRole("radio", { name: "Variável" })).toHaveAttribute("aria-checked", "true");
   await sheet.getByLabel("Valor").fill("2000");
   await sheet.getByRole("radio", { name: "Transporte" }).click();
   await sheet.getByRole("radio", { name: "Aplicativos de corrida" }).click();
@@ -74,7 +74,20 @@ test("quick entry: card purchase, cash expense and one off income (section 5.6)"
   await incomeSheet.getByRole("button", { name: "Confirmar" }).click();
   await expect(incomeSheet).toBeHidden();
 
-  // R$ 1.000,00 - R$ 20,00 + R$ 150,00.
+  // Cash and fixed becomes a fixed bill (section 5.6); the value typed is the expected amount.
+  await shortcut(page, "Despesa");
+  await sheet.getByRole("radio", { name: "Fixo" }).click();
+  await sheet.getByLabel("Valor").fill("18000");
+  await sheet.getByRole("radio", { name: "Moradia" }).click();
+  await sheet.getByRole("radio", { name: "Energia", exact: true }).click();
+  await expect(sheet.getByLabel("Nome")).toBeFocused();
+  await page.keyboard.type(`Energia Q ${tag}`);
+  await sheet.getByLabel("Conta de pagamento").selectOption({ label: account });
+  await sheet.getByLabel("Vence dia").fill("15");
+  await sheet.getByRole("button", { name: "Confirmar" }).click();
+  await expect(sheet).toBeHidden();
+
+  // R$ 1.000,00 - R$ 20,00 + R$ 150,00; the fixed bill is not paid yet.
   await page.goto("/settings/accounts");
   await expect(page.getByRole("link", { name: new RegExp(account) })).toContainText("R$ 1.130,00");
 });

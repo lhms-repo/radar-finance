@@ -290,6 +290,104 @@ type Backup struct {
 // BackupKind defines model for BackupKind.
 type BackupKind string
 
+// Bill defines model for Bill.
+type Bill struct {
+	AccountId    int64   `json:"accountId"`
+	AccountName  string  `json:"accountName"`
+	CategoryIcon *string `json:"categoryIcon,omitempty"`
+	CategoryId   int64   `json:"categoryId"`
+	CategoryName string  `json:"categoryName"`
+	DueDay       int     `json:"dueDay"`
+
+	// EndMonth Example: 2026-11
+	EndMonth *Month `json:"endMonth,omitempty"`
+
+	// ExpectedCents Amount in cents (RN-21).
+	ExpectedCents      Cents   `json:"expectedCents"`
+	Id                 int64   `json:"id"`
+	Name               string  `json:"name"`
+	ParentCategoryName *string `json:"parentCategoryName,omitempty"`
+
+	// StartMonth Example: 2026-11
+	StartMonth Month `json:"startMonth"`
+}
+
+// BillActual defines model for BillActual.
+type BillActual struct {
+	// ActualCents Amount in cents (RN-21).
+	ActualCents Cents `json:"actualCents"`
+}
+
+// BillInput defines model for BillInput.
+type BillInput struct {
+	AccountId  int64 `json:"accountId"`
+	CategoryId int64 `json:"categoryId"`
+	DueDay     int   `json:"dueDay"`
+
+	// EndMonth Example: 2026-11
+	EndMonth *Month `json:"endMonth,omitempty"`
+
+	// ExpectedCents Amount in cents (RN-21).
+	ExpectedCents Cents  `json:"expectedCents"`
+	Name          string `json:"name"`
+
+	// StartMonth Example: 2026-11
+	StartMonth Month `json:"startMonth"`
+}
+
+// BillMonth defines model for BillMonth.
+type BillMonth struct {
+	Bills []BillOccurrence `json:"bills"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+
+	// PaidCents Amount in cents (RN-21).
+	PaidCents Cents `json:"paidCents"`
+	PaidCount int   `json:"paidCount"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
+// BillOccurrence defines model for BillOccurrence.
+type BillOccurrence struct {
+	AccountId   int64  `json:"accountId"`
+	AccountName string `json:"accountName"`
+
+	// ActualCents Amount in cents (RN-21).
+	ActualCents *Cents `json:"actualCents,omitempty"`
+
+	// AmountCents Real amount when informed, otherwise the expected one (RN-14).
+	AmountCents  int64              `json:"amountCents"`
+	BillId       int64              `json:"billId"`
+	CategoryIcon *string            `json:"categoryIcon,omitempty"`
+	CategoryId   int64              `json:"categoryId"`
+	CategoryName string             `json:"categoryName"`
+	DueOn        openapi_types.Date `json:"dueOn"`
+	EntryId      *int64             `json:"entryId,omitempty"`
+
+	// ExpectedCents Amount in cents (RN-21).
+	ExpectedCents Cents  `json:"expectedCents"`
+	Name          string `json:"name"`
+	Paid          bool   `json:"paid"`
+
+	// PaidCents Amount in cents (RN-21).
+	PaidCents          *Cents              `json:"paidCents,omitempty"`
+	PaidFrom           *string             `json:"paidFrom,omitempty"`
+	PaidOn             *openapi_types.Date `json:"paidOn,omitempty"`
+	ParentCategoryName *string             `json:"parentCategoryName,omitempty"`
+}
+
+// BillPaymentCreate defines model for BillPaymentCreate.
+type BillPaymentCreate struct {
+	AccountId *int64 `json:"accountId,omitempty"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents *Cents              `json:"amountCents,omitempty"`
+	Date        *openapi_types.Date `json:"date,omitempty"`
+}
+
 // Card defines model for Card.
 type Card struct {
 	Active     bool      `json:"active"`
@@ -871,6 +969,11 @@ type GetAccountStatementParams struct {
 	Month Month `form:"month" json:"month"`
 }
 
+// GetBillMonthParams defines parameters for GetBillMonth.
+type GetBillMonthParams struct {
+	Month Month `form:"month" json:"month"`
+}
+
 // GetCardForecastParams defines parameters for GetCardForecast.
 type GetCardForecastParams struct {
 	Count *int `form:"count,omitempty" json:"count,omitempty"`
@@ -910,6 +1013,18 @@ type AddAccountIncomeJSONRequestBody = OneOffIncomeCreate
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// CreateBillJSONRequestBody defines body for CreateBill for application/json ContentType.
+type CreateBillJSONRequestBody = BillInput
+
+// UpdateBillJSONRequestBody defines body for UpdateBill for application/json ContentType.
+type UpdateBillJSONRequestBody = BillInput
+
+// SetBillActualJSONRequestBody defines body for SetBillActual for application/json ContentType.
+type SetBillActualJSONRequestBody = BillActual
+
+// PayBillJSONRequestBody defines body for PayBill for application/json ContentType.
+type PayBillJSONRequestBody = BillPaymentCreate
 
 // CreateCardJSONRequestBody defines body for CreateCard for application/json ContentType.
 type CreateCardJSONRequestBody = CardInput
@@ -997,6 +1112,27 @@ type ServerInterface interface {
 	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
 	// (GET /auth/users)
 	ListLoginUsers(w http.ResponseWriter, r *http.Request)
+	// ListBills Lists the fixed bills (RF-35).
+	// (GET /bills)
+	ListBills(w http.ResponseWriter, r *http.Request)
+	// CreateBill Registers a fixed bill (RF-35).
+	// (POST /bills)
+	CreateBill(w http.ResponseWriter, r *http.Request)
+	// GetBillMonth Bills due in the month with expected, real and paid amounts (RF-36, RF-37, RN-14).
+	// (GET /bills/month)
+	GetBillMonth(w http.ResponseWriter, r *http.Request, params GetBillMonthParams)
+	// DeleteBill Deletes a bill without payments.
+	// (DELETE /bills/{id})
+	DeleteBill(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateBill Replaces the fields of a bill; months with a real amount keep it.
+	// (PUT /bills/{id})
+	UpdateBill(w http.ResponseWriter, r *http.Request, id Id)
+	// SetBillActual Informs the real amount of the month; zero clears it (RF-36, RN-14).
+	// (PUT /bills/{id}/months/{month}/actual)
+	SetBillActual(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// PayBill Pays the bill of the month as spending of its category (RF-37).
+	// (POST /bills/{id}/months/{month}/payment)
+	PayBill(w http.ResponseWriter, r *http.Request, id Id, month Month)
 	// ListCards Lists the cards with limit use and current invoice (RF-14, RF-20).
 	// (GET /cards)
 	ListCards(w http.ResponseWriter, r *http.Request)
@@ -1381,6 +1517,189 @@ func (siw *ServerInterfaceWrapper) ListLoginUsers(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListLoginUsers(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBills operation middleware
+func (siw *ServerInterfaceWrapper) ListBills(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBills(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateBill operation middleware
+func (siw *ServerInterfaceWrapper) CreateBill(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateBill(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBillMonth operation middleware
+func (siw *ServerInterfaceWrapper) GetBillMonth(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetBillMonthParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBillMonth(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteBill operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBill(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteBill(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateBill operation middleware
+func (siw *ServerInterfaceWrapper) UpdateBill(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateBill(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetBillActual operation middleware
+func (siw *ServerInterfaceWrapper) SetBillActual(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetBillActual(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PayBill operation middleware
+func (siw *ServerInterfaceWrapper) PayBill(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PayBill(w, r, id, month)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2435,6 +2754,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/cards/{id}/recurrences", wrapper.AddRecurrence)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/recurrences/{id}", wrapper.DeleteRecurrence)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/recurrences/{id}", wrapper.UpdateRecurrence)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bills", wrapper.ListBills)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bills", wrapper.CreateBill)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bills/month", wrapper.GetBillMonth)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bills/{id}", wrapper.DeleteBill)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bills/{id}", wrapper.UpdateBill)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bills/{id}/months/{month}/actual", wrapper.SetBillActual)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bills/{id}/months/{month}/payment", wrapper.PayBill)
 
 	return m
 }
@@ -3119,6 +3445,446 @@ func (response ListLoginUsers200JSONResponse) VisitListLoginUsersResponse(w http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBillsRequestObject struct {
+}
+
+type ListBillsResponseObject interface {
+	VisitListBillsResponse(w http.ResponseWriter) error
+}
+
+type ListBills200JSONResponse []Bill
+
+func (response ListBills200JSONResponse) VisitListBillsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBills401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListBills401JSONResponse) VisitListBillsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBillRequestObject struct {
+	Body *CreateBillJSONRequestBody
+}
+
+type CreateBillResponseObject interface {
+	VisitCreateBillResponse(w http.ResponseWriter) error
+}
+
+type CreateBill201JSONResponse Bill
+
+func (response CreateBill201JSONResponse) VisitCreateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBill400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateBill400JSONResponse) VisitCreateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBill401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateBill401JSONResponse) VisitCreateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBill404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateBill404JSONResponse) VisitCreateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBill409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateBill409JSONResponse) VisitCreateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBillMonthRequestObject struct {
+	Params GetBillMonthParams
+}
+
+type GetBillMonthResponseObject interface {
+	VisitGetBillMonthResponse(w http.ResponseWriter) error
+}
+
+type GetBillMonth200JSONResponse BillMonth
+
+func (response GetBillMonth200JSONResponse) VisitGetBillMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBillMonth400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetBillMonth400JSONResponse) VisitGetBillMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBillMonth401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetBillMonth401JSONResponse) VisitGetBillMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteBillRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteBillResponseObject interface {
+	VisitDeleteBillResponse(w http.ResponseWriter) error
+}
+
+type DeleteBill204Response struct {
+}
+
+func (response DeleteBill204Response) VisitDeleteBillResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteBill401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteBill401JSONResponse) VisitDeleteBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteBill404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteBill404JSONResponse) VisitDeleteBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteBill409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteBill409JSONResponse) VisitDeleteBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBillRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateBillJSONRequestBody
+}
+
+type UpdateBillResponseObject interface {
+	VisitUpdateBillResponse(w http.ResponseWriter) error
+}
+
+type UpdateBill200JSONResponse Bill
+
+func (response UpdateBill200JSONResponse) VisitUpdateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBill400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateBill400JSONResponse) VisitUpdateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBill401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateBill401JSONResponse) VisitUpdateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBill404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateBill404JSONResponse) VisitUpdateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBill409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateBill409JSONResponse) VisitUpdateBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBillActualRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+	Body  *SetBillActualJSONRequestBody
+}
+
+type SetBillActualResponseObject interface {
+	VisitSetBillActualResponse(w http.ResponseWriter) error
+}
+
+type SetBillActual204Response struct {
+}
+
+func (response SetBillActual204Response) VisitSetBillActualResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SetBillActual400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetBillActual400JSONResponse) VisitSetBillActualResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBillActual401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetBillActual401JSONResponse) VisitSetBillActualResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBillActual404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetBillActual404JSONResponse) VisitSetBillActualResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayBillRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+	Body  *PayBillJSONRequestBody
+}
+
+type PayBillResponseObject interface {
+	VisitPayBillResponse(w http.ResponseWriter) error
+}
+
+type PayBill201JSONResponse Entry
+
+func (response PayBill201JSONResponse) VisitPayBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayBill400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PayBill400JSONResponse) VisitPayBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayBill401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PayBill401JSONResponse) VisitPayBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayBill404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PayBill404JSONResponse) VisitPayBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PayBill409JSONResponse struct{ ConflictJSONResponse }
+
+func (response PayBill409JSONResponse) VisitPayBillResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -5366,6 +6132,27 @@ type StrictServerInterface interface {
 	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
 	// (GET /auth/users)
 	ListLoginUsers(ctx context.Context, request ListLoginUsersRequestObject) (ListLoginUsersResponseObject, error)
+	// ListBills Lists the fixed bills (RF-35).
+	// (GET /bills)
+	ListBills(ctx context.Context, request ListBillsRequestObject) (ListBillsResponseObject, error)
+	// CreateBill Registers a fixed bill (RF-35).
+	// (POST /bills)
+	CreateBill(ctx context.Context, request CreateBillRequestObject) (CreateBillResponseObject, error)
+	// GetBillMonth Bills due in the month with expected, real and paid amounts (RF-36, RF-37, RN-14).
+	// (GET /bills/month)
+	GetBillMonth(ctx context.Context, request GetBillMonthRequestObject) (GetBillMonthResponseObject, error)
+	// DeleteBill Deletes a bill without payments.
+	// (DELETE /bills/{id})
+	DeleteBill(ctx context.Context, request DeleteBillRequestObject) (DeleteBillResponseObject, error)
+	// UpdateBill Replaces the fields of a bill; months with a real amount keep it.
+	// (PUT /bills/{id})
+	UpdateBill(ctx context.Context, request UpdateBillRequestObject) (UpdateBillResponseObject, error)
+	// SetBillActual Informs the real amount of the month; zero clears it (RF-36, RN-14).
+	// (PUT /bills/{id}/months/{month}/actual)
+	SetBillActual(ctx context.Context, request SetBillActualRequestObject) (SetBillActualResponseObject, error)
+	// PayBill Pays the bill of the month as spending of its category (RF-37).
+	// (POST /bills/{id}/months/{month}/payment)
+	PayBill(ctx context.Context, request PayBillRequestObject) (PayBillResponseObject, error)
 	// ListCards Lists the cards with limit use and current invoice (RF-14, RF-20).
 	// (GET /cards)
 	ListCards(ctx context.Context, request ListCardsRequestObject) (ListCardsResponseObject, error)
@@ -5859,6 +6646,214 @@ func (sh *strictHandler) ListLoginUsers(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListLoginUsersResponseObject); ok {
 		if err := validResponse.VisitListLoginUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBills operation middleware
+func (sh *strictHandler) ListBills(w http.ResponseWriter, r *http.Request) {
+	var request ListBillsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBills(ctx, request.(ListBillsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBills")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBillsResponseObject); ok {
+		if err := validResponse.VisitListBillsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateBill operation middleware
+func (sh *strictHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
+	var request CreateBillRequestObject
+
+	var body CreateBillJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateBill(ctx, request.(CreateBillRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateBill")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateBillResponseObject); ok {
+		if err := validResponse.VisitCreateBillResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBillMonth operation middleware
+func (sh *strictHandler) GetBillMonth(w http.ResponseWriter, r *http.Request, params GetBillMonthParams) {
+	var request GetBillMonthRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBillMonth(ctx, request.(GetBillMonthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBillMonth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBillMonthResponseObject); ok {
+		if err := validResponse.VisitGetBillMonthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteBill operation middleware
+func (sh *strictHandler) DeleteBill(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteBillRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteBill(ctx, request.(DeleteBillRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteBill")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteBillResponseObject); ok {
+		if err := validResponse.VisitDeleteBillResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateBill operation middleware
+func (sh *strictHandler) UpdateBill(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateBillRequestObject
+
+	request.Id = id
+
+	var body UpdateBillJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateBill(ctx, request.(UpdateBillRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateBill")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateBillResponseObject); ok {
+		if err := validResponse.VisitUpdateBillResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetBillActual operation middleware
+func (sh *strictHandler) SetBillActual(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request SetBillActualRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	var body SetBillActualJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetBillActual(ctx, request.(SetBillActualRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetBillActual")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetBillActualResponseObject); ok {
+		if err := validResponse.VisitSetBillActualResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PayBill operation middleware
+func (sh *strictHandler) PayBill(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request PayBillRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	var body PayBillJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PayBill(ctx, request.(PayBillRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PayBill")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PayBillResponseObject); ok {
+		if err := validResponse.VisitPayBillResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Segmented } from "@/components/ui/segmented";
 import { useAccounts, useAddExpense, usePersons } from "@/features/accounts/api";
+import { useCreateBill } from "@/features/bills/api";
 import { useAddPurchase, useAddRecurrence, useCards } from "@/features/cards/api";
 import { useCategories, type Category } from "@/features/categories/api";
 import { CategoryIcon } from "@/features/categories/icons";
@@ -101,7 +102,8 @@ const schema = z
       if (v.cardId <= 0) fail("cardId", "Escolha o cartão.");
     } else if (v.accountId <= 0) fail("accountId", "Escolha a conta.");
     if (combo === "purchase" && !v.merchant) fail("merchant", "Informe o estabelecimento.");
-    if ((combo === "recurrence" || combo === "recurringIncome") && !v.description) fail("description", "Informe a descrição.");
+    if ((combo === "recurrence" || combo === "recurringIncome" || combo === "bill") && !v.description) fail("description", "Informe a descrição.");
+    if (combo === "bill" && (v.day < 1 || v.day > 31)) fail("day", "De 1 a 31.");
     if (combo === "recurringIncome") {
       if (v.day < 1 || v.day > 31) fail("day", "De 1 a 31.");
       if (v.personId <= 0) fail("personId", "Escolha de quem é.");
@@ -110,13 +112,13 @@ const schema = z
 type Values = z.infer<typeof schema>;
 
 /** What the chosen combination becomes in the system (section 5.6). */
-type Combo = "purchase" | "recurrence" | "expense" | "oneOffIncome" | "recurringIncome";
+type Combo = "purchase" | "recurrence" | "expense" | "bill" | "oneOffIncome" | "recurringIncome";
 
-/** Resolves the combination; cash expenses are always variable until fixed bills arrive in phase 3. */
+/** Resolves the combination of nature, payment method and kind. */
 function comboOf(v: Pick<Values, "nature" | "method" | "kind">): Combo {
   if (v.nature === "income") return v.kind === "fixed" ? "recurringIncome" : "oneOffIncome";
   if (v.method === "credit") return v.kind === "fixed" ? "recurrence" : "purchase";
-  return "expense";
+  return v.kind === "fixed" ? "bill" : "expense";
 }
 
 /** Bottom sheet with nature, payment method, kind, value, category, details and confirm (section 5.6). */
@@ -167,12 +169,13 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
   const expense = useAddExpense();
   const oneOff = useAddOneOffIncome();
   const recurring = useCreateIncome();
-  const mutation = { purchase, recurrence, expense, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
+  const bill = useCreateBill();
+  const mutation = { purchase, recurrence, expense, bill, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
 
   /** Moves the focus to the next text field after the subcategory, saving a tap (RNF-13). */
   const focusNextField = () => {
     if (combo === "purchase" && !form.getValues("merchant")) form.setFocus("merchant");
-    else if (combo === "recurrence" && !form.getValues("description")) form.setFocus("description");
+    else if ((combo === "recurrence" || combo === "bill") && !form.getValues("description")) form.setFocus("description");
   };
 
   /** Plays the closing animation and then unmounts the sheet. */
@@ -205,6 +208,19 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         break;
       case "expense":
         expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description } }, done);
+        break;
+      case "bill":
+        bill.mutate(
+          {
+            name: v.description,
+            categoryId: v.categoryId,
+            accountId: v.accountId,
+            dueDay: v.day,
+            expectedCents: v.amountCents,
+            startMonth: v.date.slice(0, 7),
+          },
+          done,
+        );
         break;
       case "oneOffIncome":
         oneOff.mutate({ accountId: v.accountId, body: { amountCents: v.amountCents, date: v.date, description: v.description } }, done);
@@ -272,23 +288,21 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
                 />
               </Reveal>
             )}
-            {(!isExpense || values.method === "credit") && (
-              <Reveal key="kind">
-                <Segmented<Kind>
-                  ariaLabel="Tipo"
-                  value={values.kind ?? "variable"}
-                  options={[
-                    { value: "variable", label: "Variável", icon: <Shuffle className="size-4" /> },
-                    { value: "fixed", label: "Fixo", icon: <Repeat className="size-4" /> },
-                  ]}
-                  onChange={(v) => {
-                    haptic();
-                    form.setValue("kind", v);
-                  }}
-                  className="w-full"
-                />
-              </Reveal>
-            )}
+            <Reveal key="kind">
+              <Segmented<Kind>
+                ariaLabel="Tipo"
+                value={values.kind ?? "variable"}
+                options={[
+                  { value: "variable", label: "Variável", icon: <Shuffle className="size-4" /> },
+                  { value: "fixed", label: "Fixo", icon: <Repeat className="size-4" /> },
+                ]}
+                onChange={(v) => {
+                  haptic();
+                  form.setValue("kind", v);
+                }}
+                className="w-full"
+              />
+            </Reveal>
           </AnimatePresence>
 
           <motion.div layout transition={spring}>
@@ -555,6 +569,21 @@ function Details({ combo, form }: { combo: Combo; form: UseFormReturn<Values> })
           <Field label="Descrição" htmlFor="quick-desc" error={errors.description?.message}>
             <Input id="quick-desc" autoComplete="off" placeholder="Opcional" {...reg("description")} />
           </Field>
+        </>
+      );
+    case "bill":
+      return (
+        <>
+          <Field label="Nome" htmlFor="quick-desc" error={errors.description?.message}>
+            <Input id="quick-desc" autoComplete="off" placeholder="Energia, água, aluguel..." {...reg("description")} />
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">{accountField("Conta de pagamento")}</div>
+            <Field label="Vence dia" htmlFor="quick-day" error={errors.day?.message}>
+              <Input id="quick-day" type="number" inputMode="numeric" min={1} max={31} {...reg("day", { valueAsNumber: true })} />
+            </Field>
+          </div>
+          <p className="-mt-1 text-xs text-muted-foreground">O valor acima é o previsto. Quando a conta chegar, informe o real na tela de contas fixas.</p>
         </>
       );
     case "recurringIncome":

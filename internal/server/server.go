@@ -19,6 +19,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/api/gen"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
+	"github.com/italogfx/radar-finance/internal/bill"
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
@@ -51,6 +52,7 @@ type Deps struct {
 	Ledger     *ledger.Service
 	Incomes    *income.Service
 	Cards      *card.Service
+	Bills      *bill.Service
 	Sessions   *scs.SessionManager
 	Backups    *backup.Service
 	Version    string
