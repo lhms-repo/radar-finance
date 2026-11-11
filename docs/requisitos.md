@@ -24,7 +24,7 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 
 | ID | Requisito |
 | --- | --- |
-| RF-01 | Cada pessoa tem login próprio com usuário e senha. |
+| RF-01 | O sistema tem exatamente dois usuários, um para cada pessoa do casal, sem senha. A entrada é pela tela "Quem está usando?", tocando no nome. Não existe tela de cadastro. |
 | RF-02 | Os dois usuários veem e editam todos os dados, sem restrição. |
 | RF-03 | Todo lançamento registra qual usuário o criou e quando. |
 
@@ -216,7 +216,7 @@ O sistema roda em Docker na máquina pessoal, acessível só pela rede local, e 
 | RNF-06 | Backup | Backup ao ligar a máquina quando o backup do dia anterior não tiver rodado. |
 | RNF-07 | Backup | Botão para gerar backup manual e procedimento documentado de restauração. |
 | RNF-08 | Rede | Acesso apenas pela rede local, sem portas abertas no roteador. |
-| RNF-09 | Segurança | Senhas armazenadas com hash forte, como Argon2 ou bcrypt. |
+| RNF-09 | Segurança | Sem senhas por decisão do casal: a proteção é o acesso só pela rede local (RNF-08). Antes de qualquer acesso externo (RNF-11), avaliar um PIN de entrada. |
 | RNF-10 | Segurança | Sessão expira após período de inatividade configurável. |
 | RNF-11 | Segurança | Arquitetura preparada para acesso externo futuro via VPN, sem mudanças no modelo de dados. |
 | RNF-12 | Usabilidade | Interface responsiva, usável no celular e no computador. |
@@ -360,7 +360,7 @@ O centro do modelo é o Lançamento: toda movimentação de dinheiro, prevista o
 
 | Entidade | Principais atributos | Relaciona-se com |
 | --- | --- | --- |
-| Usuário | nome, login, senha, preferência de tema | cria Lançamentos |
+| Usuário | nome, login, preferência de tema | cria Lançamentos |
 | Pessoa do casal | nome | titular de Conta, Cartão, Alelo e Renda; autora opcional de Compra |
 | Conta bancária | nome, titular, saldo inicial | recebe e paga Lançamentos |
 | Renda | tipo, valor líquido, dia, data de término, recorrente ou eventual | gera Lançamentos previstos em uma Conta |
@@ -403,7 +403,7 @@ Backend em Go com SQLite e frontend em React, entregues como um único binário 
 | Banco | SQLite em modo WAL, driver modernc.org/sqlite | Arquivo único, backup simples, sem CGO. |
 | Consultas | sqlc | Código Go tipado gerado a partir de SQL escrito à mão. |
 | Migrações | goose | Executadas automaticamente na inicialização. |
-| Autenticação | scs para sessões, argon2id para senhas | Simples e seguro para dois usuários. |
+| Autenticação | scs para sessões, sem senhas | Simples para dois usuários; a sessão identifica quem fez cada lançamento. |
 | Contrato | OpenAPI com oapi-codegen | Especificação única que gera o servidor Go e os tipos do front. |
 | Backup | VACUUM INTO agendado no próprio serviço | Cópia consistente com o sistema em uso e recuperação do backup perdido ao ligar a máquina. |
 | Dinheiro | int64 em centavos | Sem ponto flutuante do banco até a API. |

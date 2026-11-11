@@ -25,7 +25,7 @@ Sistema web de gestão financeira de um casal, hospedado em casa e acessado só 
 - SQLite em modo WAL com o driver `modernc.org/sqlite`, sem CGO.
 - sqlc para consultas tipadas a partir de SQL escrito à mão.
 - goose para migrações, executadas automaticamente na inicialização.
-- scs para sessões e argon2id para senhas.
+- scs para sessões. Sem senhas: dois usuários fixos, escolhidos na tela "Quem está usando?" (RF-01).
 - OpenAPI como contrato único: `api/openapi.yaml`, com oapi-codegen gerando o servidor.
 - Backup diário com `VACUUM INTO`, agendado no próprio serviço, com recuperação do backup perdido na inicialização.
 
