@@ -11,6 +11,62 @@ import (
 	"time"
 )
 
+const cardInstallmentMatch = `-- name: CardInstallmentMatch :many
+SELECT p.merchant, p.purchased_on, i.amount_cents
+FROM installments i
+JOIN purchases p ON p.id = i.purchase_id
+WHERE i.card_id = ?1
+  AND i.invoice_month = ?2
+  AND i.number = ?3
+  AND p.installment_count = ?4
+  AND i.amount_cents = ?5
+LIMIT 1
+`
+
+type CardInstallmentMatchParams struct {
+	CardID           int64
+	InvoiceMonth     string
+	Number           int64
+	InstallmentCount int64
+	AmountCents      int64
+}
+
+type CardInstallmentMatchRow struct {
+	Merchant    string
+	PurchasedOn string
+	AmountCents int64
+}
+
+// Installments of the card on the invoice with the given number, count and amount, to link a CSV installment (RF-57).
+func (q *Queries) CardInstallmentMatch(ctx context.Context, arg CardInstallmentMatchParams) ([]CardInstallmentMatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, cardInstallmentMatch,
+		arg.CardID,
+		arg.InvoiceMonth,
+		arg.Number,
+		arg.InstallmentCount,
+		arg.AmountCents,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CardInstallmentMatchRow{}
+	for rows.Next() {
+		var i CardInstallmentMatchRow
+		if err := rows.Scan(&i.Merchant, &i.PurchasedOn, &i.AmountCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cardItemsNear = `-- name: CardItemsNear :many
 SELECT p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i

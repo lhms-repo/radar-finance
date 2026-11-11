@@ -228,3 +228,46 @@ func TestCommit(t *testing.T) {
 		t.Fatalf("empty commit: %v", err)
 	}
 }
+
+// TestPreviewInstallments links an installment line to the purchase already in the Radar by number, count,
+// amount and invoice, since the CSV dates later installments at the start of the cycle (RF-57, RN-20).
+func TestPreviewInstallments(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	// R$ 400,00 in 4 bought on September 20: installments in October, November, December and January.
+	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.September, Day: 20}, Merchant: "Loja Parcelada", CategoryID: f.cat["Delivery"], AmountCents: 40_000, Installments: 4}); err != nil {
+		t.Fatal(err)
+	}
+	// A one-off purchase with the same amount near the CSV date must not swallow an installment line.
+	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.November, Day: 4}, Merchant: "Avulsa", CategoryID: f.cat["Delivery"], AmountCents: 10_000, Installments: 1}); err != nil {
+		t.Fatal(err)
+	}
+	csv := "date,title,amount\n" +
+		"2026-11-04,Loja Parcelada Ficticia - Parcela 3/4,\"100,00\"\n" +
+		"2026-11-04,Outra Loja - Parcela 2/4,\"100,00\"\n" +
+		"2026-11-04,Pix no Crédito - Fulano Ficticio - 3/4,\"99,99\"\n"
+	lines, err := f.s.Preview(ctx, f.cardID, dec, csv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		dup  string
+	}{
+		{name: "same number, count and amount on the invoice", dup: "Loja Parcelada"},
+		{name: "number of another invoice"},
+		{name: "other amount"},
+	}
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := lines[i]
+			got := ""
+			if l.Duplicate != nil {
+				got = l.Duplicate.Description
+			}
+			if got != tt.dup || l.Skip != (tt.dup != "") {
+				t.Fatalf("line = %+v, duplicate %q", l, got)
+			}
+		})
+	}
+}

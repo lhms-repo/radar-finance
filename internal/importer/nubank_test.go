@@ -15,7 +15,13 @@ func TestParseNubank(t *testing.T) {
 		"2026-11-02,Estorno de Pizzaria Ficticia,-12.5\r\n" +
 		"2026-11-03,Pagamento recebido,-1234.56\r\n" +
 		"2026-11-04,\"Padaria, Doces e Cia\",8.70\r\n" +
-		"\r\n"
+		"\r\n" +
+		// Current export: Brazilian amounts in quotes, a space after the minus and installments without the word.
+		"2026-11-05,Padaria Ficticia,\"156,03\"\r\n" +
+		"2026-11-06,Pagamento recebido,\"- 6.324,93\"\r\n" +
+		"2026-10-30,Pix no Crédito - Fulano Ficticio - 2/2,\"384,22\"\r\n" +
+		"2026-10-30,Loja Ficticia - NuPay - Parcela 4/10,\"1.116,91\"\r\n" +
+		"2026-11-07,Estorno Ficticio,\"-20,45\"\r\n"
 	got, err := ParseNubank(strings.NewReader(csv))
 	if err != nil {
 		t.Fatal(err)
@@ -32,6 +38,11 @@ func TestParseNubank(t *testing.T) {
 		{date: "2026-11-02", title: "Estorno de Pizzaria Ficticia", merchant: "Estorno de Pizzaria Ficticia", cents: 1_250, kind: LineCredit},
 		{date: "2026-11-03", title: "Pagamento recebido", merchant: "Pagamento recebido", cents: 123_456, kind: LinePayment},
 		{date: "2026-11-04", title: "Padaria, Doces e Cia", merchant: "Padaria, Doces e Cia", cents: 870, kind: LinePurchase},
+		{date: "2026-11-05", title: "Padaria Ficticia", merchant: "Padaria Ficticia", cents: 15_603, kind: LinePurchase},
+		{date: "2026-11-06", title: "Pagamento recebido", merchant: "Pagamento recebido", cents: 632_493, kind: LinePayment},
+		{date: "2026-10-30", title: "Pix no Crédito - Fulano Ficticio - 2/2", merchant: "Pix no Crédito - Fulano Ficticio", cents: 38_422, kind: LinePurchase, n: 2, m: 2},
+		{date: "2026-10-30", title: "Loja Ficticia - NuPay - Parcela 4/10", merchant: "Loja Ficticia - NuPay", cents: 111_691, kind: LinePurchase, n: 4, m: 10},
+		{date: "2026-11-07", title: "Estorno Ficticio", merchant: "Estorno Ficticio", cents: 2_045, kind: LineCredit},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("lines = %d, want %d: %+v", len(got), len(want), got)
@@ -55,6 +66,7 @@ func TestParseNubankErrors(t *testing.T) {
 		{name: "other header", csv: "data,descricao,valor\n2026-11-01,X,1.00\n"},
 		{name: "bad date", csv: "date,title,amount\n01/11/2026,X,1.00\n", line: 2},
 		{name: "bad amount", csv: "date,title,amount\n2026-11-01,X,1,00\n", line: 2},
+		{name: "bad Brazilian amount", csv: "date,title,amount\n2026-11-01,X,\"1,234\"\n", line: 2},
 		{name: "three decimals", csv: "date,title,amount\n2026-11-01,X,1.005\n", line: 2},
 		{name: "zero amount", csv: "date,title,amount\n2026-11-01,X,0\n", line: 2},
 		{name: "empty title", csv: "date,title,amount\n2026-11-01, ,1.00\n", line: 2},
@@ -76,7 +88,7 @@ func TestParseNubankErrors(t *testing.T) {
 	}
 }
 
-// TestParseCents converts the dot decimal amounts of the CSV to cents without floating point (RN-21).
+// TestParseCents converts the amounts of the CSV, with a dot or in the Brazilian format, to cents without floating point (RN-21).
 func TestParseCents(t *testing.T) {
 	tests := []struct {
 		in   string
@@ -84,7 +96,9 @@ func TestParseCents(t *testing.T) {
 		ok   bool
 	}{
 		{"45.90", 4_590, true}, {"52", 5_200, true}, {"-12.5", -1_250, true}, {"0.01", 1, true}, {"1234.56", 123_456, true},
-		{"1,00", 0, false}, {"1.005", 0, false}, {"", 0, false}, {"abc", 0, false}, {"1.2.3", 0, false},
+		{"1,00", 100, true}, {"156,03", 15_603, true}, {"6.324,93", 632_493, true}, {"- 6.324,93", -632_493, true}, {"-20,4", -2_040, true},
+		{"1.234.567,89", 123_456_789, true}, {"12.34,56", 0, false}, {"1,234", 0, false}, {"1.234", 0, false},
+		{"1.005", 0, false}, {"", 0, false}, {"abc", 0, false}, {"1.2.3", 0, false}, {"--1,00", 0, false},
 	}
 	for _, tt := range tests {
 		got, err := parseCents(tt.in)

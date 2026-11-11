@@ -51,13 +51,17 @@ type Line struct {
 }
 
 var (
-	installmentPattern = regexp.MustCompile(`(?i)^(.*?)\s*-\s*parcela\s+(\d+)\s*/\s*(\d+)\s*$`)
+	// installmentPattern matches "Loja - Parcela 3/10" and the Pix in installments, "Pix no Crédito - Fulano - 2/2".
+	installmentPattern = regexp.MustCompile(`(?i)^(.*?)\s*-\s*(?:parcela\s+)?(\d+)\s*/\s*(\d+)\s*$`)
 	spaces             = regexp.MustCompile(`\s+`)
-	amountPattern      = regexp.MustCompile(`^(-?)(\d+)(?:\.(\d{1,2}))?$`)
+	// dotAmount is the older export, 1234.56; brAmount is the current one, 1.234,56, with "- " before credits.
+	dotAmount = regexp.MustCompile(`^(-?)\s*(\d+)(?:\.(\d{1,2}))?$`)
+	brAmount  = regexp.MustCompile(`^(-?)\s*(\d{1,3}(?:\.\d{3})*|\d+),(\d{1,2})$`)
 )
 
 // ParseNubank reads the CSV exported by Nubank for an invoice: header date,title,amount, dates as
-// YYYY-MM-DD and amounts with a dot, positive for purchases and negative for credits and payments.
+// YYYY-MM-DD and amounts positive for purchases and negative for credits and payments, either in the
+// Brazilian format in quotes ("1.234,56") or with a dot (1234.56).
 func ParseNubank(r io.Reader) ([]Line, error) {
 	br := bufio.NewReader(r)
 	if b, err := br.Peek(3); err == nil && string(b) == "\ufeff" {
@@ -131,13 +135,18 @@ func parseLine(rec []string) (Line, error) {
 	return l, nil
 }
 
-// parseCents converts an amount with a dot and up to two decimals to cents, without floating point (RN-21).
+// parseCents converts an amount with up to two decimals to cents, without floating point (RN-21);
+// a comma means the Brazilian format, with dots between thousands.
 func parseCents(s string) (int64, error) {
-	m := amountPattern.FindStringSubmatch(s)
-	if m == nil {
-		return 0, errors.New("valor inválido, esperava algo como 45.90")
+	pattern := dotAmount
+	if strings.Contains(s, ",") {
+		pattern = brAmount
 	}
-	whole, err := strconv.ParseInt(m[2], 10, 64)
+	m := pattern.FindStringSubmatch(s)
+	if m == nil {
+		return 0, errors.New("valor inválido, esperava algo como 45,90")
+	}
+	whole, err := strconv.ParseInt(strings.ReplaceAll(m[2], ".", ""), 10, 64)
 	if err != nil || whole > 1_000_000_000 {
 		return 0, errors.New("valor inválido")
 	}

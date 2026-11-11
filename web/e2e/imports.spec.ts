@@ -20,10 +20,11 @@ test("imports: Nubank CSV with preview, alias rule, duplicates and undo (RF-53 t
   const pizza = `PIZZARIA FICT ${tag}`;
   const csv = [
     "date,title,amount",
-    `${isoDay(1, 5)},${pizza},52.00`,
-    `${isoDay(1, 6)},Loja Ficticia ${tag} - Parcela 2/4,100.00`,
-    `${isoDay(1, 9)},Estorno Loja ${tag},-10.00`,
-    `${isoDay(1, 15)},Pagamento recebido,-500.00`,
+    // Same shape as the current Nubank export: Brazilian amounts in quotes and "- " before the payment.
+    `${isoDay(1, 5)},${pizza},"52,00"`,
+    `${isoDay(1, 6)},Loja Ficticia ${tag} - Parcela 2/4,"100,00"`,
+    `${isoDay(1, 9)},Estorno Loja ${tag},"-10,00"`,
+    `${isoDay(1, 15)},Pagamento recebido,"- 1.500,00"`,
   ].join("\n");
   const file = { name: "fatura-ficticia.csv", mimeType: "text/csv", buffer: Buffer.from(csv) };
 

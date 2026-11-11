@@ -63,3 +63,15 @@ FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 WHERE i.card_id = sqlc.arg(card_id)
   AND p.purchased_on >= sqlc.arg(first_day) AND p.purchased_on <= sqlc.arg(last_day);
+
+-- name: CardInstallmentMatch :many
+-- Installments of the card on the invoice with the given number, count and amount, to link a CSV installment (RF-57).
+SELECT p.merchant, p.purchased_on, i.amount_cents
+FROM installments i
+JOIN purchases p ON p.id = i.purchase_id
+WHERE i.card_id = sqlc.arg(card_id)
+  AND i.invoice_month = sqlc.arg(invoice_month)
+  AND i.number = sqlc.arg(number)
+  AND p.installment_count = sqlc.arg(installment_count)
+  AND i.amount_cents = sqlc.arg(amount_cents)
+LIMIT 1;
