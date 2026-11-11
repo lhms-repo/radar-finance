@@ -31,6 +31,7 @@ services:
         condition: service_healthy
     environment:
       RADAR_HOSTS: ${RADAR_HOSTS:?defina RADAR_HOSTS no deploy/.env}
+      RADAR_DEFAULT_SNI: ${RADAR_DEFAULT_SNI:?defina RADAR_DEFAULT_SNI no deploy/.env}
     ports:
       - "443:443"
       - "80:80"

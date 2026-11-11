@@ -2,6 +2,8 @@
 {
 	auto_https disable_certs
 	admin off
+	# Browsers send no server name when opening an IP address; use the single local certificate.
+	default_sni {$RADAR_DEFAULT_SNI}
 }
 
 {$RADAR_HOSTS} {
