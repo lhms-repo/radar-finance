@@ -861,6 +861,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alelo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the Alelo cards with the current balance (RF-31, RF-34). */
+        get: operations["listAlelo"];
+        put?: never;
+        /** Registers an Alelo card with its balance on the day (RF-31). */
+        post: operations["createAlelo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alelo/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Edits an Alelo card. */
+        put: operations["updateAlelo"];
+        post?: never;
+        /** Deletes an Alelo card without credits or purchases. */
+        delete: operations["deleteAlelo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alelo/{id}/months/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        /** Balance carried in, credit, purchases and balance carried out of the month (RN-15). */
+        get: operations["getAleloMonth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alelo/{id}/months/{month}/credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirms the monthly credit when it falls (RF-32). */
+        post: operations["confirmAleloCredit"];
+        /** Undoes the confirmation of the credit of the month. */
+        delete: operations["undoAleloCredit"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alelo/{id}/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Records a purchase with a free description, filed as groceries (RF-33, RN-15). */
+        post: operations["addAleloPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alelo-purchases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deletes an Alelo purchase. */
+        delete: operations["deleteAleloPurchase"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1525,6 +1642,71 @@ export interface components {
             paidCents: components["schemas"]["Cents"];
             count: number;
             paidCount: number;
+        };
+        AleloInput: {
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            monthlyCreditCents: components["schemas"]["Cents"];
+            creditDay: number;
+            initialBalanceCents: components["schemas"]["Cents"];
+        };
+        AleloUpdate: {
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            monthlyCreditCents: components["schemas"]["Cents"];
+            creditDay: number;
+            active: boolean;
+        };
+        AleloCard: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            monthlyCreditCents: components["schemas"]["Cents"];
+            creditDay: number;
+            balanceCents: components["schemas"]["Cents"];
+            startMonth: components["schemas"]["Month"];
+            active: boolean;
+        };
+        AleloPurchase: {
+            /** Format: int64 */
+            id: number;
+            /** Format: date */
+            date: string;
+            description: string;
+            amountCents: components["schemas"]["Cents"];
+            createdByName?: string;
+        };
+        AleloMonth: {
+            month: components["schemas"]["Month"];
+            openingCents: components["schemas"]["Cents"];
+            /** @description False before the first month of the card. */
+            hasCredit: boolean;
+            expectedCreditCents: components["schemas"]["Cents"];
+            /** Format: date */
+            expectedCreditOn: string;
+            creditConfirmed: boolean;
+            creditCents: components["schemas"]["Cents"];
+            /** Format: date */
+            creditedOn?: string;
+            purchases: components["schemas"]["AleloPurchase"][];
+            spentCents: components["schemas"]["Cents"];
+            closingCents: components["schemas"]["Cents"];
+        };
+        AleloCreditCreate: {
+            amountCents?: components["schemas"]["Cents"];
+            /** Format: date */
+            date?: string;
+        };
+        AleloPurchaseCreate: {
+            /** Format: date */
+            date: string;
+            description: string;
+            amountCents: components["schemas"]["Cents"];
         };
     };
     responses: {
@@ -3225,6 +3407,240 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listAlelo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Alelo cards. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AleloCard"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createAlelo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AleloInput"];
+            };
+        };
+        responses: {
+            /** @description Created card. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AleloCard"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    updateAlelo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AleloUpdate"];
+            };
+        };
+        responses: {
+            /** @description Updated card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AleloCard"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteAlelo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getAleloMonth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Month of the card. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AleloMonth"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    confirmAleloCredit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AleloCreditCreate"];
+            };
+        };
+        responses: {
+            /** @description Month of the card. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AleloMonth"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    undoAleloCredit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                month: components["schemas"]["Month"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Undone. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addAleloPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AleloPurchaseCreate"];
+            };
+        };
+        responses: {
+            /** @description Created purchase. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AleloPurchase"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteAleloPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

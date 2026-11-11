@@ -18,6 +18,7 @@ tags:
   - name: bills
   - name: financings
   - name: agenda
+  - name: alelo
 paths:
   /ping:
     get:
@@ -1446,6 +1447,205 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /alelo:
+    get:
+      operationId: listAlelo
+      tags: [alelo]
+      summary: Lists the Alelo cards with the current balance (RF-31, RF-34).
+      responses:
+        "200":
+          description: Alelo cards.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AleloCard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createAlelo
+      tags: [alelo]
+      summary: Registers an Alelo card with its balance on the day (RF-31).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AleloInput"
+      responses:
+        "201":
+          description: Created card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AleloCard"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /alelo/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateAlelo
+      tags: [alelo]
+      summary: Edits an Alelo card.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AleloUpdate"
+      responses:
+        "200":
+          description: Updated card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AleloCard"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteAlelo
+      tags: [alelo]
+      summary: Deletes an Alelo card without credits or purchases.
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /alelo/{id}/months/{month}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: month
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/Month"
+    get:
+      operationId: getAleloMonth
+      tags: [alelo]
+      summary: Balance carried in, credit, purchases and balance carried out of the month (RN-15).
+      responses:
+        "200":
+          description: Month of the card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AleloMonth"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /alelo/{id}/months/{month}/credit:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+      - name: month
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/Month"
+    post:
+      operationId: confirmAleloCredit
+      tags: [alelo]
+      summary: Confirms the monthly credit when it falls (RF-32).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AleloCreditCreate"
+      responses:
+        "201":
+          description: Month of the card.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AleloMonth"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: undoAleloCredit
+      tags: [alelo]
+      summary: Undoes the confirmation of the credit of the month.
+      responses:
+        "204":
+          description: Undone.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /alelo/{id}/purchases:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: addAleloPurchase
+      tags: [alelo]
+      summary: Records a purchase with a free description, filed as groceries (RF-33, RN-15).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AleloPurchaseCreate"
+      responses:
+        "201":
+          description: Created purchase.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AleloPurchase"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /alelo-purchases/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: deleteAleloPurchase
+      tags: [alelo]
+      summary: Deletes an Alelo purchase.
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   parameters:
     Id:
@@ -2728,6 +2928,136 @@ components:
           type: integer
         paidCount:
           type: integer
+
+    AleloInput:
+      type: object
+      required: [name, personId, monthlyCreditCents, creditDay, initialBalanceCents]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        personId:
+          type: integer
+          format: int64
+        monthlyCreditCents:
+          $ref: "#/components/schemas/Cents"
+        creditDay:
+          type: integer
+        initialBalanceCents:
+          $ref: "#/components/schemas/Cents"
+
+    AleloUpdate:
+      type: object
+      required: [name, personId, monthlyCreditCents, creditDay, active]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        personId:
+          type: integer
+          format: int64
+        monthlyCreditCents:
+          $ref: "#/components/schemas/Cents"
+        creditDay:
+          type: integer
+        active:
+          type: boolean
+
+    AleloCard:
+      type: object
+      required: [id, name, personId, personName, monthlyCreditCents, creditDay, balanceCents, startMonth, active]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        personId:
+          type: integer
+          format: int64
+        personName:
+          type: string
+        monthlyCreditCents:
+          $ref: "#/components/schemas/Cents"
+        creditDay:
+          type: integer
+        balanceCents:
+          $ref: "#/components/schemas/Cents"
+        startMonth:
+          $ref: "#/components/schemas/Month"
+        active:
+          type: boolean
+
+    AleloPurchase:
+      type: object
+      required: [id, date, description, amountCents]
+      properties:
+        id:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        createdByName:
+          type: string
+
+    AleloMonth:
+      type: object
+      required: [month, openingCents, hasCredit, expectedCreditCents, expectedCreditOn, creditConfirmed, creditCents, purchases, spentCents, closingCents]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        openingCents:
+          $ref: "#/components/schemas/Cents"
+        hasCredit:
+          type: boolean
+          description: False before the first month of the card.
+        expectedCreditCents:
+          $ref: "#/components/schemas/Cents"
+        expectedCreditOn:
+          type: string
+          format: date
+        creditConfirmed:
+          type: boolean
+        creditCents:
+          $ref: "#/components/schemas/Cents"
+        creditedOn:
+          type: string
+          format: date
+        purchases:
+          type: array
+          items:
+            $ref: "#/components/schemas/AleloPurchase"
+        spentCents:
+          $ref: "#/components/schemas/Cents"
+        closingCents:
+          $ref: "#/components/schemas/Cents"
+
+    AleloCreditCreate:
+      type: object
+      properties:
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+
+    AleloPurchaseCreate:
+      type: object
+      required: [date, description, amountCents]
+      properties:
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 120
+        amountCents:
+          $ref: "#/components/schemas/Cents"
 
 security:
   - session: []

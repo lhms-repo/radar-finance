@@ -18,6 +18,7 @@ import (
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/agenda"
+	"github.com/italogfx/radar-finance/internal/alelo"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
 	"github.com/italogfx/radar-finance/internal/bill"
@@ -63,6 +64,7 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Bills:      bills,
 		Financings: financings,
 		Agenda:     agenda.NewService(bills, financings, cards),
+		Alelo:      alelo.NewService(conn),
 		Sessions:   auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
 		Backups:    backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
 		Version:    "test",

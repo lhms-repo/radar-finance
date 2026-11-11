@@ -358,6 +358,102 @@ type AgendaItem struct {
 // AgendaKind defines model for AgendaKind.
 type AgendaKind string
 
+// AleloCard defines model for AleloCard.
+type AleloCard struct {
+	Active bool `json:"active"`
+
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents `json:"balanceCents"`
+	CreditDay    int   `json:"creditDay"`
+	Id           int64 `json:"id"`
+
+	// MonthlyCreditCents Amount in cents (RN-21).
+	MonthlyCreditCents Cents  `json:"monthlyCreditCents"`
+	Name               string `json:"name"`
+	PersonId           int64  `json:"personId"`
+	PersonName         string `json:"personName"`
+
+	// StartMonth Example: 2026-11
+	StartMonth Month `json:"startMonth"`
+}
+
+// AleloCreditCreate defines model for AleloCreditCreate.
+type AleloCreditCreate struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents *Cents              `json:"amountCents,omitempty"`
+	Date        *openapi_types.Date `json:"date,omitempty"`
+}
+
+// AleloInput defines model for AleloInput.
+type AleloInput struct {
+	CreditDay int `json:"creditDay"`
+
+	// InitialBalanceCents Amount in cents (RN-21).
+	InitialBalanceCents Cents `json:"initialBalanceCents"`
+
+	// MonthlyCreditCents Amount in cents (RN-21).
+	MonthlyCreditCents Cents  `json:"monthlyCreditCents"`
+	Name               string `json:"name"`
+	PersonId           int64  `json:"personId"`
+}
+
+// AleloMonth defines model for AleloMonth.
+type AleloMonth struct {
+	// ClosingCents Amount in cents (RN-21).
+	ClosingCents Cents `json:"closingCents"`
+
+	// CreditCents Amount in cents (RN-21).
+	CreditCents     Cents               `json:"creditCents"`
+	CreditConfirmed bool                `json:"creditConfirmed"`
+	CreditedOn      *openapi_types.Date `json:"creditedOn,omitempty"`
+
+	// ExpectedCreditCents Amount in cents (RN-21).
+	ExpectedCreditCents Cents              `json:"expectedCreditCents"`
+	ExpectedCreditOn    openapi_types.Date `json:"expectedCreditOn"`
+
+	// HasCredit False before the first month of the card.
+	HasCredit bool `json:"hasCredit"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+
+	// OpeningCents Amount in cents (RN-21).
+	OpeningCents Cents           `json:"openingCents"`
+	Purchases    []AleloPurchase `json:"purchases"`
+
+	// SpentCents Amount in cents (RN-21).
+	SpentCents Cents `json:"spentCents"`
+}
+
+// AleloPurchase defines model for AleloPurchase.
+type AleloPurchase struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents   Cents              `json:"amountCents"`
+	CreatedByName *string            `json:"createdByName,omitempty"`
+	Date          openapi_types.Date `json:"date"`
+	Description   string             `json:"description"`
+	Id            int64              `json:"id"`
+}
+
+// AleloPurchaseCreate defines model for AleloPurchaseCreate.
+type AleloPurchaseCreate struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	Date        openapi_types.Date `json:"date"`
+	Description string             `json:"description"`
+}
+
+// AleloUpdate defines model for AleloUpdate.
+type AleloUpdate struct {
+	Active    bool `json:"active"`
+	CreditDay int  `json:"creditDay"`
+
+	// MonthlyCreditCents Amount in cents (RN-21).
+	MonthlyCreditCents Cents  `json:"monthlyCreditCents"`
+	Name               string `json:"name"`
+	PersonId           int64  `json:"personId"`
+}
+
 // Backup defines model for Backup.
 type Backup struct {
 	CreatedAt time.Time  `json:"createdAt"`
@@ -1171,6 +1267,18 @@ type AddAccountExpenseJSONRequestBody = ExpenseCreate
 // AddAccountIncomeJSONRequestBody defines body for AddAccountIncome for application/json ContentType.
 type AddAccountIncomeJSONRequestBody = OneOffIncomeCreate
 
+// CreateAleloJSONRequestBody defines body for CreateAlelo for application/json ContentType.
+type CreateAleloJSONRequestBody = AleloInput
+
+// UpdateAleloJSONRequestBody defines body for UpdateAlelo for application/json ContentType.
+type UpdateAleloJSONRequestBody = AleloUpdate
+
+// ConfirmAleloCreditJSONRequestBody defines body for ConfirmAleloCredit for application/json ContentType.
+type ConfirmAleloCreditJSONRequestBody = AleloCreditCreate
+
+// AddAleloPurchaseJSONRequestBody defines body for AddAleloPurchase for application/json ContentType.
+type AddAleloPurchaseJSONRequestBody = AleloPurchaseCreate
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -1278,6 +1386,33 @@ type ServerInterface interface {
 	// GetAgenda Bills, financing installments and card invoices due in the month, pending first (RF-38, RF-40).
 	// (GET /agenda)
 	GetAgenda(w http.ResponseWriter, r *http.Request, params GetAgendaParams)
+	// ListAlelo Lists the Alelo cards with the current balance (RF-31, RF-34).
+	// (GET /alelo)
+	ListAlelo(w http.ResponseWriter, r *http.Request)
+	// CreateAlelo Registers an Alelo card with its balance on the day (RF-31).
+	// (POST /alelo)
+	CreateAlelo(w http.ResponseWriter, r *http.Request)
+	// DeleteAleloPurchase Deletes an Alelo purchase.
+	// (DELETE /alelo-purchases/{id})
+	DeleteAleloPurchase(w http.ResponseWriter, r *http.Request, id Id)
+	// DeleteAlelo Deletes an Alelo card without credits or purchases.
+	// (DELETE /alelo/{id})
+	DeleteAlelo(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateAlelo Edits an Alelo card.
+	// (PUT /alelo/{id})
+	UpdateAlelo(w http.ResponseWriter, r *http.Request, id Id)
+	// GetAleloMonth Balance carried in, credit, purchases and balance carried out of the month (RN-15).
+	// (GET /alelo/{id}/months/{month})
+	GetAleloMonth(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// UndoAleloCredit Undoes the confirmation of the credit of the month.
+	// (DELETE /alelo/{id}/months/{month}/credit)
+	UndoAleloCredit(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// ConfirmAleloCredit Confirms the monthly credit when it falls (RF-32).
+	// (POST /alelo/{id}/months/{month}/credit)
+	ConfirmAleloCredit(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// AddAleloPurchase Records a purchase with a free description, filed as groceries (RF-33, RN-15).
+	// (POST /alelo/{id}/purchases)
+	AddAleloPurchase(w http.ResponseWriter, r *http.Request, id Id)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -1701,6 +1836,243 @@ func (siw *ServerInterfaceWrapper) GetAgenda(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetAgenda(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAlelo operation middleware
+func (siw *ServerInterfaceWrapper) ListAlelo(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAlelo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAlelo operation middleware
+func (siw *ServerInterfaceWrapper) CreateAlelo(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAlelo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAleloPurchase operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAleloPurchase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAleloPurchase(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAlelo operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAlelo(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAlelo(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAlelo operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAlelo(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAlelo(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetAleloMonth operation middleware
+func (siw *ServerInterfaceWrapper) GetAleloMonth(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetAleloMonth(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UndoAleloCredit operation middleware
+func (siw *ServerInterfaceWrapper) UndoAleloCredit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UndoAleloCredit(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmAleloCredit operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmAleloCredit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "month" -------------
+	var month Month
+
+	err = runtime.BindStyledParameterWithOptions("simple", "month", r.PathValue("month"), &month, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmAleloCredit(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddAleloPurchase operation middleware
+func (siw *ServerInterfaceWrapper) AddAleloPurchase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddAleloPurchase(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3135,6 +3507,15 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/financings/{id}/months/{month}/payment", wrapper.PayFinancing)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/financings/{id}/corrections", wrapper.CorrectFinancing)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/agenda", wrapper.GetAgenda)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/alelo", wrapper.ListAlelo)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alelo", wrapper.CreateAlelo)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/alelo/{id}", wrapper.DeleteAlelo)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/alelo/{id}", wrapper.UpdateAlelo)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/alelo/{id}/months/{month}", wrapper.GetAleloMonth)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/alelo/{id}/months/{month}/credit", wrapper.UndoAleloCredit)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alelo/{id}/months/{month}/credit", wrapper.ConfirmAleloCredit)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alelo/{id}/purchases", wrapper.AddAleloPurchase)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/alelo-purchases/{id}", wrapper.DeleteAleloPurchase)
 
 	return m
 }
@@ -3783,6 +4164,569 @@ func (response GetAgenda401JSONResponse) VisitGetAgendaResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAleloRequestObject struct {
+}
+
+type ListAleloResponseObject interface {
+	VisitListAleloResponse(w http.ResponseWriter) error
+}
+
+type ListAlelo200JSONResponse []AleloCard
+
+func (response ListAlelo200JSONResponse) VisitListAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAlelo401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAlelo401JSONResponse) VisitListAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAleloRequestObject struct {
+	Body *CreateAleloJSONRequestBody
+}
+
+type CreateAleloResponseObject interface {
+	VisitCreateAleloResponse(w http.ResponseWriter) error
+}
+
+type CreateAlelo201JSONResponse AleloCard
+
+func (response CreateAlelo201JSONResponse) VisitCreateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAlelo400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateAlelo400JSONResponse) VisitCreateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAlelo401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateAlelo401JSONResponse) VisitCreateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAlelo409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateAlelo409JSONResponse) VisitCreateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAleloPurchaseRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteAleloPurchaseResponseObject interface {
+	VisitDeleteAleloPurchaseResponse(w http.ResponseWriter) error
+}
+
+type DeleteAleloPurchase204Response struct {
+}
+
+func (response DeleteAleloPurchase204Response) VisitDeleteAleloPurchaseResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAleloPurchase401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteAleloPurchase401JSONResponse) VisitDeleteAleloPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAleloPurchase404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteAleloPurchase404JSONResponse) VisitDeleteAleloPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAleloRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteAleloResponseObject interface {
+	VisitDeleteAleloResponse(w http.ResponseWriter) error
+}
+
+type DeleteAlelo204Response struct {
+}
+
+func (response DeleteAlelo204Response) VisitDeleteAleloResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAlelo401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteAlelo401JSONResponse) VisitDeleteAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAlelo404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteAlelo404JSONResponse) VisitDeleteAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAlelo409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteAlelo409JSONResponse) VisitDeleteAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAleloRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateAleloJSONRequestBody
+}
+
+type UpdateAleloResponseObject interface {
+	VisitUpdateAleloResponse(w http.ResponseWriter) error
+}
+
+type UpdateAlelo200JSONResponse AleloCard
+
+func (response UpdateAlelo200JSONResponse) VisitUpdateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAlelo400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAlelo400JSONResponse) VisitUpdateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAlelo401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAlelo401JSONResponse) VisitUpdateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAlelo404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateAlelo404JSONResponse) VisitUpdateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAlelo409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateAlelo409JSONResponse) VisitUpdateAleloResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAleloMonthRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+}
+
+type GetAleloMonthResponseObject interface {
+	VisitGetAleloMonthResponse(w http.ResponseWriter) error
+}
+
+type GetAleloMonth200JSONResponse AleloMonth
+
+func (response GetAleloMonth200JSONResponse) VisitGetAleloMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAleloMonth400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetAleloMonth400JSONResponse) VisitGetAleloMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAleloMonth401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetAleloMonth401JSONResponse) VisitGetAleloMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetAleloMonth404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetAleloMonth404JSONResponse) VisitGetAleloMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoAleloCreditRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+}
+
+type UndoAleloCreditResponseObject interface {
+	VisitUndoAleloCreditResponse(w http.ResponseWriter) error
+}
+
+type UndoAleloCredit204Response struct {
+}
+
+func (response UndoAleloCredit204Response) VisitUndoAleloCreditResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UndoAleloCredit400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UndoAleloCredit400JSONResponse) VisitUndoAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoAleloCredit401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UndoAleloCredit401JSONResponse) VisitUndoAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoAleloCredit404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UndoAleloCredit404JSONResponse) VisitUndoAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmAleloCreditRequestObject struct {
+	Id    Id    `json:"id"`
+	Month Month `json:"month"`
+	Body  *ConfirmAleloCreditJSONRequestBody
+}
+
+type ConfirmAleloCreditResponseObject interface {
+	VisitConfirmAleloCreditResponse(w http.ResponseWriter) error
+}
+
+type ConfirmAleloCredit201JSONResponse AleloMonth
+
+func (response ConfirmAleloCredit201JSONResponse) VisitConfirmAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmAleloCredit400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ConfirmAleloCredit400JSONResponse) VisitConfirmAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmAleloCredit401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfirmAleloCredit401JSONResponse) VisitConfirmAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmAleloCredit404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ConfirmAleloCredit404JSONResponse) VisitConfirmAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmAleloCredit409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConfirmAleloCredit409JSONResponse) VisitConfirmAleloCreditResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAleloPurchaseRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddAleloPurchaseJSONRequestBody
+}
+
+type AddAleloPurchaseResponseObject interface {
+	VisitAddAleloPurchaseResponse(w http.ResponseWriter) error
+}
+
+type AddAleloPurchase201JSONResponse AleloPurchase
+
+func (response AddAleloPurchase201JSONResponse) VisitAddAleloPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAleloPurchase400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddAleloPurchase400JSONResponse) VisitAddAleloPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAleloPurchase401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddAleloPurchase401JSONResponse) VisitAddAleloPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAleloPurchase404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddAleloPurchase404JSONResponse) VisitAddAleloPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAleloPurchase409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddAleloPurchase409JSONResponse) VisitAddAleloPurchaseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -6945,6 +7889,33 @@ type StrictServerInterface interface {
 	// GetAgenda Bills, financing installments and card invoices due in the month, pending first (RF-38, RF-40).
 	// (GET /agenda)
 	GetAgenda(ctx context.Context, request GetAgendaRequestObject) (GetAgendaResponseObject, error)
+	// ListAlelo Lists the Alelo cards with the current balance (RF-31, RF-34).
+	// (GET /alelo)
+	ListAlelo(ctx context.Context, request ListAleloRequestObject) (ListAleloResponseObject, error)
+	// CreateAlelo Registers an Alelo card with its balance on the day (RF-31).
+	// (POST /alelo)
+	CreateAlelo(ctx context.Context, request CreateAleloRequestObject) (CreateAleloResponseObject, error)
+	// DeleteAleloPurchase Deletes an Alelo purchase.
+	// (DELETE /alelo-purchases/{id})
+	DeleteAleloPurchase(ctx context.Context, request DeleteAleloPurchaseRequestObject) (DeleteAleloPurchaseResponseObject, error)
+	// DeleteAlelo Deletes an Alelo card without credits or purchases.
+	// (DELETE /alelo/{id})
+	DeleteAlelo(ctx context.Context, request DeleteAleloRequestObject) (DeleteAleloResponseObject, error)
+	// UpdateAlelo Edits an Alelo card.
+	// (PUT /alelo/{id})
+	UpdateAlelo(ctx context.Context, request UpdateAleloRequestObject) (UpdateAleloResponseObject, error)
+	// GetAleloMonth Balance carried in, credit, purchases and balance carried out of the month (RN-15).
+	// (GET /alelo/{id}/months/{month})
+	GetAleloMonth(ctx context.Context, request GetAleloMonthRequestObject) (GetAleloMonthResponseObject, error)
+	// UndoAleloCredit Undoes the confirmation of the credit of the month.
+	// (DELETE /alelo/{id}/months/{month}/credit)
+	UndoAleloCredit(ctx context.Context, request UndoAleloCreditRequestObject) (UndoAleloCreditResponseObject, error)
+	// ConfirmAleloCredit Confirms the monthly credit when it falls (RF-32).
+	// (POST /alelo/{id}/months/{month}/credit)
+	ConfirmAleloCredit(ctx context.Context, request ConfirmAleloCreditRequestObject) (ConfirmAleloCreditResponseObject, error)
+	// AddAleloPurchase Records a purchase with a free description, filed as groceries (RF-33, RN-15).
+	// (POST /alelo/{id}/purchases)
+	AddAleloPurchase(ctx context.Context, request AddAleloPurchaseRequestObject) (AddAleloPurchaseResponseObject, error)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -7433,6 +8404,267 @@ func (sh *strictHandler) GetAgenda(w http.ResponseWriter, r *http.Request, param
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetAgendaResponseObject); ok {
 		if err := validResponse.VisitGetAgendaResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAlelo operation middleware
+func (sh *strictHandler) ListAlelo(w http.ResponseWriter, r *http.Request) {
+	var request ListAleloRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAlelo(ctx, request.(ListAleloRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAlelo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAleloResponseObject); ok {
+		if err := validResponse.VisitListAleloResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAlelo operation middleware
+func (sh *strictHandler) CreateAlelo(w http.ResponseWriter, r *http.Request) {
+	var request CreateAleloRequestObject
+
+	var body CreateAleloJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAlelo(ctx, request.(CreateAleloRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAlelo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAleloResponseObject); ok {
+		if err := validResponse.VisitCreateAleloResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAleloPurchase operation middleware
+func (sh *strictHandler) DeleteAleloPurchase(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteAleloPurchaseRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAleloPurchase(ctx, request.(DeleteAleloPurchaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAleloPurchase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAleloPurchaseResponseObject); ok {
+		if err := validResponse.VisitDeleteAleloPurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAlelo operation middleware
+func (sh *strictHandler) DeleteAlelo(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteAleloRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAlelo(ctx, request.(DeleteAleloRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAlelo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAleloResponseObject); ok {
+		if err := validResponse.VisitDeleteAleloResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAlelo operation middleware
+func (sh *strictHandler) UpdateAlelo(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateAleloRequestObject
+
+	request.Id = id
+
+	var body UpdateAleloJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAlelo(ctx, request.(UpdateAleloRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAlelo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAleloResponseObject); ok {
+		if err := validResponse.VisitUpdateAleloResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetAleloMonth operation middleware
+func (sh *strictHandler) GetAleloMonth(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request GetAleloMonthRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetAleloMonth(ctx, request.(GetAleloMonthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetAleloMonth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetAleloMonthResponseObject); ok {
+		if err := validResponse.VisitGetAleloMonthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UndoAleloCredit operation middleware
+func (sh *strictHandler) UndoAleloCredit(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request UndoAleloCreditRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UndoAleloCredit(ctx, request.(UndoAleloCreditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UndoAleloCredit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UndoAleloCreditResponseObject); ok {
+		if err := validResponse.VisitUndoAleloCreditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmAleloCredit operation middleware
+func (sh *strictHandler) ConfirmAleloCredit(w http.ResponseWriter, r *http.Request, id Id, month Month) {
+	var request ConfirmAleloCreditRequestObject
+
+	request.Id = id
+	request.Month = month
+
+	var body ConfirmAleloCreditJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmAleloCredit(ctx, request.(ConfirmAleloCreditRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmAleloCredit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmAleloCreditResponseObject); ok {
+		if err := validResponse.VisitConfirmAleloCreditResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddAleloPurchase operation middleware
+func (sh *strictHandler) AddAleloPurchase(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddAleloPurchaseRequestObject
+
+	request.Id = id
+
+	var body AddAleloPurchaseJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddAleloPurchase(ctx, request.(AddAleloPurchaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddAleloPurchase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddAleloPurchaseResponseObject); ok {
+		if err := validResponse.VisitAddAleloPurchaseResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/agenda"
+	"github.com/italogfx/radar-finance/internal/alelo"
 	"github.com/italogfx/radar-finance/internal/api/gen"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/backup"
@@ -57,6 +58,7 @@ type Deps struct {
 	Bills      *bill.Service
 	Financings *financing.Service
 	Agenda     *agenda.Service
+	Alelo      *alelo.Service
 	Sessions   *scs.SessionManager
 	Backups    *backup.Service
 	Version    string
