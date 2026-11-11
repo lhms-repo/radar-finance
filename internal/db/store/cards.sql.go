@@ -119,7 +119,7 @@ const createPurchase = `-- name: CreatePurchase :one
 INSERT INTO purchases (card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id,
                        total_cents, installment_count, first_invoice, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at
+RETURNING id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id
 `
 
 type CreatePurchaseParams struct {
@@ -170,6 +170,7 @@ func (q *Queries) CreatePurchase(ctx context.Context, arg CreatePurchaseParams) 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImportID,
 	)
 	return i, err
 }
@@ -300,7 +301,7 @@ func (q *Queries) GetCard(ctx context.Context, id int64) (Card, error) {
 }
 
 const getPurchase = `-- name: GetPurchase :one
-SELECT id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at
+SELECT id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id
 FROM purchases
 WHERE id = ?
 `
@@ -323,6 +324,7 @@ func (q *Queries) GetPurchase(ctx context.Context, id int64) (Purchase, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ImportID,
 	)
 	return i, err
 }

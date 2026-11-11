@@ -55,6 +55,15 @@ type AleloPurchase struct {
 	CreatedAt   time.Time
 }
 
+type AliasRule struct {
+	ID           int64
+	Original     string
+	FriendlyName string
+	CategoryID   sql.NullInt64
+	CreatedBy    int64
+	CreatedAt    time.Time
+}
+
 type Bill struct {
 	ID            int64
 	Name          string
@@ -160,6 +169,16 @@ type FinancingEvent struct {
 	CreatedAt         time.Time
 }
 
+type Import struct {
+	ID           int64
+	CardID       int64
+	InvoiceMonth string
+	FileName     string
+	LineCount    int64
+	CreatedBy    int64
+	CreatedAt    time.Time
+}
+
 type Income struct {
 	ID          int64
 	Kind        string
@@ -229,6 +248,7 @@ type Purchase struct {
 	CreatedBy        int64
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	ImportID         sql.NullInt64
 }
 
 type Recurrence struct {

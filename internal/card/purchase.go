@@ -306,3 +306,97 @@ func cleanTexts(merchant, description string) (string, string, error) {
 	desc, err := ledger.CleanDescription(description)
 	return merchant, desc, err
 }
+
+// ImportedLine is a purchase or credit read from the invoice CSV, placed in the invoice chosen by the user.
+type ImportedLine struct {
+	CardID      int64
+	Invoice     civil.Month
+	Date        civil.Date
+	Merchant    string
+	CategoryID  *int64
+	AmountCents int64
+	Credit      bool
+	// Installment and Installments come from "Parcela N/M"; zero means a single charge.
+	Installment  int
+	Installments int
+}
+
+// ImportLine records a CSV line inside the caller's transaction and returns the purchase id.
+// A "Parcela N/M" line creates only installments N to M, from the chosen invoice on (RF-57).
+func (s *Service) ImportLine(ctx context.Context, q *store.Queries, userID int64, in ImportedLine) (int64, error) {
+	c, err := activeCard(ctx, q, in.CardID)
+	if err != nil {
+		return 0, err
+	}
+	merchant, _, err := cleanTexts(in.Merchant, "")
+	if err != nil {
+		return 0, err
+	}
+	if err := ledger.CheckPositive(in.AmountCents); err != nil {
+		return 0, err
+	}
+	if in.Date.IsZero() {
+		return 0, ledger.ErrDateRequired
+	}
+	n, m := in.Installment, in.Installments
+	if n == 0 || m == 0 || in.Credit {
+		n, m = 1, 1
+	}
+	if n > m || m > maxInstallments {
+		return 0, ErrInvalidInstallments
+	}
+	kind, sign := kindPurchase, int64(1)
+	if in.Credit {
+		kind, sign = kindCredit, -1
+	} else if in.CategoryID == nil {
+		return 0, category.ErrNotSelectable
+	}
+	if in.CategoryID != nil {
+		if err := category.CheckSelectable(ctx, q, *in.CategoryID); err != nil {
+			return 0, err
+		}
+	}
+	first := in.Invoice.Add(-(n - 1))
+	now := s.now().UTC()
+	row, err := q.CreatePurchase(ctx, store.CreatePurchaseParams{
+		CardID: c.ID, Kind: kind, PurchasedOn: in.Date.String(), Merchant: merchant, CategoryID: nullID(in.CategoryID),
+		TotalCents: in.AmountCents * int64(m), InstallmentCount: int64(m), FirstInvoice: first.String(),
+		CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("create imported purchase: %w", err)
+	}
+	for k := n; k <= m; k++ {
+		if err := q.CreateInstallment(ctx, store.CreateInstallmentParams{
+			PurchaseID: row.ID, CardID: c.ID, InvoiceMonth: first.Add(k - 1).String(), Number: int64(k), AmountCents: sign * in.AmountCents,
+		}); err != nil {
+			return 0, fmt.Errorf("create imported installment: %w", err)
+		}
+	}
+	return row.ID, nil
+}
+
+// RecurrenceChargesIn lists what the recurrences of a card bill on one invoice, for duplicate checks (RN-20).
+func (s *Service) RecurrenceChargesIn(ctx context.Context, q *store.Queries, cardID int64, m civil.Month) ([]Recurrence, error) {
+	c, err := getCard(ctx, q, cardID)
+	if err != nil {
+		return nil, err
+	}
+	all, err := s.recurrences(ctx, q, c)
+	if err != nil {
+		return nil, err
+	}
+	var out []Recurrence
+	for _, r := range all {
+		if amount := r.priceIn(m); amount > 0 {
+			r.AmountCents = amount
+			out = append(out, r)
+		}
+	}
+	return out, nil
+}
+
+// CheckNoReceived refuses changes to a purchase whose shares were already received.
+func CheckNoReceived(ctx context.Context, q *store.Queries, purchaseID int64) error {
+	return checkNoReceived(ctx, q, purchaseID)
+}
