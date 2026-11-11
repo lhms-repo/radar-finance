@@ -979,6 +979,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/receivables": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What other people owe, grouped by person with the pending total (RF-28). */
+        get: operations["listReceivables"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/receivables/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Marks shares of one person as paid back into an account, not counted as income (RF-26, RF-30, RN-06). */
+        post: operations["markReceived"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/receivables/{id}/message": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Charge message for a person with the pending installments, ready for WhatsApp (RF-29). */
+        get: operations["getChargeMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/parties": {
         parameters: {
             query?: never;
@@ -1132,7 +1185,7 @@ export interface components {
             active?: boolean;
         };
         /** @enum {string} */
-        EntryKind: "expense" | "income" | "adjustment" | "transfer" | "invoice_payment";
+        EntryKind: "expense" | "income" | "adjustment" | "transfer" | "invoice_payment" | "receivable";
         Entry: {
             /** Format: int64 */
             id: number;
@@ -1758,6 +1811,45 @@ export interface components {
             date: string;
             description: string;
             amountCents: components["schemas"]["Cents"];
+        };
+        ReceivableItem: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            purchaseId: number;
+            merchant: string;
+            /** Format: date */
+            purchaseDate: string;
+            cardName: string;
+            number: number;
+            count: number;
+            invoiceMonth: components["schemas"]["Month"];
+            /** Format: date */
+            dueOn: string;
+            amountCents: components["schemas"]["Cents"];
+            received: boolean;
+            /** Format: int64 */
+            entryId?: number;
+            /** Format: date */
+            receivedOn?: string;
+            receivedIn?: string;
+        };
+        ReceivablePerson: {
+            /** Format: int64 */
+            partyId: number;
+            name: string;
+            pendingCents: components["schemas"]["Cents"];
+            items: components["schemas"]["ReceivableItem"][];
+        };
+        ReceiptCreate: {
+            itemIds: number[];
+            /** Format: int64 */
+            accountId: number;
+            /** Format: date */
+            date: string;
+        };
+        ChargeMessage: {
+            text: string;
         };
     };
     responses: {
@@ -3713,6 +3805,79 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listReceivables: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description People with shares, pending and received. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceivablePerson"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    markReceived: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptCreate"];
+            };
+        };
+        responses: {
+            /** @description Entry in the account. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getChargeMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The message. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeMessage"];
+                };
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];

@@ -1662,6 +1662,69 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /receivables:
+    get:
+      operationId: listReceivables
+      tags: [receivables]
+      summary: What other people owe, grouped by person with the pending total (RF-28).
+      responses:
+        "200":
+          description: People with shares, pending and received.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReceivablePerson"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /receivables/receipts:
+    post:
+      operationId: markReceived
+      tags: [receivables]
+      summary: Marks shares of one person as paid back into an account, not counted as income (RF-26, RF-30, RN-06).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptCreate"
+      responses:
+        "201":
+          description: Entry in the account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /receivables/{id}/message:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getChargeMessage
+      tags: [receivables]
+      summary: Charge message for a person with the pending installments, ready for WhatsApp (RF-29).
+      responses:
+        "200":
+          description: The message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChargeMessage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /parties:
     get:
       operationId: listParties
@@ -1973,7 +2036,7 @@ components:
 
     EntryKind:
       type: string
-      enum: [expense, income, adjustment, transfer, invoice_payment]
+      enum: [expense, income, adjustment, transfer, invoice_payment, receivable]
 
     Entry:
       type: object
@@ -3164,6 +3227,84 @@ components:
           maxLength: 120
         amountCents:
           $ref: "#/components/schemas/Cents"
+
+    ReceivableItem:
+      type: object
+      required: [id, purchaseId, merchant, purchaseDate, cardName, number, count, invoiceMonth, dueOn, amountCents, received]
+      properties:
+        id:
+          type: integer
+          format: int64
+        purchaseId:
+          type: integer
+          format: int64
+        merchant:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        cardName:
+          type: string
+        number:
+          type: integer
+        count:
+          type: integer
+        invoiceMonth:
+          $ref: "#/components/schemas/Month"
+        dueOn:
+          type: string
+          format: date
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        received:
+          type: boolean
+        entryId:
+          type: integer
+          format: int64
+        receivedOn:
+          type: string
+          format: date
+        receivedIn:
+          type: string
+
+    ReceivablePerson:
+      type: object
+      required: [partyId, name, pendingCents, items]
+      properties:
+        partyId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        pendingCents:
+          $ref: "#/components/schemas/Cents"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceivableItem"
+
+    ReceiptCreate:
+      type: object
+      required: [itemIds, accountId, date]
+      properties:
+        itemIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        accountId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+
+    ChargeMessage:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
 
 security:
   - session: []

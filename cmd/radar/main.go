@@ -30,6 +30,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/server"
 	"github.com/italogfx/radar-finance/web"
 )
@@ -115,23 +116,24 @@ func serve(log *slog.Logger) error {
 
 	cards, bills, financings := card.NewService(conn), bill.NewService(conn), financing.NewService(conn)
 	handler := server.New(server.Deps{
-		Config:     cfg,
-		DB:         conn,
-		Accounts:   accounts,
-		Categories: category.NewService(conn),
-		Ledger:     ledger.NewService(conn),
-		Incomes:    income.NewService(conn),
-		Cards:      cards,
-		Bills:      bills,
-		Financings: financings,
-		Agenda:     agenda.NewService(bills, financings, cards),
-		Alelo:      alelo.NewService(conn),
-		Sessions:   sessions,
-		Backups:    backups,
-		Version:    version,
-		StartedAt:  time.Now(),
-		Log:        log,
-		Assets:     web.Assets(),
+		Config:      cfg,
+		DB:          conn,
+		Accounts:    accounts,
+		Categories:  category.NewService(conn),
+		Ledger:      ledger.NewService(conn),
+		Incomes:     income.NewService(conn),
+		Cards:       cards,
+		Bills:       bills,
+		Financings:  financings,
+		Agenda:      agenda.NewService(bills, financings, cards),
+		Alelo:       alelo.NewService(conn),
+		Receivables: receivable.NewService(conn),
+		Sessions:    sessions,
+		Backups:     backups,
+		Version:     version,
+		StartedAt:   time.Now(),
+		Log:         log,
+		Assets:      web.Assets(),
 	})
 	srv := &http.Server{
 		Addr:              cfg.Addr,

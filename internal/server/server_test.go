@@ -29,6 +29,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/receivable"
 )
 
 // testServer starts the full HTTP stack on a fresh database with one fictional user.
@@ -54,22 +55,23 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 	cfg := config.Config{DBPath: filepath.Join(dir, "radar.db"), BackupDir: filepath.Join(dir, "backups"), BackupKeep: 30, BackupHour: 3, Loc: loc}
 	cards, bills, financings := card.NewService(conn), bill.NewService(conn), financing.NewService(conn)
 	h := New(Deps{
-		Config:     cfg,
-		DB:         conn,
-		Accounts:   accounts,
-		Categories: category.NewService(conn),
-		Ledger:     ledger.NewService(conn),
-		Incomes:    income.NewService(conn),
-		Cards:      cards,
-		Bills:      bills,
-		Financings: financings,
-		Agenda:     agenda.NewService(bills, financings, cards),
-		Alelo:      alelo.NewService(conn),
-		Sessions:   auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
-		Backups:    backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
-		Version:    "test",
-		StartedAt:  time.Now(),
-		Log:        log,
+		Config:      cfg,
+		DB:          conn,
+		Accounts:    accounts,
+		Categories:  category.NewService(conn),
+		Ledger:      ledger.NewService(conn),
+		Incomes:     income.NewService(conn),
+		Cards:       cards,
+		Bills:       bills,
+		Financings:  financings,
+		Agenda:      agenda.NewService(bills, financings, cards),
+		Alelo:       alelo.NewService(conn),
+		Receivables: receivable.NewService(conn),
+		Sessions:    auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
+		Backups:     backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
+		Version:     "test",
+		StartedAt:   time.Now(),
+		Log:         log,
 	})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)

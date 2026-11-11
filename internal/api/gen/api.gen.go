@@ -121,6 +121,7 @@ const (
 	EntryKindExpense        EntryKind = "expense"
 	EntryKindIncome         EntryKind = "income"
 	EntryKindInvoicePayment EntryKind = "invoice_payment"
+	EntryKindReceivable     EntryKind = "receivable"
 	EntryKindTransfer       EntryKind = "transfer"
 )
 
@@ -134,6 +135,8 @@ func (e EntryKind) Valid() bool {
 	case EntryKindIncome:
 		return true
 	case EntryKindInvoicePayment:
+		return true
+	case EntryKindReceivable:
 		return true
 	case EntryKindTransfer:
 		return true
@@ -690,6 +693,11 @@ type CategoryUpdate struct {
 // Cents Amount in cents (RN-21).
 type Cents = int64
 
+// ChargeMessage defines model for ChargeMessage.
+type ChargeMessage struct {
+	Text string `json:"text"`
+}
+
 // CreditInput defines model for CreditInput.
 type CreditInput struct {
 	// AmountCents Amount in cents (RN-21).
@@ -1170,6 +1178,44 @@ type PurchaseInput struct {
 	Split *SplitInput `json:"split,omitempty"`
 }
 
+// ReceiptCreate defines model for ReceiptCreate.
+type ReceiptCreate struct {
+	AccountId int64              `json:"accountId"`
+	Date      openapi_types.Date `json:"date"`
+	ItemIds   []int64            `json:"itemIds"`
+}
+
+// ReceivableItem defines model for ReceivableItem.
+type ReceivableItem struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	CardName    string             `json:"cardName"`
+	Count       int                `json:"count"`
+	DueOn       openapi_types.Date `json:"dueOn"`
+	EntryId     *int64             `json:"entryId,omitempty"`
+	Id          int64              `json:"id"`
+
+	// InvoiceMonth Example: 2026-11
+	InvoiceMonth Month               `json:"invoiceMonth"`
+	Merchant     string              `json:"merchant"`
+	Number       int                 `json:"number"`
+	PurchaseDate openapi_types.Date  `json:"purchaseDate"`
+	PurchaseId   int64               `json:"purchaseId"`
+	Received     bool                `json:"received"`
+	ReceivedIn   *string             `json:"receivedIn,omitempty"`
+	ReceivedOn   *openapi_types.Date `json:"receivedOn,omitempty"`
+}
+
+// ReceivablePerson defines model for ReceivablePerson.
+type ReceivablePerson struct {
+	Items   []ReceivableItem `json:"items"`
+	Name    string           `json:"name"`
+	PartyId int64            `json:"partyId"`
+
+	// PendingCents Amount in cents (RN-21).
+	PendingCents Cents `json:"pendingCents"`
+}
+
 // Recurrence defines model for Recurrence.
 type Recurrence struct {
 	// AmountCents Amount in cents (RN-21).
@@ -1419,6 +1465,9 @@ type UpdatePreferencesJSONRequestBody = PreferencesUpdate
 // UpdatePurchaseJSONRequestBody defines body for UpdatePurchase for application/json ContentType.
 type UpdatePurchaseJSONRequestBody = PurchaseInput
 
+// MarkReceivedJSONRequestBody defines body for MarkReceived for application/json ContentType.
+type MarkReceivedJSONRequestBody = ReceiptCreate
+
 // UpdateRecurrenceJSONRequestBody defines body for UpdateRecurrence for application/json ContentType.
 type UpdateRecurrenceJSONRequestBody = RecurrenceUpdate
 
@@ -1631,6 +1680,15 @@ type ServerInterface interface {
 	// UpdatePurchase Replaces a purchase and regenerates its installments.
 	// (PUT /purchases/{id})
 	UpdatePurchase(w http.ResponseWriter, r *http.Request, id Id)
+	// ListReceivables What other people owe, grouped by person with the pending total (RF-28).
+	// (GET /receivables)
+	ListReceivables(w http.ResponseWriter, r *http.Request)
+	// MarkReceived Marks shares of one person as paid back into an account, not counted as income (RF-26, RF-30, RN-06).
+	// (POST /receivables/receipts)
+	MarkReceived(w http.ResponseWriter, r *http.Request)
+	// GetChargeMessage Charge message for a person with the pending installments, ready for WhatsApp (RF-29).
+	// (GET /receivables/{id}/message)
+	GetChargeMessage(w http.ResponseWriter, r *http.Request, id Id)
 	// DeleteRecurrence Deletes a recurrence that is not on a paid invoice.
 	// (DELETE /recurrences/{id})
 	DeleteRecurrence(w http.ResponseWriter, r *http.Request, id Id)
@@ -3318,6 +3376,60 @@ func (siw *ServerInterfaceWrapper) UpdatePurchase(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ListReceivables operation middleware
+func (siw *ServerInterfaceWrapper) ListReceivables(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListReceivables(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MarkReceived operation middleware
+func (siw *ServerInterfaceWrapper) MarkReceived(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkReceived(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetChargeMessage operation middleware
+func (siw *ServerInterfaceWrapper) GetChargeMessage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetChargeMessage(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteRecurrence operation middleware
 func (siw *ServerInterfaceWrapper) DeleteRecurrence(w http.ResponseWriter, r *http.Request) {
 
@@ -3634,6 +3746,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alelo/{id}/months/{month}/credit", wrapper.ConfirmAleloCredit)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alelo/{id}/purchases", wrapper.AddAleloPurchase)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/alelo-purchases/{id}", wrapper.DeleteAleloPurchase)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/receivables", wrapper.ListReceivables)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/receivables/receipts", wrapper.MarkReceived)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/receivables/{id}/message", wrapper.GetChargeMessage)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/parties", wrapper.ListParties)
 
 	return m
@@ -7678,6 +7793,169 @@ func (response UpdatePurchase409JSONResponse) VisitUpdatePurchaseResponse(w http
 	return err
 }
 
+type ListReceivablesRequestObject struct {
+}
+
+type ListReceivablesResponseObject interface {
+	VisitListReceivablesResponse(w http.ResponseWriter) error
+}
+
+type ListReceivables200JSONResponse []ReceivablePerson
+
+func (response ListReceivables200JSONResponse) VisitListReceivablesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListReceivables401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListReceivables401JSONResponse) VisitListReceivablesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkReceivedRequestObject struct {
+	Body *MarkReceivedJSONRequestBody
+}
+
+type MarkReceivedResponseObject interface {
+	VisitMarkReceivedResponse(w http.ResponseWriter) error
+}
+
+type MarkReceived201JSONResponse Entry
+
+func (response MarkReceived201JSONResponse) VisitMarkReceivedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkReceived400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response MarkReceived400JSONResponse) VisitMarkReceivedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkReceived401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response MarkReceived401JSONResponse) VisitMarkReceivedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkReceived404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response MarkReceived404JSONResponse) VisitMarkReceivedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MarkReceived409JSONResponse struct{ ConflictJSONResponse }
+
+func (response MarkReceived409JSONResponse) VisitMarkReceivedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChargeMessageRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type GetChargeMessageResponseObject interface {
+	VisitGetChargeMessageResponse(w http.ResponseWriter) error
+}
+
+type GetChargeMessage200JSONResponse ChargeMessage
+
+func (response GetChargeMessage200JSONResponse) VisitGetChargeMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChargeMessage401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetChargeMessage401JSONResponse) VisitGetChargeMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetChargeMessage404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetChargeMessage404JSONResponse) VisitGetChargeMessageResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteRecurrenceRequestObject struct {
 	Id Id `json:"id"`
 }
@@ -8267,6 +8545,15 @@ type StrictServerInterface interface {
 	// UpdatePurchase Replaces a purchase and regenerates its installments.
 	// (PUT /purchases/{id})
 	UpdatePurchase(ctx context.Context, request UpdatePurchaseRequestObject) (UpdatePurchaseResponseObject, error)
+	// ListReceivables What other people owe, grouped by person with the pending total (RF-28).
+	// (GET /receivables)
+	ListReceivables(ctx context.Context, request ListReceivablesRequestObject) (ListReceivablesResponseObject, error)
+	// MarkReceived Marks shares of one person as paid back into an account, not counted as income (RF-26, RF-30, RN-06).
+	// (POST /receivables/receipts)
+	MarkReceived(ctx context.Context, request MarkReceivedRequestObject) (MarkReceivedResponseObject, error)
+	// GetChargeMessage Charge message for a person with the pending installments, ready for WhatsApp (RF-29).
+	// (GET /receivables/{id}/message)
+	GetChargeMessage(ctx context.Context, request GetChargeMessageRequestObject) (GetChargeMessageResponseObject, error)
 	// DeleteRecurrence Deletes a recurrence that is not on a paid invoice.
 	// (DELETE /recurrences/{id})
 	DeleteRecurrence(ctx context.Context, request DeleteRecurrenceRequestObject) (DeleteRecurrenceResponseObject, error)
@@ -10282,6 +10569,87 @@ func (sh *strictHandler) UpdatePurchase(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdatePurchaseResponseObject); ok {
 		if err := validResponse.VisitUpdatePurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListReceivables operation middleware
+func (sh *strictHandler) ListReceivables(w http.ResponseWriter, r *http.Request) {
+	var request ListReceivablesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListReceivables(ctx, request.(ListReceivablesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListReceivables")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListReceivablesResponseObject); ok {
+		if err := validResponse.VisitListReceivablesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MarkReceived operation middleware
+func (sh *strictHandler) MarkReceived(w http.ResponseWriter, r *http.Request) {
+	var request MarkReceivedRequestObject
+
+	var body MarkReceivedJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkReceived(ctx, request.(MarkReceivedRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkReceived")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkReceivedResponseObject); ok {
+		if err := validResponse.VisitMarkReceivedResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetChargeMessage operation middleware
+func (sh *strictHandler) GetChargeMessage(w http.ResponseWriter, r *http.Request, id Id) {
+	var request GetChargeMessageRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetChargeMessage(ctx, request.(GetChargeMessageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetChargeMessage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetChargeMessageResponseObject); ok {
+		if err := validResponse.VisitGetChargeMessageResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
