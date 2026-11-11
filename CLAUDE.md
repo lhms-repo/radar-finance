@@ -61,7 +61,7 @@ Sistema web de gestão financeira de um casal, hospedado em casa e acessado só 
 - Produção nesta máquina Windows: `https://<nome-do-pc>.local` e IPs reservados no roteador, definidos em `deploy/.env` (fora do git). Certificados em `deploy/certs/`, com a autoridade local em `deploy/certs/ca`, que nunca sai do PC. Para regenerar o certificado, reutilize a mesma autoridade, senão os iPhones deixam de confiar.
 - POC da NFC-e validada com uma nota real de Goiás em 11/11/2026. O link do QR code devolve uma casca com iframe; o iframe, buscado com o mesmo cookie, traz o DANFE como string em `new DanfeNFCe(...)`, no layout do portal nacional. Para a Fase 7: preço unitário pode ter três casas decimais (combustível) e hoje é truncado em centavos.
 - Pendente: login automático e energia do Windows (seção 2 de `docs/instalacao.md`).
-- Fase 2 em andamento: etapas 2.1 (categorias) e 2.2 (contas bancárias) entregues. Lançamentos de conta ficam em `entries`, com valor com sinal; compras no cartão ficam nas tabelas do cartão e só o pagamento da fatura toca a conta (RN-07).
+- Fase 2 em andamento: etapas 2.1 (categorias), 2.2 (contas bancárias) e 2.3 (rendas) entregues. Rendas previstas são derivadas do cadastro a cada mês; confirmar grava o lançamento ligado a `income_id` e `income_month`. Lançamentos de conta ficam em `entries`, com valor com sinal; compras no cartão ficam nas tabelas do cartão e só o pagamento da fatura toca a conta (RN-07).
 - Atualize esta seção ao fim de cada fase.
 
 ## Plataforma

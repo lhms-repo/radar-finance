@@ -10,6 +10,7 @@ import { PreferencesProvider, usePreferences } from "@/lib/preferences";
 import { AccountDetailPage } from "@/pages/AccountDetailPage";
 import { AccountsPage } from "@/pages/AccountsPage";
 import { CategoriesPage } from "@/pages/CategoriesPage";
+import { IncomesPage } from "@/pages/IncomesPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: "settings/categories", element: <CategoriesPage /> },
       { path: "settings/accounts", element: <AccountsPage /> },
       { path: "settings/accounts/:id", element: <AccountDetailPage /> },
+      { path: "settings/incomes", element: <IncomesPage /> },
       { path: "*", element: <PlaceholderPage id="overview" /> },
     ],
   },
