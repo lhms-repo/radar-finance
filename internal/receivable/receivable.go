@@ -14,6 +14,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/money"
 	"github.com/italogfx/radar-finance/internal/problem"
 )
 
@@ -196,20 +197,7 @@ func (s *Service) Message(ctx context.Context, partyID int64) (string, error) {
 }
 
 // FormatBRL writes cents as Brazilian reais, like R$ 1.234,56, for messages sent out of the app.
-func FormatBRL(cents int64) string {
-	sign := ""
-	if cents < 0 {
-		sign, cents = "-", -cents
-	}
-	whole := fmt.Sprintf("%d", cents/100)
-	var groups []string
-	for len(whole) > 3 {
-		groups = append([]string{whole[len(whole)-3:]}, groups...)
-		whole = whole[:len(whole)-3]
-	}
-	groups = append([]string{whole}, groups...)
-	return fmt.Sprintf("%sR$ %s,%02d", sign, strings.Join(groups, "."), cents%100)
-}
+func FormatBRL(cents int64) string { return money.Format(cents) }
 
 // toItem converts a stored share, working out the due date of its invoice.
 func toItem(r store.ListReceivablesRow) (Item, error) {

@@ -195,6 +195,12 @@ type InvoicePayment struct {
 	CreatedAt    time.Time
 }
 
+type NotificationRead struct {
+	UserID int64
+	Key    string
+	ReadAt time.Time
+}
+
 type Party struct {
 	ID        int64
 	Name      string
