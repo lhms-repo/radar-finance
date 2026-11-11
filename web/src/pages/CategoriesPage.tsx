@@ -11,6 +11,7 @@ import { ApiRequestError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogActions } from "@/components/ui/dialog";
+import { FieldError } from "@/components/ui/field";
 import { Input, Label } from "@/components/ui/input";
 import {
   useCategories,
@@ -345,6 +346,7 @@ function MoveDialog({ category, tree, onClose }: { category: Category | null; tr
     move.mutate({ id: category.id, body }, { onSuccess: close });
   };
 
+  /** Classes of a destination button, highlighted when selected. */
   const choice = (selected: boolean) =>
     cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors", selected ? "bg-primary/10 text-primary" : "hover:bg-accent");
 
@@ -422,25 +424,5 @@ function DeleteDialog({ category, onClose }: { category: Category | null; onClos
         )}
       </DialogActions>
     </Dialog>
-  );
-}
-
-/** Red helper text under a field, animated in and out. */
-function FieldError({ message }: { message?: string }) {
-  return (
-    <AnimatePresence initial={false}>
-      {message && (
-        <motion.p
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={fade}
-          role="alert"
-          className="text-sm text-destructive"
-        >
-          {message}
-        </motion.p>
-      )}
-    </AnimatePresence>
   );
 }

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, CheckCircle2, ChevronRight, Download, HardDrive, LogOut, Monitor, Moon, Sun, Tags } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Download, HardDrive, Landmark, LogOut, Monitor, Moon, Sun, Tags } from "lucide-react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { api, unwrap, type Backup, type Theme } from "@/api/client";
@@ -41,7 +41,10 @@ export function SettingsPage() {
 
 /** Links to the record screens kept in Settings (section 5.2). */
 function RecordsCard() {
-  const links = [{ to: "/settings/categories", label: "Categorias", hint: "Criar, renomear, mover e desativar", icon: Tags }];
+  const links = [
+    { to: "/settings/accounts", label: "Contas bancárias", hint: "Saldos, extrato, ajustes e transferências", icon: Landmark },
+    { to: "/settings/categories", label: "Categorias", hint: "Criar, renomear, mover e desativar", icon: Tags },
+  ];
   return (
     <Card className="flex flex-col gap-2 lg:col-span-2">
       <CardTitle>Cadastros</CardTitle>

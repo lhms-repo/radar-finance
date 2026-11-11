@@ -55,3 +55,43 @@ export function currentMonth(): { year: number; month: number } {
   const month = Number(parts.find((p) => p.type === "month")?.value);
   return { year, month };
 }
+
+const moneyFormat = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const plainMoneyFormat = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Formats integer cents as reais, like R$ 1.234,56 (RN-21: cents only become reais on screen). */
+export function formatMoney(cents: number) {
+  return moneyFormat.format(cents / 100);
+}
+
+/** Formats integer cents without the currency symbol, like 1.234,56. */
+export function formatAmount(cents: number) {
+  return plainMoneyFormat.format(Math.abs(cents) / 100);
+}
+
+/** Formats an ISO date like 2026-11-11 as 11/11/2026 (RNF-16). */
+export function formatDate(iso: string) {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/** Formats an ISO date as a short day and month, like 11/11. */
+export function formatDayMonth(iso: string) {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
+const dayParts = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** Returns today in São Paulo as an ISO date, built from parts because locale formats differ between engines. */
+export function todayISO() {
+  const parts = dayParts.formatToParts(new Date());
+  /** Returns the value of one date part. */
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** Returns the YYYY-MM form the API uses for a month. */
+export function monthParam(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
