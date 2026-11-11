@@ -230,13 +230,41 @@ func (a *API) DeleteRecurrence(ctx context.Context, req gen.DeleteRecurrenceRequ
 	return gen.DeleteRecurrence204Response{}, nil
 }
 
-// fromPurchaseInput converts the API purchase input.
+// fromPurchaseInput converts the API purchase input, with the split when present.
 func fromPurchaseInput(cardID int64, b gen.PurchaseInput) card.PurchaseInput {
-	return card.PurchaseInput{
+	in := card.PurchaseInput{
 		CardID: cardID, Date: fromDate(b.Date), Merchant: b.Merchant, Description: deref(b.Description), CategoryID: b.CategoryId,
 		BuyerPersonID: b.BuyerPersonId, AmountCents: b.AmountCents, Installments: b.Installments,
 		PerInstallment: b.PerInstallment != nil && *b.PerInstallment,
 	}
+	if sp := b.Split; sp != nil {
+		split := card.SplitInput{Mode: card.SplitMode(sp.Mode)}
+		if sp.CoupleParts != nil {
+			split.CoupleParts = *sp.CoupleParts
+		}
+		for _, p := range sp.Parties {
+			share := card.PartyShare{Name: p.Name}
+			if p.ShareCents != nil {
+				share.ShareCents = *p.ShareCents
+			}
+			split.Parties = append(split.Parties, share)
+		}
+		in.Split = &split
+	}
+	return in
+}
+
+// ListParties lists the names already used in splits (RF-27).
+func (a *API) ListParties(ctx context.Context, _ gen.ListPartiesRequestObject) (gen.ListPartiesResponseObject, error) {
+	list, err := a.d.Cards.Parties(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(gen.ListParties200JSONResponse, 0, len(list))
+	for _, p := range list {
+		out = append(out, gen.Party{Id: p.ID, Name: p.Name})
+	}
+	return out, nil
 }
 
 // optionalMonth parses an optional YYYY-MM month.
@@ -280,6 +308,14 @@ func toInvoice(inv card.Invoice) gen.Invoice {
 			total := it.PurchaseTotalCents
 			item.PurchaseTotalCents = &total
 		}
+		if len(it.Shares) > 0 {
+			third := it.ThirdPartyCents
+			shares := make([]gen.ItemShare, 0, len(it.Shares))
+			for _, sh := range it.Shares {
+				shares = append(shares, gen.ItemShare{PartyName: sh.PartyName, AmountCents: sh.AmountCents, Received: sh.Received})
+			}
+			item.ThirdPartyCents, item.Shares = &third, &shares
+		}
 		out.Items = append(out.Items, item)
 	}
 	if p := inv.Payment; p != nil {
@@ -288,12 +324,17 @@ func toInvoice(inv card.Invoice) gen.Invoice {
 	return out
 }
 
-// toPurchase converts a purchase to the API model.
+// toPurchase converts a purchase to the API model, with the shares of other people.
 func toPurchase(p card.Purchase) gen.Purchase {
+	splits := make([]gen.SplitShare, 0, len(p.Splits))
+	for _, s := range p.Splits {
+		splits = append(splits, gen.SplitShare{PartyId: s.PartyID, PartyName: s.PartyName, ShareCents: s.ShareCents})
+	}
+	couple := p.CoupleShareCents
 	return gen.Purchase{
 		Id: p.ID, CardId: p.CardID, Kind: gen.PurchaseKind(p.Kind), Date: apiDate(p.Date), Merchant: p.Merchant, Description: p.Description,
 		CategoryId: p.CategoryID, BuyerPersonId: p.BuyerPersonID, TotalCents: p.TotalCents, Installments: p.Installments,
-		FirstInvoice: p.FirstInvoice.String(),
+		FirstInvoice: p.FirstInvoice.String(), Splits: &splits, CoupleShareCents: &couple,
 	}
 }
 

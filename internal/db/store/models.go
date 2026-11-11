@@ -187,6 +187,13 @@ type InvoicePayment struct {
 	CreatedAt    time.Time
 }
 
+type Party struct {
+	ID        int64
+	Name      string
+	CreatedBy int64
+	CreatedAt time.Time
+}
+
 type Person struct {
 	ID        int64
 	Name      string
@@ -233,6 +240,23 @@ type Session struct {
 	Token    string
 	Data     []byte
 	ExpiryMs int64
+}
+
+type Split struct {
+	ID         int64
+	PurchaseID int64
+	PartyID    int64
+	ShareCents int64
+}
+
+type SplitInstallment struct {
+	ID           int64
+	SplitID      int64
+	Number       int64
+	CardID       int64
+	InvoiceMonth string
+	AmountCents  int64
+	EntryID      sql.NullInt64
 }
 
 type Transfer struct {

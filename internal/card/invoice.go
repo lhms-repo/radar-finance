@@ -53,6 +53,9 @@ type Item struct {
 	BuyerPersonID      *int64
 	BuyerName          string
 	CreatedByName      string
+	// ThirdPartyCents is the part of this line owed by other people (RN-05).
+	ThirdPartyCents int64
+	Shares          []ItemShare
 }
 
 // PaymentInfo is the recorded payment of an invoice.
@@ -73,7 +76,7 @@ type Invoice struct {
 	Status    Status
 	// TotalCents is the real total of the invoice.
 	TotalCents int64
-	// Third party shares arrive in phase 4; until then they are zero and the net part equals the total (RN-05).
+	// ThirdPartyCents is owed by other people; the net part is what the couple pays (RN-05).
 	ThirdPartyCents int64
 	ReceivedCents   int64
 	PendingCents    int64
@@ -134,6 +137,9 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 		})
 		inv.TotalCents += r.AmountCents
 	}
+	if err := s.addShares(ctx, q, &inv); err != nil {
+		return Invoice{}, err
+	}
 	recs, err := s.recurrences(ctx, q, c)
 	if err != nil {
 		return Invoice{}, err
@@ -161,6 +167,30 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 	inv.Status = s.status(c, m, inv.Payment != nil, inv.TotalCents)
 	inv.NetCents = inv.TotalCents - inv.ThirdPartyCents
 	return inv, nil
+}
+
+// addShares puts the shares of other people on the lines and in the totals: owed, received and pending (RN-05, RN-06).
+func (s *Service) addShares(ctx context.Context, q *store.Queries, inv *Invoice) error {
+	rows, err := q.ListInvoiceSplitInstallments(ctx, store.ListInvoiceSplitInstallmentsParams{CardID: inv.CardID, InvoiceMonth: inv.Month.String()})
+	if err != nil {
+		return fmt.Errorf("list shares: %w", err)
+	}
+	for _, r := range rows {
+		for i := range inv.Items {
+			it := &inv.Items[i]
+			if it.PurchaseID == nil || *it.PurchaseID != r.PurchaseID {
+				continue
+			}
+			it.Shares = append(it.Shares, ItemShare{PartyName: r.PartyName, AmountCents: r.AmountCents, Received: r.EntryID.Valid})
+			it.ThirdPartyCents += r.AmountCents
+		}
+		inv.ThirdPartyCents += r.AmountCents
+		if r.EntryID.Valid {
+			inv.ReceivedCents += r.AmountCents
+		}
+	}
+	inv.PendingCents = inv.ThirdPartyCents - inv.ReceivedCents
+	return nil
 }
 
 // status tells the state of invoice m today; the invoice closes on its closing day (RN-02).

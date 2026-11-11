@@ -238,6 +238,24 @@ func (e PurchaseKind) Valid() bool {
 	}
 }
 
+// Defines values for SplitInputMode.
+const (
+	Custom SplitInputMode = "custom"
+	Equal  SplitInputMode = "equal"
+)
+
+// Valid indicates whether the value is a known member of the SplitInputMode enum.
+func (e SplitInputMode) Valid() bool {
+	switch e {
+	case Custom:
+		return true
+	case Equal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Theme.
 const (
 	Dark   Theme = "dark"
@@ -969,8 +987,12 @@ type InvoiceItem struct {
 	PurchaseId         *int64  `json:"purchaseId,omitempty"`
 
 	// PurchaseTotalCents Amount in cents (RN-21).
-	PurchaseTotalCents *Cents `json:"purchaseTotalCents,omitempty"`
-	RecurrenceId       *int64 `json:"recurrenceId,omitempty"`
+	PurchaseTotalCents *Cents       `json:"purchaseTotalCents,omitempty"`
+	RecurrenceId       *int64       `json:"recurrenceId,omitempty"`
+	Shares             *[]ItemShare `json:"shares,omitempty"`
+
+	// ThirdPartyCents Amount in cents (RN-21).
+	ThirdPartyCents *Cents `json:"thirdPartyCents,omitempty"`
 }
 
 // InvoiceItemKind defines model for InvoiceItemKind.
@@ -1006,6 +1028,14 @@ type InvoiceSummary struct {
 
 	// TotalCents Amount in cents (RN-21).
 	TotalCents Cents `json:"totalCents"`
+}
+
+// ItemShare defines model for ItemShare.
+type ItemShare struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents  `json:"amountCents"`
+	PartyName   string `json:"partyName"`
+	Received    bool   `json:"received"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -1062,6 +1092,20 @@ type OneOffIncomeCreate struct {
 	Description *string            `json:"description,omitempty"`
 }
 
+// Party defines model for Party.
+type Party struct {
+	Id   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// PartyShare defines model for PartyShare.
+type PartyShare struct {
+	Name string `json:"name"`
+
+	// ShareCents Amount in cents (RN-21).
+	ShareCents *Cents `json:"shareCents,omitempty"`
+}
+
 // Person defines model for Person.
 type Person struct {
 	Id   int64  `json:"id"`
@@ -1084,18 +1128,22 @@ type PreferencesUpdate struct {
 
 // Purchase defines model for Purchase.
 type Purchase struct {
-	BuyerPersonId *int64             `json:"buyerPersonId,omitempty"`
-	CardId        int64              `json:"cardId"`
-	CategoryId    *int64             `json:"categoryId,omitempty"`
-	Date          openapi_types.Date `json:"date"`
-	Description   string             `json:"description"`
+	BuyerPersonId *int64 `json:"buyerPersonId,omitempty"`
+	CardId        int64  `json:"cardId"`
+	CategoryId    *int64 `json:"categoryId,omitempty"`
+
+	// CoupleShareCents Amount in cents (RN-21).
+	CoupleShareCents *Cents             `json:"coupleShareCents,omitempty"`
+	Date             openapi_types.Date `json:"date"`
+	Description      string             `json:"description"`
 
 	// FirstInvoice Example: 2026-11
-	FirstInvoice Month        `json:"firstInvoice"`
-	Id           int64        `json:"id"`
-	Installments int          `json:"installments"`
-	Kind         PurchaseKind `json:"kind"`
-	Merchant     string       `json:"merchant"`
+	FirstInvoice Month         `json:"firstInvoice"`
+	Id           int64         `json:"id"`
+	Installments int           `json:"installments"`
+	Kind         PurchaseKind  `json:"kind"`
+	Merchant     string        `json:"merchant"`
+	Splits       *[]SplitShare `json:"splits,omitempty"`
 
 	// TotalCents Amount in cents (RN-21).
 	TotalCents Cents `json:"totalCents"`
@@ -1117,6 +1165,9 @@ type PurchaseInput struct {
 
 	// PerInstallment amountCents is the value of each installment instead of the total.
 	PerInstallment *bool `json:"perInstallment,omitempty"`
+
+	// Split Divides the purchase between the couple and other people (RF-24, RF-25).
+	Split *SplitInput `json:"split,omitempty"`
 }
 
 // Recurrence defines model for Recurrence.
@@ -1161,6 +1212,26 @@ type RecurrenceUpdate struct {
 
 	// EndMonth Example: 2026-11
 	EndMonth *Month `json:"endMonth,omitempty"`
+}
+
+// SplitInput Divides the purchase between the couple and other people (RF-24, RF-25).
+type SplitInput struct {
+	// CoupleParts Equal parts kept by the couple; the couple keeps the leftover cents.
+	CoupleParts *int           `json:"coupleParts,omitempty"`
+	Mode        SplitInputMode `json:"mode"`
+	Parties     []PartyShare   `json:"parties"`
+}
+
+// SplitInputMode defines model for SplitInput.Mode.
+type SplitInputMode string
+
+// SplitShare defines model for SplitShare.
+type SplitShare struct {
+	PartyId   int64  `json:"partyId"`
+	PartyName string `json:"partyName"`
+
+	// ShareCents Amount in cents (RN-21).
+	ShareCents Cents `json:"shareCents"`
 }
 
 // Statement defines model for Statement.
@@ -1542,6 +1613,9 @@ type ServerInterface interface {
 	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
 	// (GET /month-flow)
 	GetMonthFlow(w http.ResponseWriter, r *http.Request, params GetMonthFlowParams)
+	// ListParties Names of the people already used in splits, for suggestions (RF-27).
+	// (GET /parties)
+	ListParties(w http.ResponseWriter, r *http.Request)
 	// ListPersons Lists the people of the couple, holders of accounts and cards.
 	// (GET /persons)
 	ListPersons(w http.ResponseWriter, r *http.Request)
@@ -3121,6 +3195,20 @@ func (siw *ServerInterfaceWrapper) GetMonthFlow(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// ListParties operation middleware
+func (siw *ServerInterfaceWrapper) ListParties(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListParties(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListPersons operation middleware
 func (siw *ServerInterfaceWrapper) ListPersons(w http.ResponseWriter, r *http.Request) {
 
@@ -3516,6 +3604,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alelo/{id}/months/{month}/credit", wrapper.ConfirmAleloCredit)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alelo/{id}/purchases", wrapper.AddAleloPurchase)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/alelo-purchases/{id}", wrapper.DeleteAleloPurchase)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/parties", wrapper.ListParties)
 
 	return m
 }
@@ -7295,6 +7384,41 @@ func (response GetMonthFlow401JSONResponse) VisitGetMonthFlowResponse(w http.Res
 	return err
 }
 
+type ListPartiesRequestObject struct {
+}
+
+type ListPartiesResponseObject interface {
+	VisitListPartiesResponse(w http.ResponseWriter) error
+}
+
+type ListParties200JSONResponse []Party
+
+func (response ListParties200JSONResponse) VisitListPartiesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListParties401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListParties401JSONResponse) VisitListPartiesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListPersonsRequestObject struct {
 }
 
@@ -8045,6 +8169,9 @@ type StrictServerInterface interface {
 	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
 	// (GET /month-flow)
 	GetMonthFlow(ctx context.Context, request GetMonthFlowRequestObject) (GetMonthFlowResponseObject, error)
+	// ListParties Names of the people already used in splits, for suggestions (RF-27).
+	// (GET /parties)
+	ListParties(ctx context.Context, request ListPartiesRequestObject) (ListPartiesResponseObject, error)
 	// ListPersons Lists the people of the couple, holders of accounts and cards.
 	// (GET /persons)
 	ListPersons(ctx context.Context, request ListPersonsRequestObject) (ListPersonsResponseObject, error)
@@ -9915,6 +10042,30 @@ func (sh *strictHandler) GetMonthFlow(w http.ResponseWriter, r *http.Request, pa
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMonthFlowResponseObject); ok {
 		if err := validResponse.VisitGetMonthFlowResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListParties operation middleware
+func (sh *strictHandler) ListParties(w http.ResponseWriter, r *http.Request) {
+	var request ListPartiesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListParties(ctx, request.(ListPartiesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListParties")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPartiesResponseObject); ok {
+		if err := validResponse.VisitListPartiesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

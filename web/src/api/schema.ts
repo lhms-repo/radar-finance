@@ -978,6 +978,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/parties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Names of the people already used in splits, for suggestions (RF-27). */
+        get: operations["listParties"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1353,6 +1370,8 @@ export interface components {
             buyerPersonId?: number;
             buyerName?: string;
             createdByName?: string;
+            thirdPartyCents?: components["schemas"]["Cents"];
+            shares?: components["schemas"]["ItemShare"][];
         };
         InvoicePayment: {
             /** Format: int64 */
@@ -1409,6 +1428,7 @@ export interface components {
             installments: number;
             /** @description amountCents is the value of each installment instead of the total. */
             perInstallment?: boolean;
+            split?: components["schemas"]["SplitInput"];
         };
         CreditInput: {
             /** Format: date */
@@ -1437,6 +1457,36 @@ export interface components {
             totalCents: components["schemas"]["Cents"];
             installments: number;
             firstInvoice: components["schemas"]["Month"];
+            splits?: components["schemas"]["SplitShare"][];
+            coupleShareCents?: components["schemas"]["Cents"];
+        };
+        /** @description Divides the purchase between the couple and other people (RF-24, RF-25). */
+        SplitInput: {
+            /** @enum {string} */
+            mode: "equal" | "custom";
+            /** @description Equal parts kept by the couple; the couple keeps the leftover cents. */
+            coupleParts?: number;
+            parties: components["schemas"]["PartyShare"][];
+        };
+        PartyShare: {
+            name: string;
+            shareCents?: components["schemas"]["Cents"];
+        };
+        SplitShare: {
+            /** Format: int64 */
+            partyId: number;
+            partyName: string;
+            shareCents: components["schemas"]["Cents"];
+        };
+        ItemShare: {
+            partyName: string;
+            amountCents: components["schemas"]["Cents"];
+            received: boolean;
+        };
+        Party: {
+            /** Format: int64 */
+            id: number;
+            name: string;
         };
         RecurrenceInput: {
             description: string;
@@ -3641,6 +3691,27 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listParties: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description People outside the couple. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Party"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
         };
     };
 }

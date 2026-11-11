@@ -34,6 +34,11 @@ type Purchase struct {
 	TotalCents    int64
 	Installments  int
 	FirstInvoice  civil.Month
+	// Splits are the shares of other people; the couple keeps the rest (RF-24, RN-04).
+	Splits           []SplitShare
+	CoupleShareCents int64
+	shares           []PartyShare
+	createdBy        int64
 }
 
 // PurchaseInput registers a purchase (RF-15, RF-16); with PerInstallment the amount is of each installment.
@@ -47,6 +52,8 @@ type PurchaseInput struct {
 	AmountCents    int64
 	Installments   int
 	PerInstallment bool
+	// Split divides the purchase with other people; nil keeps it for the couple (RF-24).
+	Split *SplitInput
 }
 
 // CreditInput registers a refund or another credit on the invoice of its date (RF-22).
@@ -77,7 +84,10 @@ func (s *Service) AddPurchase(ctx context.Context, userID int64, in PurchaseInpu
 			return fmt.Errorf("create purchase: %w", err)
 		}
 		id = row.ID
-		return writeInstallments(ctx, q, id, p, 1)
+		if err := writeInstallments(ctx, q, id, p, 1); err != nil {
+			return err
+		}
+		return s.writeSplits(ctx, q, userID, id, p, p.shares)
 	})
 	if err != nil {
 		return Purchase{}, err
@@ -85,7 +95,7 @@ func (s *Service) AddPurchase(ctx context.Context, userID int64, in PurchaseInpu
 	return s.getPurchase(ctx, store.New(s.conn), id)
 }
 
-// UpdatePurchase replaces a purchase and regenerates its installments; the card stays the same.
+// UpdatePurchase replaces a purchase and regenerates its installments and shares; the card stays the same.
 func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput) (Purchase, error) {
 	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		cur, err := s.getPurchase(ctx, q, id)
@@ -94,6 +104,9 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 		}
 		if cur.Kind != kindPurchase {
 			return ErrPurchaseNotFound
+		}
+		if err := checkNoReceived(ctx, q, id); err != nil {
+			return err
 		}
 		in.CardID = cur.CardID
 		p, err := s.preparePurchase(ctx, q, in)
@@ -110,7 +123,13 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 		if err := q.DeleteInstallments(ctx, id); err != nil {
 			return err
 		}
-		return writeInstallments(ctx, q, id, p, 1)
+		if err := q.DeleteSplits(ctx, id); err != nil {
+			return err
+		}
+		if err := writeInstallments(ctx, q, id, p, 1); err != nil {
+			return err
+		}
+		return s.writeSplits(ctx, q, cur.createdBy, id, p, p.shares)
 	})
 	if err != nil {
 		return Purchase{}, err
@@ -167,6 +186,9 @@ func (s *Service) DeletePurchase(ctx context.Context, id int64) error {
 		if _, err := s.getPurchase(ctx, q, id); err != nil {
 			return err
 		}
+		if err := checkNoReceived(ctx, q, id); err != nil {
+			return err
+		}
 		return q.DeletePurchase(ctx, id)
 	})
 }
@@ -208,10 +230,15 @@ func (s *Service) preparePurchase(ctx context.Context, q *store.Queries, in Purc
 			return Purchase{}, err
 		}
 	}
+	shares, err := resolveShares(total, in.Installments, in.Split)
+	if err != nil {
+		return Purchase{}, err
+	}
 	categoryID := in.CategoryID
 	return Purchase{
 		CardID: c.ID, Kind: kindPurchase, Date: in.Date, Merchant: merchant, Description: desc, CategoryID: &categoryID,
 		BuyerPersonID: in.BuyerPersonID, TotalCents: total, Installments: in.Installments, FirstInvoice: c.Cycle().InvoiceFor(in.Date),
+		shares: shares,
 	}, nil
 }
 
@@ -245,11 +272,21 @@ func (s *Service) getPurchase(ctx context.Context, q *store.Queries, id int64) (
 	if err != nil {
 		return Purchase{}, err
 	}
-	return Purchase{
+	splits, err := q.ListPurchaseSplits(ctx, id)
+	if err != nil {
+		return Purchase{}, err
+	}
+	p := Purchase{
 		ID: r.ID, CardID: r.CardID, Kind: r.Kind, Date: on, Merchant: r.Merchant, Description: r.Description,
 		CategoryID: idPtr(r.CategoryID), BuyerPersonID: idPtr(r.BuyerPersonID), TotalCents: r.TotalCents,
-		Installments: int(r.InstallmentCount), FirstInvoice: first,
-	}, nil
+		Installments: int(r.InstallmentCount), FirstInvoice: first, Splits: []SplitShare{}, CoupleShareCents: r.TotalCents,
+		createdBy: r.CreatedBy,
+	}
+	for _, sp := range splits {
+		p.Splits = append(p.Splits, SplitShare{PartyID: sp.PartyID, PartyName: sp.PartyName, ShareCents: sp.ShareCents})
+		p.CoupleShareCents -= sp.ShareCents
+	}
+	return p, nil
 }
 
 // cleanTexts trims and validates the merchant and the description.

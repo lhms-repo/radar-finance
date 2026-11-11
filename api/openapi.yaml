@@ -19,6 +19,7 @@ tags:
   - name: financings
   - name: agenda
   - name: alelo
+  - name: receivables
 paths:
   /ping:
     get:
@@ -1646,6 +1647,23 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /parties:
+    get:
+      operationId: listParties
+      tags: [receivables]
+      summary: Names of the people already used in splits, for suggestions (RF-27).
+      responses:
+        "200":
+          description: People outside the couple.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Party"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   parameters:
     Id:
@@ -2380,6 +2398,12 @@ components:
           type: string
         createdByName:
           type: string
+        thirdPartyCents:
+          $ref: "#/components/schemas/Cents"
+        shares:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemShare"
 
     InvoicePayment:
       type: object
@@ -2489,6 +2513,8 @@ components:
         perInstallment:
           type: boolean
           description: amountCents is the value of each installment instead of the total.
+        split:
+          $ref: "#/components/schemas/SplitInput"
 
     CreditInput:
       type: object
@@ -2541,6 +2567,71 @@ components:
           type: integer
         firstInvoice:
           $ref: "#/components/schemas/Month"
+        splits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SplitShare"
+        coupleShareCents:
+          $ref: "#/components/schemas/Cents"
+
+    SplitInput:
+      type: object
+      required: [mode, parties]
+      description: Divides the purchase between the couple and other people (RF-24, RF-25).
+      properties:
+        mode:
+          type: string
+          enum: [equal, custom]
+        coupleParts:
+          type: integer
+          description: Equal parts kept by the couple; the couple keeps the leftover cents.
+        parties:
+          type: array
+          items:
+            $ref: "#/components/schemas/PartyShare"
+
+    PartyShare:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 40
+        shareCents:
+          $ref: "#/components/schemas/Cents"
+
+    SplitShare:
+      type: object
+      required: [partyId, partyName, shareCents]
+      properties:
+        partyId:
+          type: integer
+          format: int64
+        partyName:
+          type: string
+        shareCents:
+          $ref: "#/components/schemas/Cents"
+
+    ItemShare:
+      type: object
+      required: [partyName, amountCents, received]
+      properties:
+        partyName:
+          type: string
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        received:
+          type: boolean
+
+    Party:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
 
     RecurrenceInput:
       type: object
