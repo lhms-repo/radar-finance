@@ -32,6 +32,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/market"
+	"github.com/italogfx/radar-finance/internal/nfce"
 	"github.com/italogfx/radar-finance/internal/notify"
 	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/report"
@@ -121,6 +122,11 @@ func serve(log *slog.Logger) error {
 
 	cards, bills, financings := card.NewService(conn), bill.NewService(conn), financing.NewService(conn)
 	sav, reports := savings.NewService(conn), report.NewService(conn, cards)
+	markets := market.NewService(conn)
+	if cfg.ReceiptFixtures != "" {
+		log.Warn("receipts read from fixtures, not from the Sefaz", "dir", cfg.ReceiptFixtures)
+		markets.WithFetcher(nfce.FixtureClient{Dir: cfg.ReceiptFixtures})
+	}
 	handler := server.New(server.Deps{
 		Config:        cfg,
 		DB:            conn,
@@ -137,7 +143,7 @@ func serve(log *slog.Logger) error {
 		Savings:       sav,
 		Reports:       reports,
 		Imports:       importer.NewService(conn, cards),
-		Market:        market.NewService(conn),
+		Market:        markets,
 		Notifications: notify.NewService(conn, agenda.NewService(bills, financings, cards), reports, sav, income.NewService(conn)),
 		Sessions:      sessions,
 		Backups:       backups,

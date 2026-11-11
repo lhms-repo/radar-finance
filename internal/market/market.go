@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/nfce"
 	"github.com/italogfx/radar-finance/internal/problem"
 )
 
@@ -72,9 +72,11 @@ var (
 
 // Service holds the market rules.
 type Service struct {
-	conn  *sql.DB
-	now   func() time.Time
-	today func() civil.Date
+	conn     *sql.DB
+	now      func() time.Time
+	today    func() civil.Date
+	receipts Fetcher
+	cache    *receiptCache
 }
 
 // NewService returns the service with the real clock in São Paulo.
@@ -83,7 +85,7 @@ func NewService(conn *sql.DB) *Service {
 	if err != nil {
 		loc = time.UTC
 	}
-	return &Service{conn: conn, now: time.Now, today: func() civil.Date { return civil.Today(loc) }}
+	return &Service{conn: conn, now: time.Now, today: func() civil.Date { return civil.Today(loc) }, receipts: nfce.NewClient(), cache: newReceiptCache()}
 }
 
 // Market is a store where prices are taken (RF-65).
@@ -181,6 +183,12 @@ func FormatSize(milli int64, u Unit) string {
 		unit = "L"
 	}
 	return s + " " + unit
+}
+
+// WithFetcher replaces the receipt reader, for tests and the fixtures of the end to end tests.
+func (s *Service) WithFetcher(f Fetcher) *Service {
+	s.receipts = f
+	return s
 }
 
 // Markets lists the markets, active first.
@@ -462,24 +470,6 @@ func (s *Service) UpdateSettings(ctx context.Context, in Settings) error {
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		return q.UpdateMarketSettings(ctx, store.UpdateMarketSettingsParams{MaxMarkets: int64(in.MaxMarkets), MinSavingsCents: in.MinSavingsCents, StaleDays: int64(in.StaleDays)})
 	})
-}
-
-// receiptAmount matches a Brazilian amount with up to three decimals, as printed on receipts.
-var receiptAmount = regexp.MustCompile(`^(\d{1,3}(?:\.\d{3})*|\d+)(?:,(\d{1,3}))?$`)
-
-// TruncateCents converts a receipt amount such as 6,499 to cents dropping the third decimal (RN-21).
-func TruncateCents(s string) (int64, error) {
-	m := receiptAmount.FindStringSubmatch(strings.TrimSpace(s))
-	if m == nil {
-		return 0, fmt.Errorf("invalid amount %q", s)
-	}
-	whole, err := strconv.ParseInt(strings.ReplaceAll(m[1], ".", ""), 10, 64)
-	if err != nil {
-		return 0, err
-	}
-	frac := (m[2] + "00")[:2]
-	f, _ := strconv.ParseInt(frac, 10, 64)
-	return whole*100 + f, nil
 }
 
 // checkPrice requires a positive price on a date up to today.

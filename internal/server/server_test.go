@@ -31,6 +31,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/market"
+	"github.com/italogfx/radar-finance/internal/nfce"
 	"github.com/italogfx/radar-finance/internal/notify"
 	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/report"
@@ -76,7 +77,7 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Savings:       sav,
 		Reports:       reports,
 		Imports:       importer.NewService(conn, cards),
-		Market:        market.NewService(conn),
+		Market:        market.NewService(conn).WithFetcher(nfce.FixtureClient{Dir: "../nfce/testdata"}),
 		Notifications: notify.NewService(conn, agenda.NewService(bills, financings, cards), reports, sav, income.NewService(conn)),
 		Sessions:      auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
 		Backups:       backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),

@@ -248,24 +248,6 @@ func TestSettings(t *testing.T) {
 	}
 }
 
-// TestTruncateCents drops the third decimal of receipt prices instead of rounding (RN-21).
-func TestTruncateCents(t *testing.T) {
-	tests := []struct {
-		in   string
-		want int64
-		ok   bool
-	}{
-		{"6,499", 649, true}, {"6,49", 649, true}, {"6,4", 640, true}, {"6", 600, true}, {"1.234,567", 123_456, true},
-		{"0,009", 0, true}, {"", 0, false}, {"abc", 0, false}, {"6,4999", 0, false},
-	}
-	for _, tt := range tests {
-		got, err := TruncateCents(tt.in)
-		if (err == nil) != tt.ok || got != tt.want {
-			t.Errorf("TruncateCents(%q) = %d, %v", tt.in, got, err)
-		}
-	}
-}
-
 // TestCatalog lists each product with the latest price per market and flags prices older than the configured days (RF-75, RN-25).
 func TestCatalog(t *testing.T) {
 	f := newFixture(t)

@@ -11,6 +11,8 @@ export RADAR_DB_PATH="$dir/radar.db"
 export RADAR_BACKUP_DIR="$dir/backups"
 export RADAR_COOKIE_SECURE=false
 export RADAR_ADDR=":${E2E_PORT:-8090}"
+# Receipts come from the fictional pages of internal/nfce/testdata, never from the Sefaz.
+export RADAR_NFCE_FIXTURES="$PWD/internal/nfce/testdata"
 
 (cd web && pnpm run build >/dev/null)
 CGO_ENABLED=0 go build -tags embedweb -o "$dir/radar" ./cmd/radar

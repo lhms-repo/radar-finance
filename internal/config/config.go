@@ -31,6 +31,8 @@ type Config struct {
 	CookieSecure bool
 	// Loc is the loaded business time zone.
 	Loc *time.Location
+	// ReceiptFixtures, only in end to end tests, reads fictional receipts from this folder instead of the Sefaz.
+	ReceiptFixtures string
 }
 
 // Load reads the configuration from the environment, applying defaults.
@@ -44,6 +46,8 @@ func Load() (Config, error) {
 		DBPath:    env("RADAR_DB_PATH", "/data/radar.db"),
 		BackupDir: env("RADAR_BACKUP_DIR", "/backups"),
 		Loc:       loc,
+		// RADAR_NFCE_FIXTURES is set only by web/e2e/server.sh.
+		ReceiptFixtures: os.Getenv("RADAR_NFCE_FIXTURES"),
 	}
 	if c.BackupHour, err = envInt("RADAR_BACKUP_HOUR", 3); err != nil {
 		return Config{}, err

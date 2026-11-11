@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -74,5 +75,56 @@ func TestMarketRoutes(t *testing.T) {
 	_ = json.NewDecoder(get(t, c, srv.URL+"/api/market/settings").Body).Decode(&cfg)
 	if cfg.MaxMarkets != 2 || cfg.StaleDays != 30 {
 		t.Fatalf("settings = %+v", cfg)
+	}
+}
+
+// TestReceiptRoutes reads a fictional receipt, records it with a new market and refuses it twice (RF-68, RF-69).
+func TestReceiptRoutes(t *testing.T) {
+	srv, _ := testServer(t)
+	c := newClient(t)
+	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	link := "https://nfce.fixture.gov.br/?p=fictional%7C" + strings.Repeat("3", 44) + "%7C11222333000144"
+
+	resp := postJSON(t, c, srv, "/api/market/receipts/preview", fmt.Sprintf(`{"url":%q}`, link))
+	var p struct {
+		StoreName    string `json:"storeName"`
+		Neighborhood string `json:"neighborhood"`
+		IssuedOn     string `json:"issuedOn"`
+		MarketID     *int64 `json:"marketId"`
+		Items        []struct {
+			UnitPriceCents int64 `json:"unitPriceCents"`
+			QuantityMilli  int64 `json:"quantityMilli"`
+		} `json:"items"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&p)
+	if resp.StatusCode != http.StatusOK || p.StoreName != "MERCADO FICTICIO LTDA" || p.IssuedOn != "2026-01-05" || p.MarketID != nil || len(p.Items) != 2 || p.Items[1].QuantityMilli != 1_288 {
+		t.Fatalf("preview = %d %+v", resp.StatusCode, p)
+	}
+	if resp := postJSON(t, c, srv, "/api/market/receipts/preview", `{"url":"https://192.168.0.1/admin"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("private address = %d", resp.StatusCode)
+	}
+
+	commit := fmt.Sprintf(`{"url":%q,"newMarket":{"name":"Mercado Ficticio","neighborhood":"Bairro Teste"},"items":[
+		{"index":0,"newProduct":{"name":"Café","brand":"Marca Ficticia","byWeight":false,"sizeMilli":500000,"unit":"g"}},
+		{"index":1,"ignore":true}]}`, link)
+	resp = postJSON(t, c, srv, "/api/market/receipts", commit)
+	var res struct{ Prices, Ignored int }
+	_ = json.NewDecoder(resp.Body).Decode(&res)
+	if resp.StatusCode != http.StatusCreated || res.Prices != 1 || res.Ignored != 1 {
+		t.Fatalf("commit = %d %+v", resp.StatusCode, res)
+	}
+	if resp := postJSON(t, c, srv, "/api/market/receipts", commit); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("second commit = %d", resp.StatusCode)
+	}
+	var list []struct {
+		ID         int64 `json:"id"`
+		PriceCount int64 `json:"priceCount"`
+	}
+	_ = json.NewDecoder(get(t, c, srv.URL+"/api/market/receipts").Body).Decode(&list)
+	if len(list) != 1 || list[0].PriceCount != 1 {
+		t.Fatalf("receipts = %+v", list)
+	}
+	if resp := send(t, c, srv, http.MethodDelete, fmt.Sprintf("/api/market/receipts/%d", list[0].ID), ""); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete = %d", resp.StatusCode)
 	}
 }

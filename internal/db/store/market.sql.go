@@ -47,8 +47,8 @@ func (q *Queries) CreateMarket(ctx context.Context, arg CreateMarketParams) (Mar
 }
 
 const createPrice = `-- name: CreatePrice :one
-INSERT INTO prices (product_id, market_id, price_cents, observed_on, source, created_by, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO prices (product_id, market_id, price_cents, observed_on, source, receipt_id, created_by, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING id
 `
 
@@ -58,6 +58,7 @@ type CreatePriceParams struct {
 	PriceCents int64
 	ObservedOn string
 	Source     string
+	ReceiptID  sql.NullInt64
 	CreatedBy  int64
 	CreatedAt  time.Time
 }
@@ -69,6 +70,7 @@ func (q *Queries) CreatePrice(ctx context.Context, arg CreatePriceParams) (int64
 		arg.PriceCents,
 		arg.ObservedOn,
 		arg.Source,
+		arg.ReceiptID,
 		arg.CreatedBy,
 		arg.CreatedAt,
 	)
@@ -117,6 +119,37 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 	return i, err
 }
 
+const createReceipt = `-- name: CreateReceipt :one
+INSERT INTO receipts (market_id, access_key, issued_on, total_cents, item_count, created_by, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id
+`
+
+type CreateReceiptParams struct {
+	MarketID   int64
+	AccessKey  string
+	IssuedOn   string
+	TotalCents int64
+	ItemCount  int64
+	CreatedBy  int64
+	CreatedAt  time.Time
+}
+
+func (q *Queries) CreateReceipt(ctx context.Context, arg CreateReceiptParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createReceipt,
+		arg.MarketID,
+		arg.AccessKey,
+		arg.IssuedOn,
+		arg.TotalCents,
+		arg.ItemCount,
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteMarket = `-- name: DeleteMarket :exec
 DELETE FROM markets
 WHERE id = ?
@@ -144,6 +177,16 @@ WHERE id = ?
 
 func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteProduct, id)
+	return err
+}
+
+const deleteReceipt = `-- name: DeleteReceipt :exec
+DELETE FROM receipts
+WHERE id = ?
+`
+
+func (q *Queries) DeleteReceipt(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteReceipt, id)
 	return err
 }
 
@@ -187,7 +230,7 @@ func (q *Queries) GetMarketSettings(ctx context.Context) (MarketSetting, error) 
 }
 
 const getPrice = `-- name: GetPrice :one
-SELECT id, product_id, market_id, price_cents, observed_on, source, created_by, created_at
+SELECT id, product_id, market_id, price_cents, observed_on, source, created_by, created_at, receipt_id
 FROM prices
 WHERE id = ?
 `
@@ -204,6 +247,7 @@ func (q *Queries) GetPrice(ctx context.Context, id int64) (Price, error) {
 		&i.Source,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.ReceiptID,
 	)
 	return i, err
 }
@@ -224,6 +268,28 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (Product, error) {
 		&i.ByWeight,
 		&i.SizeMilli,
 		&i.Unit,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getReceipt = `-- name: GetReceipt :one
+SELECT id, market_id, access_key, issued_on, total_cents, item_count, created_by, created_at
+FROM receipts
+WHERE id = ?
+`
+
+func (q *Queries) GetReceipt(ctx context.Context, id int64) (Receipt, error) {
+	row := q.db.QueryRowContext(ctx, getReceipt, id)
+	var i Receipt
+	err := row.Scan(
+		&i.ID,
+		&i.MarketID,
+		&i.AccessKey,
+		&i.IssuedOn,
+		&i.TotalCents,
+		&i.ItemCount,
 		&i.CreatedBy,
 		&i.CreatedAt,
 	)
@@ -368,6 +434,113 @@ func (q *Queries) ListProducts(ctx context.Context) ([]Product, error) {
 	return items, nil
 }
 
+const listReceipts = `-- name: ListReceipts :many
+SELECT r.id, r.issued_on, r.total_cents, r.item_count, m.name AS market_name, pe.name AS created_by_name,
+       CAST((SELECT count(*) FROM prices p WHERE p.receipt_id = r.id) AS INTEGER) AS price_count
+FROM receipts r
+JOIN markets m ON m.id = r.market_id
+JOIN users u ON u.id = r.created_by
+JOIN persons pe ON pe.id = u.person_id
+ORDER BY r.issued_on DESC, r.id DESC
+`
+
+type ListReceiptsRow struct {
+	ID            int64
+	IssuedOn      string
+	TotalCents    int64
+	ItemCount     int64
+	MarketName    string
+	CreatedByName string
+	PriceCount    int64
+}
+
+func (q *Queries) ListReceipts(ctx context.Context) ([]ListReceiptsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReceipts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListReceiptsRow{}
+	for rows.Next() {
+		var i ListReceiptsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IssuedOn,
+			&i.TotalCents,
+			&i.ItemCount,
+			&i.MarketName,
+			&i.CreatedByName,
+			&i.PriceCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const marketByCNPJ = `-- name: MarketByCNPJ :one
+SELECT id, name, neighborhood, cnpj, active, created_by, created_at
+FROM markets
+WHERE cnpj = ?
+`
+
+func (q *Queries) MarketByCNPJ(ctx context.Context, cnpj sql.NullString) (Market, error) {
+	row := q.db.QueryRowContext(ctx, marketByCNPJ, cnpj)
+	var i Market
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Neighborhood,
+		&i.Cnpj,
+		&i.Active,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const marketLinks = `-- name: MarketLinks :many
+SELECT item_key, product_id, ignored
+FROM receipt_links
+WHERE market_id = ?
+`
+
+type MarketLinksRow struct {
+	ItemKey   string
+	ProductID sql.NullInt64
+	Ignored   bool
+}
+
+func (q *Queries) MarketLinks(ctx context.Context, marketID int64) ([]MarketLinksRow, error) {
+	rows, err := q.db.QueryContext(ctx, marketLinks, marketID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MarketLinksRow{}
+	for rows.Next() {
+		var i MarketLinksRow
+		if err := rows.Scan(&i.ItemKey, &i.ProductID, &i.Ignored); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const productPrices = `-- name: ProductPrices :many
 SELECT p.id, p.market_id, m.name AS market_name, m.neighborhood, p.price_cents, p.observed_on, p.source
 FROM prices p
@@ -416,6 +589,35 @@ func (q *Queries) ProductPrices(ctx context.Context, productID int64) ([]Product
 		return nil, err
 	}
 	return items, nil
+}
+
+const receiptByKey = `-- name: ReceiptByKey :one
+SELECT id
+FROM receipts
+WHERE access_key = ?
+`
+
+func (q *Queries) ReceiptByKey(ctx context.Context, accessKey string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, receiptByKey, accessKey)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const setMarketCNPJ = `-- name: SetMarketCNPJ :exec
+UPDATE markets
+SET cnpj = ?
+WHERE id = ? AND cnpj IS NULL
+`
+
+type SetMarketCNPJParams struct {
+	Cnpj sql.NullString
+	ID   int64
+}
+
+func (q *Queries) SetMarketCNPJ(ctx context.Context, arg SetMarketCNPJParams) error {
+	_, err := q.db.ExecContext(ctx, setMarketCNPJ, arg.Cnpj, arg.ID)
+	return err
 }
 
 const updateMarket = `-- name: UpdateMarket :exec
@@ -498,6 +700,29 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) er
 		arg.SizeMilli,
 		arg.Unit,
 		arg.ID,
+	)
+	return err
+}
+
+const upsertLink = `-- name: UpsertLink :exec
+INSERT INTO receipt_links (market_id, item_key, product_id, ignored)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (market_id, item_key) DO UPDATE SET product_id = excluded.product_id, ignored = excluded.ignored
+`
+
+type UpsertLinkParams struct {
+	MarketID  int64
+	ItemKey   string
+	ProductID sql.NullInt64
+	Ignored   bool
+}
+
+func (q *Queries) UpsertLink(ctx context.Context, arg UpsertLinkParams) error {
+	_, err := q.db.ExecContext(ctx, upsertLink,
+		arg.MarketID,
+		arg.ItemKey,
+		arg.ProductID,
+		arg.Ignored,
 	)
 	return err
 }

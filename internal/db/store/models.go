@@ -260,6 +260,7 @@ type Price struct {
 	Source     string
 	CreatedBy  int64
 	CreatedAt  time.Time
+	ReceiptID  sql.NullInt64
 }
 
 type Product struct {
@@ -289,6 +290,25 @@ type Purchase struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ImportID         sql.NullInt64
+}
+
+type Receipt struct {
+	ID         int64
+	MarketID   int64
+	AccessKey  string
+	IssuedOn   string
+	TotalCents int64
+	ItemCount  int64
+	CreatedBy  int64
+	CreatedAt  time.Time
+}
+
+type ReceiptLink struct {
+	ID        int64
+	MarketID  int64
+	ItemKey   string
+	ProductID sql.NullInt64
+	Ignored   bool
 }
 
 type Recurrence struct {

@@ -188,3 +188,88 @@ func toProduct(p market.Product) gen.MarketProduct {
 func fromProductInput(b gen.ProductInput) market.ProductInput {
 	return market.ProductInput{Name: b.Name, Brand: b.Brand, ByWeight: b.ByWeight, SizeMilli: b.SizeMilli, Unit: market.Unit(b.Unit)}
 }
+
+// PreviewReceipt downloads the receipt of the QR code and shows the learned links (RF-68, RF-69).
+func (a *API) PreviewReceipt(ctx context.Context, req gen.PreviewReceiptRequestObject) (gen.PreviewReceiptResponseObject, error) {
+	if req.Body == nil {
+		return nil, errNoBody
+	}
+	var marketID int64
+	if req.Body.MarketId != nil {
+		marketID = *req.Body.MarketId
+	}
+	p, err := a.d.Market.PreviewReceipt(ctx, req.Body.Url, marketID)
+	if err != nil {
+		return nil, err
+	}
+	out := gen.PreviewReceipt200JSONResponse{
+		Url: p.URL, AccessKey: p.AccessKey, StoreName: p.StoreName, Neighborhood: p.Neighborhood, TotalCents: p.TotalCents,
+		MarketId: p.MarketID, ImportedId: p.ImportedID, Items: make([]gen.ReceiptLine, 0, len(p.Items)),
+	}
+	if !p.IssuedOn.IsZero() {
+		d := apiDate(p.IssuedOn)
+		out.IssuedOn = &d
+	}
+	for _, it := range p.Items {
+		out.Items = append(out.Items, gen.ReceiptLine{
+			Index: it.Index, Description: it.Description, Code: it.Code, QuantityMilli: it.QuantityMilli, Unit: it.Unit,
+			UnitPriceCents: it.UnitPriceCents, TotalCents: it.TotalCents, ProductId: it.ProductID, Ignored: it.Ignored,
+		})
+	}
+	return out, nil
+}
+
+// CommitReceipt records the receipt prices and the learned links (RF-68, RF-69).
+func (a *API) CommitReceipt(ctx context.Context, req gen.CommitReceiptRequestObject) (gen.CommitReceiptResponseObject, error) {
+	if req.Body == nil {
+		return nil, errNoBody
+	}
+	b := req.Body
+	in := market.ReceiptCommit{URL: b.Url, Items: make([]market.CommitItem, 0, len(b.Items))}
+	if b.MarketId != nil {
+		in.MarketID = *b.MarketId
+	}
+	if b.NewMarket != nil {
+		in.NewMarket = &market.MarketInput{Name: b.NewMarket.Name, Neighborhood: b.NewMarket.Neighborhood}
+	}
+	for _, it := range b.Items {
+		c := market.CommitItem{Index: it.Index, Ignore: it.Ignore != nil && *it.Ignore}
+		if it.ProductId != nil {
+			c.ProductID = *it.ProductId
+		}
+		if it.NewProduct != nil {
+			p := fromProductInput(*it.NewProduct)
+			c.NewProduct = &p
+		}
+		in.Items = append(in.Items, c)
+	}
+	res, err := a.d.Market.CommitReceipt(ctx, auth.UserID(ctx), in)
+	if err != nil {
+		return nil, err
+	}
+	return gen.CommitReceipt201JSONResponse{ReceiptId: res.ReceiptID, MarketId: res.MarketID, Prices: res.Prices, Ignored: res.Ignored}, nil
+}
+
+// ListReceipts returns the receipts already read.
+func (a *API) ListReceipts(ctx context.Context, _ gen.ListReceiptsRequestObject) (gen.ListReceiptsResponseObject, error) {
+	rs, err := a.d.Market.Receipts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(gen.ListReceipts200JSONResponse, 0, len(rs))
+	for _, r := range rs {
+		out = append(out, gen.ReceiptRecord{
+			Id: r.ID, MarketName: r.MarketName, IssuedOn: apiDate(r.IssuedOn), TotalCents: r.TotalCents,
+			ItemCount: r.ItemCount, PriceCount: r.PriceCount, CreatedByName: r.CreatedByName,
+		})
+	}
+	return out, nil
+}
+
+// DeleteReceipt removes a receipt and its prices.
+func (a *API) DeleteReceipt(ctx context.Context, req gen.DeleteReceiptRequestObject) (gen.DeleteReceiptResponseObject, error) {
+	if err := a.d.Market.DeleteReceipt(ctx, req.Id); err != nil {
+		return nil, err
+	}
+	return gen.DeleteReceipt204Response{}, nil
+}

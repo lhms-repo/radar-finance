@@ -2509,6 +2509,88 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /market/receipts/preview:
+    post:
+      operationId: previewReceipt
+      tags: [market]
+      summary: Downloads the receipt of the QR code and shows each line with the learned link, without saving (RF-68, RF-69).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptPreviewRequest"
+      responses:
+        "200":
+          description: Receipt read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptPreview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /market/receipts:
+    get:
+      operationId: listReceipts
+      tags: [market]
+      summary: Receipts already read, newest first.
+      responses:
+        "200":
+          description: Receipts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReceiptRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: commitReceipt
+      tags: [market]
+      summary: Records the receipt prices with its date and learns the links of the market (RF-68, RF-69).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptCommit"
+      responses:
+        "201":
+          description: Receipt recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /market/receipts/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: deleteReceipt
+      tags: [market]
+      summary: Removes a receipt and its prices; the links stay learned.
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   parameters:
     Id:
@@ -4827,6 +4909,144 @@ components:
           type: integer
           minimum: 1
           maximum: 365
+
+    ReceiptPreviewRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          maxLength: 2000
+          description: Address read from the QR code.
+        marketId:
+          type: integer
+          format: int64
+          description: Market chosen by the user; without it, the market with the receipt CNPJ.
+
+    ReceiptLine:
+      type: object
+      required: [index, description, code, quantityMilli, unit, unitPriceCents, totalCents, ignored]
+      properties:
+        index:
+          type: integer
+        description:
+          type: string
+        code:
+          type: string
+        quantityMilli:
+          type: integer
+          format: int64
+        unit:
+          type: string
+        unitPriceCents:
+          $ref: "#/components/schemas/Cents"
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        productId:
+          type: integer
+          format: int64
+          description: Product learned for this line in the market (RF-69).
+        ignored:
+          type: boolean
+
+    ReceiptPreview:
+      type: object
+      required: [url, accessKey, storeName, neighborhood, totalCents, items]
+      properties:
+        url:
+          type: string
+        accessKey:
+          type: string
+        storeName:
+          type: string
+        neighborhood:
+          type: string
+        issuedOn:
+          type: string
+          format: date
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        marketId:
+          type: integer
+          format: int64
+        importedId:
+          type: integer
+          format: int64
+          description: The receipt was already read.
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptLine"
+
+    ReceiptCommitItem:
+      type: object
+      required: [index]
+      properties:
+        index:
+          type: integer
+        productId:
+          type: integer
+          format: int64
+        newProduct:
+          $ref: "#/components/schemas/ProductInput"
+        ignore:
+          type: boolean
+
+    ReceiptCommit:
+      type: object
+      required: [url, items]
+      properties:
+        url:
+          type: string
+          maxLength: 2000
+        marketId:
+          type: integer
+          format: int64
+        newMarket:
+          $ref: "#/components/schemas/MarketInput"
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/ReceiptCommitItem"
+
+    ReceiptResult:
+      type: object
+      required: [receiptId, marketId, prices, ignored]
+      properties:
+        receiptId:
+          type: integer
+          format: int64
+        marketId:
+          type: integer
+          format: int64
+        prices:
+          type: integer
+        ignored:
+          type: integer
+
+    ReceiptRecord:
+      type: object
+      required: [id, marketName, issuedOn, totalCents, itemCount, priceCount, createdByName]
+      properties:
+        id:
+          type: integer
+          format: int64
+        marketName:
+          type: string
+        issuedOn:
+          type: string
+          format: date
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        itemCount:
+          type: integer
+          format: int64
+        priceCount:
+          type: integer
+          format: int64
+        createdByName:
+          type: string
 
 security:
   - session: []

@@ -1858,11 +1858,93 @@ type PurchaseInput struct {
 	Split *SplitInput `json:"split,omitempty"`
 }
 
+// ReceiptCommit defines model for ReceiptCommit.
+type ReceiptCommit struct {
+	Items     []ReceiptCommitItem `json:"items"`
+	MarketId  *int64              `json:"marketId,omitempty"`
+	NewMarket *MarketInput        `json:"newMarket,omitempty"`
+	Url       string              `json:"url"`
+}
+
+// ReceiptCommitItem defines model for ReceiptCommitItem.
+type ReceiptCommitItem struct {
+	Ignore     *bool         `json:"ignore,omitempty"`
+	Index      int           `json:"index"`
+	NewProduct *ProductInput `json:"newProduct,omitempty"`
+	ProductId  *int64        `json:"productId,omitempty"`
+}
+
 // ReceiptCreate defines model for ReceiptCreate.
 type ReceiptCreate struct {
 	AccountId int64              `json:"accountId"`
 	Date      openapi_types.Date `json:"date"`
 	ItemIds   []int64            `json:"itemIds"`
+}
+
+// ReceiptLine defines model for ReceiptLine.
+type ReceiptLine struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Ignored     bool   `json:"ignored"`
+	Index       int    `json:"index"`
+
+	// ProductId Product learned for this line in the market (RF-69).
+	ProductId     *int64 `json:"productId,omitempty"`
+	QuantityMilli int64  `json:"quantityMilli"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents  `json:"totalCents"`
+	Unit       string `json:"unit"`
+
+	// UnitPriceCents Amount in cents (RN-21).
+	UnitPriceCents Cents `json:"unitPriceCents"`
+}
+
+// ReceiptPreview defines model for ReceiptPreview.
+type ReceiptPreview struct {
+	AccessKey string `json:"accessKey"`
+
+	// ImportedId The receipt was already read.
+	ImportedId   *int64              `json:"importedId,omitempty"`
+	IssuedOn     *openapi_types.Date `json:"issuedOn,omitempty"`
+	Items        []ReceiptLine       `json:"items"`
+	MarketId     *int64              `json:"marketId,omitempty"`
+	Neighborhood string              `json:"neighborhood"`
+	StoreName    string              `json:"storeName"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents  `json:"totalCents"`
+	Url        string `json:"url"`
+}
+
+// ReceiptPreviewRequest defines model for ReceiptPreviewRequest.
+type ReceiptPreviewRequest struct {
+	// MarketId Market chosen by the user; without it, the market with the receipt CNPJ.
+	MarketId *int64 `json:"marketId,omitempty"`
+
+	// Url Address read from the QR code.
+	Url string `json:"url"`
+}
+
+// ReceiptRecord defines model for ReceiptRecord.
+type ReceiptRecord struct {
+	CreatedByName string             `json:"createdByName"`
+	Id            int64              `json:"id"`
+	IssuedOn      openapi_types.Date `json:"issuedOn"`
+	ItemCount     int64              `json:"itemCount"`
+	MarketName    string             `json:"marketName"`
+	PriceCount    int64              `json:"priceCount"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
+// ReceiptResult defines model for ReceiptResult.
+type ReceiptResult struct {
+	Ignored   int   `json:"ignored"`
+	MarketId  int64 `json:"marketId"`
+	Prices    int   `json:"prices"`
+	ReceiptId int64 `json:"receiptId"`
 }
 
 // ReceivableItem defines model for ReceivableItem.
@@ -2333,6 +2415,12 @@ type CreateProductJSONRequestBody = ProductInput
 // UpdateProductJSONRequestBody defines body for UpdateProduct for application/json ContentType.
 type UpdateProductJSONRequestBody = ProductInput
 
+// CommitReceiptJSONRequestBody defines body for CommitReceipt for application/json ContentType.
+type CommitReceiptJSONRequestBody = ReceiptCommit
+
+// PreviewReceiptJSONRequestBody defines body for PreviewReceipt for application/json ContentType.
+type PreviewReceiptJSONRequestBody = ReceiptPreviewRequest
+
 // UpdateMarketSettingsJSONRequestBody defines body for UpdateMarketSettings for application/json ContentType.
 type UpdateMarketSettingsJSONRequestBody = MarketSettings
 
@@ -2611,6 +2699,18 @@ type ServerInterface interface {
 	// ListProductPrices Price history of a product in every market, newest first (RF-76).
 	// (GET /market/products/{id}/prices)
 	ListProductPrices(w http.ResponseWriter, r *http.Request, id Id)
+	// ListReceipts Receipts already read, newest first.
+	// (GET /market/receipts)
+	ListReceipts(w http.ResponseWriter, r *http.Request)
+	// CommitReceipt Records the receipt prices with its date and learns the links of the market (RF-68, RF-69).
+	// (POST /market/receipts)
+	CommitReceipt(w http.ResponseWriter, r *http.Request)
+	// PreviewReceipt Downloads the receipt of the QR code and shows each line with the learned link, without saving (RF-68, RF-69).
+	// (POST /market/receipts/preview)
+	PreviewReceipt(w http.ResponseWriter, r *http.Request)
+	// DeleteReceipt Removes a receipt and its prices; the links stay learned.
+	// (DELETE /market/receipts/{id})
+	DeleteReceipt(w http.ResponseWriter, r *http.Request, id Id)
 	// GetMarketSettings Comparison settings shared by the couple (RF-74, RN-25).
 	// (GET /market/settings)
 	GetMarketSettings(w http.ResponseWriter, r *http.Request)
@@ -4651,6 +4751,74 @@ func (siw *ServerInterfaceWrapper) ListProductPrices(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// ListReceipts operation middleware
+func (siw *ServerInterfaceWrapper) ListReceipts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListReceipts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CommitReceipt operation middleware
+func (siw *ServerInterfaceWrapper) CommitReceipt(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CommitReceipt(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewReceipt operation middleware
+func (siw *ServerInterfaceWrapper) PreviewReceipt(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewReceipt(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteReceipt operation middleware
+func (siw *ServerInterfaceWrapper) DeleteReceipt(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteReceipt(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMarketSettings operation middleware
 func (siw *ServerInterfaceWrapper) GetMarketSettings(w http.ResponseWriter, r *http.Request) {
 
@@ -5638,6 +5806,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/prices/{id}", wrapper.UpdatePrice)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/settings", wrapper.GetMarketSettings)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/settings", wrapper.UpdateMarketSettings)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/receipts/preview", wrapper.PreviewReceipt)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/receipts", wrapper.ListReceipts)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/receipts", wrapper.CommitReceipt)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/receipts/{id}", wrapper.DeleteReceipt)
 
 	return m
 }
@@ -10489,6 +10661,227 @@ func (response ListProductPrices404JSONResponse) VisitListProductPricesResponse(
 	return err
 }
 
+type ListReceiptsRequestObject struct {
+}
+
+type ListReceiptsResponseObject interface {
+	VisitListReceiptsResponse(w http.ResponseWriter) error
+}
+
+type ListReceipts200JSONResponse []ReceiptRecord
+
+func (response ListReceipts200JSONResponse) VisitListReceiptsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListReceipts401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListReceipts401JSONResponse) VisitListReceiptsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitReceiptRequestObject struct {
+	Body *CommitReceiptJSONRequestBody
+}
+
+type CommitReceiptResponseObject interface {
+	VisitCommitReceiptResponse(w http.ResponseWriter) error
+}
+
+type CommitReceipt201JSONResponse ReceiptResult
+
+func (response CommitReceipt201JSONResponse) VisitCommitReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitReceipt400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CommitReceipt400JSONResponse) VisitCommitReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitReceipt401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CommitReceipt401JSONResponse) VisitCommitReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitReceipt404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CommitReceipt404JSONResponse) VisitCommitReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitReceipt409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CommitReceipt409JSONResponse) VisitCommitReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewReceiptRequestObject struct {
+	Body *PreviewReceiptJSONRequestBody
+}
+
+type PreviewReceiptResponseObject interface {
+	VisitPreviewReceiptResponse(w http.ResponseWriter) error
+}
+
+type PreviewReceipt200JSONResponse ReceiptPreview
+
+func (response PreviewReceipt200JSONResponse) VisitPreviewReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewReceipt400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PreviewReceipt400JSONResponse) VisitPreviewReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewReceipt401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PreviewReceipt401JSONResponse) VisitPreviewReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewReceipt404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PreviewReceipt404JSONResponse) VisitPreviewReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteReceiptRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteReceiptResponseObject interface {
+	VisitDeleteReceiptResponse(w http.ResponseWriter) error
+}
+
+type DeleteReceipt204Response struct {
+}
+
+func (response DeleteReceipt204Response) VisitDeleteReceiptResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteReceipt401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteReceipt401JSONResponse) VisitDeleteReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteReceipt404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteReceipt404JSONResponse) VisitDeleteReceiptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMarketSettingsRequestObject struct {
 }
 
@@ -12354,6 +12747,18 @@ type StrictServerInterface interface {
 	// ListProductPrices Price history of a product in every market, newest first (RF-76).
 	// (GET /market/products/{id}/prices)
 	ListProductPrices(ctx context.Context, request ListProductPricesRequestObject) (ListProductPricesResponseObject, error)
+	// ListReceipts Receipts already read, newest first.
+	// (GET /market/receipts)
+	ListReceipts(ctx context.Context, request ListReceiptsRequestObject) (ListReceiptsResponseObject, error)
+	// CommitReceipt Records the receipt prices with its date and learns the links of the market (RF-68, RF-69).
+	// (POST /market/receipts)
+	CommitReceipt(ctx context.Context, request CommitReceiptRequestObject) (CommitReceiptResponseObject, error)
+	// PreviewReceipt Downloads the receipt of the QR code and shows each line with the learned link, without saving (RF-68, RF-69).
+	// (POST /market/receipts/preview)
+	PreviewReceipt(ctx context.Context, request PreviewReceiptRequestObject) (PreviewReceiptResponseObject, error)
+	// DeleteReceipt Removes a receipt and its prices; the links stay learned.
+	// (DELETE /market/receipts/{id})
+	DeleteReceipt(ctx context.Context, request DeleteReceiptRequestObject) (DeleteReceiptResponseObject, error)
 	// GetMarketSettings Comparison settings shared by the couple (RF-74, RN-25).
 	// (GET /market/settings)
 	GetMarketSettings(ctx context.Context, request GetMarketSettingsRequestObject) (GetMarketSettingsResponseObject, error)
@@ -14835,6 +15240,118 @@ func (sh *strictHandler) ListProductPrices(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListProductPricesResponseObject); ok {
 		if err := validResponse.VisitListProductPricesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListReceipts operation middleware
+func (sh *strictHandler) ListReceipts(w http.ResponseWriter, r *http.Request) {
+	var request ListReceiptsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListReceipts(ctx, request.(ListReceiptsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListReceipts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListReceiptsResponseObject); ok {
+		if err := validResponse.VisitListReceiptsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CommitReceipt operation middleware
+func (sh *strictHandler) CommitReceipt(w http.ResponseWriter, r *http.Request) {
+	var request CommitReceiptRequestObject
+
+	var body CommitReceiptJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CommitReceipt(ctx, request.(CommitReceiptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CommitReceipt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CommitReceiptResponseObject); ok {
+		if err := validResponse.VisitCommitReceiptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewReceipt operation middleware
+func (sh *strictHandler) PreviewReceipt(w http.ResponseWriter, r *http.Request) {
+	var request PreviewReceiptRequestObject
+
+	var body PreviewReceiptJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewReceipt(ctx, request.(PreviewReceiptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewReceipt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewReceiptResponseObject); ok {
+		if err := validResponse.VisitPreviewReceiptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteReceipt operation middleware
+func (sh *strictHandler) DeleteReceipt(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteReceiptRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteReceipt(ctx, request.(DeleteReceiptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteReceipt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteReceiptResponseObject); ok {
+		if err := validResponse.VisitDeleteReceiptResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

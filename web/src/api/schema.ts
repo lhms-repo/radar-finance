@@ -1488,6 +1488,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/market/receipts/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Downloads the receipt of the QR code and shows each line with the learned link, without saving (RF-68, RF-69). */
+        post: operations["previewReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/market/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Receipts already read, newest first. */
+        get: operations["listReceipts"];
+        put?: never;
+        /** Records the receipt prices with its date and learns the links of the market (RF-68, RF-69). */
+        post: operations["commitReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/market/receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes a receipt and its prices; the links stay learned. */
+        delete: operations["deleteReceipt"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2678,6 +2732,83 @@ export interface components {
             maxMarkets: number;
             minSavingsCents: components["schemas"]["Cents"];
             staleDays: number;
+        };
+        ReceiptPreviewRequest: {
+            /** @description Address read from the QR code. */
+            url: string;
+            /**
+             * Format: int64
+             * @description Market chosen by the user; without it, the market with the receipt CNPJ.
+             */
+            marketId?: number;
+        };
+        ReceiptLine: {
+            index: number;
+            description: string;
+            code: string;
+            /** Format: int64 */
+            quantityMilli: number;
+            unit: string;
+            unitPriceCents: components["schemas"]["Cents"];
+            totalCents: components["schemas"]["Cents"];
+            /**
+             * Format: int64
+             * @description Product learned for this line in the market (RF-69).
+             */
+            productId?: number;
+            ignored: boolean;
+        };
+        ReceiptPreview: {
+            url: string;
+            accessKey: string;
+            storeName: string;
+            neighborhood: string;
+            /** Format: date */
+            issuedOn?: string;
+            totalCents: components["schemas"]["Cents"];
+            /** Format: int64 */
+            marketId?: number;
+            /**
+             * Format: int64
+             * @description The receipt was already read.
+             */
+            importedId?: number;
+            items: components["schemas"]["ReceiptLine"][];
+        };
+        ReceiptCommitItem: {
+            index: number;
+            /** Format: int64 */
+            productId?: number;
+            newProduct?: components["schemas"]["ProductInput"];
+            ignore?: boolean;
+        };
+        ReceiptCommit: {
+            url: string;
+            /** Format: int64 */
+            marketId?: number;
+            newMarket?: components["schemas"]["MarketInput"];
+            items: components["schemas"]["ReceiptCommitItem"][];
+        };
+        ReceiptResult: {
+            /** Format: int64 */
+            receiptId: number;
+            /** Format: int64 */
+            marketId: number;
+            prices: number;
+            ignored: number;
+        };
+        ReceiptRecord: {
+            /** Format: int64 */
+            id: number;
+            marketName: string;
+            /** Format: date */
+            issuedOn: string;
+            totalCents: components["schemas"]["Cents"];
+            /** Format: int64 */
+            itemCount: number;
+            /** Format: int64 */
+            priceCount: number;
+            createdByName: string;
         };
     };
     responses: {
@@ -5607,6 +5738,104 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    previewReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Receipt read. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listReceipts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Receipts. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptRecord"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    commitReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReceiptCommit"];
+            };
+        };
+        responses: {
+            /** @description Receipt recorded. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
 }
