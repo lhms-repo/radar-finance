@@ -8,6 +8,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { Logo } from "@/components/layout/Logo";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { QuickEntryProvider } from "@/features/quick-entry/QuickEntry";
 import { usePreferences } from "@/lib/preferences";
 import { fade } from "@/lib/motion";
 
@@ -41,26 +42,28 @@ export function AppShell() {
   if (!me.data) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
   return (
-    <div className="min-h-dvh pl-safe pr-safe md:flex">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col md:px-4">
-        <TopBar />
-        <main className="flex-1 px-3 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 md:px-0 md:pb-8 md:pt-4">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={fade}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
-        </main>
+    <QuickEntryProvider>
+      <div className="min-h-dvh pl-safe pr-safe md:flex">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col md:px-4">
+          <TopBar />
+          <main className="flex-1 px-3 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 md:px-0 md:pb-8 md:pt-4">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={fade}
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </div>
+        <BottomNav />
       </div>
-      <BottomNav />
-    </div>
+    </QuickEntryProvider>
   );
 }
 

@@ -2,25 +2,30 @@ import { AnimatePresence, motion } from "motion/react";
 import { ArrowDownLeft, CreditCard, FileUp, Plus, ShoppingBag, Utensils, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useQuickEntry, type QuickEntryPreset } from "@/features/quick-entry/QuickEntry";
 import { haptic } from "@/lib/haptics";
 import { spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-type Shortcut = { id: string; label: string; icon: LucideIcon };
+type Shortcut = { id: string; label: string; icon: LucideIcon; preset?: QuickEntryPreset; phase?: number };
 
-/** Shortcuts of the Add button (section 5.1). */
+/** Shortcuts of the Add button (section 5.1); the ones without a preset arrive in later phases. */
 export const SHORTCUTS: Shortcut[] = [
-  { id: "card", label: "Compra no cartão", icon: CreditCard },
-  { id: "expense", label: "Despesa", icon: ShoppingBag },
-  { id: "income", label: "Receita", icon: ArrowDownLeft },
-  { id: "alelo", label: "Compra no Alelo", icon: Utensils },
-  { id: "csv", label: "Importar CSV", icon: FileUp },
+  { id: "card", label: "Compra no cartão", icon: CreditCard, preset: { nature: "expense", method: "credit" } },
+  { id: "expense", label: "Despesa", icon: ShoppingBag, preset: { nature: "expense", method: "cash" } },
+  { id: "income", label: "Receita", icon: ArrowDownLeft, preset: { nature: "income" } },
+  { id: "alelo", label: "Compra no Alelo", icon: Utensils, phase: 3 },
+  { id: "csv", label: "Importar CSV", icon: FileUp, phase: 6 },
 ];
 
-/** Placeholder action until the quick entry card arrives in phase 2. */
-function openShortcut(s: Shortcut) {
-  haptic();
-  toast(s.label, { description: "O lançamento rápido chega na fase 2." });
+/** Returns the action of a shortcut: the quick entry card, or a notice for later phases. */
+function useOpenShortcut() {
+  const { open } = useQuickEntry();
+  return (s: Shortcut) => {
+    haptic();
+    if (s.preset) open(s.preset);
+    else toast(s.label, { description: `Chega na fase ${s.phase}.` });
+  };
 }
 
 /** Closes a popover when clicking outside or pressing Escape. */
@@ -42,6 +47,7 @@ function useDismiss(open: boolean, close: () => void, ref: React.RefObject<HTMLE
 
 /** Desktop Add button whose shortcuts open in a fan below it (section 8.6). */
 export function AddMenu() {
+  const openShortcut = useOpenShortcut();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
@@ -99,6 +105,7 @@ export function AddMenu() {
 
 /** Shortcuts fanned out above the iPhone Add button. */
 export function AddFan({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const openShortcut = useOpenShortcut();
   return (
     <AnimatePresence>
       {open && (
