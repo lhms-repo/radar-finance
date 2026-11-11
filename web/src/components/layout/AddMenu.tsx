@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowDownLeft, CreditCard, FileUp, Plus, ShoppingBag, Utensils, type LucideIcon } from "lucide-react";
+import { ArrowDownLeft, ChevronDown, CreditCard, FileUp, Plus, ShoppingBag, Utensils, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQuickEntry, type QuickEntryPreset } from "@/features/quick-entry/QuickEntry";
@@ -45,25 +45,38 @@ function useDismiss(open: boolean, close: () => void, ref: React.RefObject<HTMLE
   }, [open, close, ref]);
 }
 
-/** Desktop Add button whose shortcuts open in a fan below it (section 8.6). */
+/** Desktop split button: Add opens the card purchase, the arrow fans out the shortcuts (sections 5.6, 8.6). */
 export function AddMenu() {
   const openShortcut = useOpenShortcut();
+  const { open: openQuickEntry } = useQuickEntry();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex">
+      <button
+        type="button"
+        onClick={() => {
+          haptic();
+          setOpen(false);
+          openQuickEntry({ nature: "expense", method: "credit" });
+        }}
+        className="flex h-10 items-center gap-1.5 rounded-l-xl bg-primary pl-4 pr-3 text-sm font-medium text-primary-foreground shadow-sm transition-[background-color,transform] hover:bg-primary/90 active:scale-[0.97]"
+      >
+        <Plus className="size-4" />
+        Adicionar
+      </button>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="flex h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-[background-color,transform] hover:bg-primary/90 active:scale-[0.97]"
+        aria-label="Atalhos"
+        className="grid h-10 w-9 place-items-center rounded-r-xl border-l border-white/25 bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
       >
-        <motion.span animate={{ rotate: open ? 45 : 0 }} transition={spring} className="grid">
-          <Plus className="size-4" />
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={spring} className="grid">
+          <ChevronDown className="size-4" />
         </motion.span>
-        Adicionar
       </button>
       <AnimatePresence>
         {open && (

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { isPhone, login } from "./helpers";
+import { isPhone, login, openShortcuts } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 
 /** Opens a shortcut of the Add button, from the fan on the iPhone or the menu on desktop. */
 async function shortcut(page: Page, name: string) {
-  await page.getByRole("button", { name: "Adicionar" }).click();
+  await openShortcuts(page);
   await page.getByRole(isPhone(page) ? "button" : "menuitem", { name }).click();
 }
 
@@ -36,14 +36,16 @@ test("quick entry: card purchase, cash expense and one off income (section 5.6)"
   await cardForm.getByRole("button", { name: "Salvar" }).click();
   await expect(cardForm).toBeHidden();
 
-  // Card purchase: value, category grid, subcategory, card, merchant, confirm.
-  await shortcut(page, "Compra no cartão");
+  // Card purchase in four taps (RNF-13): Add, category, subcategory, confirm; the rest is typing.
+  await page.getByRole("button", { name: "Adicionar" }).click();
   const sheet = page.getByRole("dialog", { name: "Novo gasto" });
-  await sheet.getByLabel("Valor").fill("4590");
+  await sheet.getByLabel("Cartão").selectOption({ label: cardName }); // the database is shared by the projects
+  await sheet.getByLabel("Valor").focus();
+  await page.keyboard.type("4590");
   await sheet.getByRole("radio", { name: "Alimentação" }).click();
   await sheet.getByRole("radio", { name: "Delivery" }).click();
-  await sheet.getByLabel("Cartão").selectOption({ label: cardName });
-  await sheet.getByLabel("Estabelecimento").fill("Pizzaria Ficticia");
+  await expect(sheet.getByLabel("Estabelecimento")).toBeFocused();
+  await page.keyboard.type("Pizzaria Ficticia");
   await sheet.getByRole("button", { name: "Confirmar" }).click();
   await expect(sheet).toBeHidden();
 
@@ -78,7 +80,7 @@ test("quick entry: card purchase, cash expense and one off income (section 5.6)"
 });
 
 test("quick entry: missing value and category are reported in the card (section 5.6)", async ({ page }) => {
-  await shortcut(page, "Compra no cartão");
+  await page.getByRole("button", { name: "Adicionar" }).click();
   const sheet = page.getByRole("dialog", { name: "Novo gasto" });
   await sheet.getByRole("button", { name: "Confirmar" }).click();
   await expect(sheet.getByText("Digite o valor.")).toBeVisible();

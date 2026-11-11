@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { BOTTOM_LEFT, BOTTOM_RIGHT, MORE_ITEMS, activeItem, navItem } from "@/app/nav";
 import { AddFan } from "@/components/layout/AddMenu";
+import { useQuickEntry } from "@/features/quick-entry/QuickEntry";
 import { MoreSheet } from "@/components/layout/MoreSheet";
 import { haptic } from "@/lib/haptics";
 import { fade, spring } from "@/lib/motion";
@@ -28,14 +29,35 @@ export function BottomNav() {
   const pressTimer = useRef<number | undefined>(undefined);
   const lingerTimer = useRef<number | undefined>(undefined);
   const longPressed = useRef(false);
+  const addTimer = useRef<number | undefined>(undefined);
+  const addLongPressed = useRef(false);
+  const { open: openQuickEntry } = useQuickEntry();
 
   useEffect(
     () => () => {
       window.clearTimeout(pressTimer.current);
       window.clearTimeout(lingerTimer.current);
+      window.clearTimeout(addTimer.current);
     },
     [],
   );
+
+  /** Starts the Add long press, kept apart from the bar long press that expands the labels. */
+  const onAddPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    addLongPressed.current = false;
+    addTimer.current = window.setTimeout(() => {
+      addLongPressed.current = true;
+      haptic();
+      setAddOpen(true);
+    }, LONG_PRESS_MS);
+  };
+
+  /** Ends the Add press without touching the bar labels. */
+  const onAddPointerUp = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    window.clearTimeout(addTimer.current);
+  };
 
   /** Starts the long press timer. */
   const onPointerDown = useCallback(() => {
@@ -87,11 +109,22 @@ export function BottomNav() {
             <motion.button
               type="button"
               aria-label="Adicionar"
+              aria-description="Toque para lançar uma compra no cartão. Pressione e segure para ver os atalhos."
               aria-expanded={addOpen}
               whileTap={{ scale: 0.92 }}
+              onPointerDown={onAddPointerDown}
+              onPointerUp={onAddPointerUp}
+              onPointerCancel={onAddPointerUp}
+              onPointerLeave={onAddPointerUp}
               onClick={() => {
+                // A press and hold already opened the fan; the tap that ends it does nothing else.
+                if (addLongPressed.current) {
+                  addLongPressed.current = false;
+                  return;
+                }
                 haptic();
-                setAddOpen((o) => !o);
+                if (addOpen) setAddOpen(false);
+                else openQuickEntry({ nature: "expense", method: "credit" });
               }}
               className="relative z-50 grid size-13 -translate-y-3 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30"
             >

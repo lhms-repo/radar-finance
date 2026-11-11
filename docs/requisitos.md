@@ -312,7 +312,7 @@ Card único aberto pelo botão Adicionar, inspirado no card de valor com rolagem
 | Receita e Variável | Renda avulsa | Conta de destino, descrição |
 | Receita e Fixo | Renda recorrente | Conta de destino, dia de recebimento, pessoa, data de término opcional |
 
-A data vem preenchida com hoje e o último cartão ou conta usado vem pré-selecionado, para cumprir o lançamento em poucos toques do RNF-13.
+A data vem preenchida com hoje e o último cartão ou conta usado vem pré-selecionado, para cumprir o lançamento em poucos toques do RNF-13. Por decisão do dono, um toque no botão Adicionar abre o card já em Gasto, Crédito e Variável; os outros atalhos ficam no gesto de pressionar e segurar.
 
 Combinações que dependem de módulos ainda não construídos ficam ocultas até a fase deles: Conta fixa e Alelo até a Fase 3, dividir com terceiros até a Fase 4.
 
@@ -481,7 +481,7 @@ Animações curtas, entre 150 e 400 milissegundos, que dão retorno a uma ação
 | Terceiro quitou | Nome riscado e contador de pendências diminuindo. |
 | Modo privacidade | Valores desfocam suavemente. |
 | Troca de tema | Transição circular a partir do botão, com a View Transitions API. |
-| Botão Adicionar | Atalhos abrem em leque. |
+| Botão Adicionar | Um toque abre direto o lançamento de compra no cartão. Os atalhos abrem em leque ao pressionar e segurar no iPhone, e pela seta ao lado do botão no computador. |
 
 Todas as animações respeitam a preferência de movimento reduzido do sistema operacional.
 

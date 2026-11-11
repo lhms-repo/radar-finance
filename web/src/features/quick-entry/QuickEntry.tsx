@@ -2,7 +2,7 @@ import NumberFlow from "@number-flow/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark, Minus, Plus, Repeat, Shuffle } from "lucide-react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Control, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,10 @@ export function QuickEntryProvider({ children }: { children: ReactNode }) {
   const [preset, setPreset] = useState<QuickEntryPreset | null>(null);
   // A new key per opening resets the form to the preset.
   const [session, setSession] = useState(0);
+  const keyboardProxy = useRef<HTMLInputElement>(null);
   const open = useCallback((p: QuickEntryPreset) => {
+    // iOS only opens the keyboard for a focus made inside the tap; the value field takes it over on mount (RNF-13).
+    keyboardProxy.current?.focus({ preventScroll: true });
     setPreset(p);
     setSession((s) => s + 1);
   }, []);
@@ -50,6 +53,13 @@ export function QuickEntryProvider({ children }: { children: ReactNode }) {
   return (
     <QuickEntryContext.Provider value={value}>
       {children}
+      <input
+        ref={keyboardProxy}
+        aria-hidden
+        tabIndex={-1}
+        inputMode="numeric"
+        className="pointer-events-none fixed top-0 left-0 h-px w-px opacity-0"
+      />
       {preset && <QuickEntrySheet key={session} preset={preset} onClose={() => setPreset(null)} />}
     </QuickEntryContext.Provider>
   );
@@ -158,6 +168,12 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
   const oneOff = useAddOneOffIncome();
   const recurring = useCreateIncome();
   const mutation = { purchase, recurrence, expense, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
+
+  /** Moves the focus to the next text field after the subcategory, saving a tap (RNF-13). */
+  const focusNextField = () => {
+    if (combo === "purchase" && !form.getValues("merchant")) form.setFocus("merchant");
+    else if (combo === "recurrence" && !form.getValues("description")) form.setFocus("description");
+  };
 
   /** Plays the closing animation and then unmounts the sheet. */
   const close = () => setOpen(false);
@@ -283,7 +299,19 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
           <AnimatePresence initial={false}>
             {isExpense && (
               <Reveal key="category">
-                <Controller control={form.control} name="categoryId" render={({ field }) => <CategoryPicker value={field.value} onChange={field.onChange} />} />
+                <Controller
+                  control={form.control}
+                  name="categoryId"
+                  render={({ field }) => (
+                    <CategoryPicker
+                      value={field.value}
+                      onChange={(id) => {
+                        field.onChange(id);
+                        focusNextField();
+                      }}
+                    />
+                  )}
+                />
                 <FieldError message={errors.categoryId?.message} />
               </Reveal>
             )}

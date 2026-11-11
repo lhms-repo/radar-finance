@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { isPhone, login } from "./helpers";
+import { isPhone, login, openShortcuts } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -36,9 +36,16 @@ test("iPhone bottom bar and the More sheet (section 5.5)", async ({ page }) => {
   await expect(sheet).toBeHidden();
 });
 
-test("Add button opens the shortcuts", async ({ page }) => {
+test("Add opens the card purchase and the shortcuts open apart (sections 5.6 and 8.6)", async ({ page }) => {
   await page.getByRole("button", { name: "Adicionar" }).click();
-  await expect(page.getByRole(isPhone(page) ? "button" : "menuitem", { name: "Compra no cartão" })).toBeVisible();
+  const sheet = page.getByRole("dialog", { name: "Novo gasto" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByLabel("Valor")).toBeFocused();
+  await sheet.getByRole("button", { name: "Fechar" }).click();
+  await expect(sheet).toBeHidden();
+
+  await openShortcuts(page);
+  await expect(page.getByRole(isPhone(page) ? "button" : "menuitem", { name: "Receita" })).toBeVisible();
 });
 
 test("month selector moves between months", async ({ page }) => {
