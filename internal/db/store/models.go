@@ -20,6 +20,22 @@ type Account struct {
 	UpdatedAt           time.Time
 }
 
+type Card struct {
+	ID         int64
+	Name       string
+	PersonID   int64
+	LimitCents int64
+	ClosingDay int64
+	DueDay     int64
+	LastDigits sql.NullString
+	Color      string
+	Finish     string
+	Active     bool
+	CreatedBy  int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
 type Category struct {
 	ID        int64
 	ParentID  sql.NullInt64
@@ -65,10 +81,65 @@ type Income struct {
 	UpdatedAt   time.Time
 }
 
+type Installment struct {
+	ID           int64
+	PurchaseID   int64
+	CardID       int64
+	InvoiceMonth string
+	Number       int64
+	AmountCents  int64
+}
+
+type InvoicePayment struct {
+	ID           int64
+	CardID       int64
+	InvoiceMonth string
+	EntryID      int64
+	AmountCents  int64
+	CreatedBy    int64
+	CreatedAt    time.Time
+}
+
 type Person struct {
 	ID        int64
 	Name      string
 	CreatedAt time.Time
+}
+
+type Purchase struct {
+	ID               int64
+	CardID           int64
+	Kind             string
+	PurchasedOn      string
+	Merchant         string
+	Description      string
+	CategoryID       sql.NullInt64
+	BuyerPersonID    sql.NullInt64
+	TotalCents       int64
+	InstallmentCount int64
+	FirstInvoice     string
+	CreatedBy        int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type Recurrence struct {
+	ID          int64
+	CardID      int64
+	Description string
+	CategoryID  int64
+	StartMonth  string
+	EndMonth    sql.NullString
+	CreatedBy   int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type RecurrencePrice struct {
+	ID           int64
+	RecurrenceID int64
+	FromMonth    string
+	AmountCents  int64
 }
 
 type Session struct {
