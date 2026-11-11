@@ -11,7 +11,7 @@ export type Entry = components["schemas"]["Entry"];
 export type Statement = components["schemas"]["Statement"];
 
 /** Query keys refreshed by every account write. */
-export const ACCOUNT_KEYS = [["accounts"], ["statement"], ["month-flow"], ["incomes"]] as const;
+export const ACCOUNT_KEYS = [["accounts"], ["statement"], ["month-flow"], ["incomes"], ["overview"], ["spending"], ["budgets"], ["notifications"], ["agenda"], ["savings"]] as const;
 
 /** Loads the people of the couple, holders of accounts. */
 export function usePersons() {

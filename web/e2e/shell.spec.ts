@@ -8,9 +8,9 @@ test.beforeEach(async ({ page }) => {
 test("desktop sidebar navigates and collapses with the fluid tooltip (section 5.5)", async ({ page }) => {
   test.skip(isPhone(page), "desktop only");
   const menu = page.getByRole("complementary", { name: "Menu principal" });
-  await menu.getByRole("link", { name: "Fluxo de caixa" }).click();
-  await expect(page).toHaveURL(/\/cash-flow$/);
-  await expect(page.getByText("Chega na fase 5")).toBeVisible();
+  await menu.getByRole("link", { name: "Mercado" }).click();
+  await expect(page).toHaveURL(/\/market$/);
+  await expect(page.getByText("Chega na fase 7")).toBeVisible();
 
   await menu.getByRole("button", { name: "Recolher menu" }).click();
   const caixinhas = menu.getByRole("link", { name: "Caixinhas" });

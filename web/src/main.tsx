@@ -11,12 +11,15 @@ import { AccountDetailPage } from "@/pages/AccountDetailPage";
 import { AccountsPage } from "@/pages/AccountsPage";
 import { AleloPage } from "@/pages/AleloPage";
 import { BillsPage } from "@/pages/BillsPage";
+import { BudgetsPage } from "@/pages/BudgetsPage";
 import { CardsPage } from "@/pages/CardsPage";
+import { CashFlowPage } from "@/pages/CashFlowPage";
 import { CategoriesPage } from "@/pages/CategoriesPage";
 import { IncomesPage } from "@/pages/IncomesPage";
 import { ReceivablesPage } from "@/pages/ReceivablesPage";
 import { SavingsPage } from "@/pages/SavingsPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { OverviewPage } from "@/pages/OverviewPage";
 import { PlaceholderPage } from "@/pages/PlaceholderPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import "./index.css";
@@ -32,8 +35,8 @@ const router = createBrowserRouter([
   {
     element: <AppShell />,
     children: [
-      { index: true, element: <PlaceholderPage id="overview" /> },
-      { path: "cash-flow", element: <PlaceholderPage id="cash-flow" /> },
+      { index: true, element: <OverviewPage /> },
+      { path: "cash-flow", element: <CashFlowPage /> },
       { path: "cards", element: <CardsPage /> },
       { path: "alelo", element: <AleloPage /> },
       { path: "bills", element: <BillsPage /> },
@@ -45,7 +48,8 @@ const router = createBrowserRouter([
       { path: "settings/accounts", element: <AccountsPage /> },
       { path: "settings/accounts/:id", element: <AccountDetailPage /> },
       { path: "settings/incomes", element: <IncomesPage /> },
-      { path: "*", element: <PlaceholderPage id="overview" /> },
+      { path: "settings/budgets", element: <BudgetsPage /> },
+      { path: "*", element: <OverviewPage /> },
     ],
   },
 ]);

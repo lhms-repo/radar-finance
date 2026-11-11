@@ -14,7 +14,7 @@ test("enters without password, keeps the session and switches user (RF-01)", asy
   await login(page, USERS[1]!.name);
   await page.reload();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText("Chega na fase 5").first()).toBeVisible();
+  await expect(page.getByText("Saldo previsto")).toBeVisible();
 
   await page.goto("/settings");
   await page.getByRole("button", { name: `Trocar de usuário (${USERS[1]!.name})` }).click();

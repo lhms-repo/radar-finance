@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
+import { ACCOUNT_KEYS } from "@/features/accounts/api";
 import { haptic } from "@/lib/haptics";
 
 export type AleloCard = components["schemas"]["AleloCard"];
@@ -30,6 +31,7 @@ function useAleloMutation<V, R>(fn: (vars: V) => Promise<R>, success: string) {
       haptic();
       toast.success(success);
       void qc.invalidateQueries({ queryKey: ["alelo"] });
+      for (const key of ACCOUNT_KEYS) void qc.invalidateQueries({ queryKey: key });
     },
   });
 }

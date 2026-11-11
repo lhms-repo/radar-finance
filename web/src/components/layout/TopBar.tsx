@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, Eye, EyeOff, Moon, Sun } from "lucide-react";
+import { Eye, EyeOff, Moon, Sun } from "lucide-react";
 import { AddMenu } from "@/components/layout/AddMenu";
 import { MonthSwitcher } from "@/components/layout/MonthSwitcher";
+import { NotificationsButton } from "@/components/layout/NotificationsButton";
 import { haptic } from "@/lib/haptics";
 import { usePreferences } from "@/lib/preferences";
 import { fade } from "@/lib/motion";
@@ -9,9 +10,6 @@ import { fade } from "@/lib/motion";
 /** Top bar with the month selector and the global actions (section 5.1). */
 export function TopBar() {
   const { privacy, togglePrivacy, resolvedTheme, setTheme } = usePreferences();
-  // Notifications arrive in phase 5 (RF-64); the bell already shows the counter.
-  const unread = 0;
-
   return (
     <header className="sticky top-0 z-20 pt-safe md:static md:pt-3">
       <div className="flex items-center justify-between gap-2 bg-background/80 px-3 py-2 backdrop-blur-xl md:rounded-2xl md:bg-card md:px-4 md:py-3 md:shadow-card md:backdrop-blur-none">
@@ -40,14 +38,7 @@ export function TopBar() {
               {resolvedTheme === "dark" ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
             </SwapIcon>
           </IconButton>
-          <IconButton label={unread > 0 ? `Notificações, ${unread} novas` : "Notificações"}>
-            <Bell className="size-[18px]" />
-            {unread > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
-                {unread}
-              </span>
-            )}
-          </IconButton>
+          <NotificationsButton />
           <div className="hidden md:block">
             <AddMenu />
           </div>

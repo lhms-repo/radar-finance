@@ -199,3 +199,21 @@
 .savings-slider:focus-visible::-webkit-slider-thumb {
   box-shadow: 0 0 0 4px rgb(37 99 235 / 0.3);
 }
+
+/* Categorical series of the charts, the validated reference palette (light: relief by visible labels). */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+}
+.dark {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, CheckCircle2, ChevronRight, Download, HandCoins, HardDrive, Landmark, LogOut, Monitor, Moon, Sun, Tags } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Download, HandCoins, HardDrive, Landmark, LogOut, Monitor, Moon, Sun, Tags, Target } from "lucide-react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { api, unwrap, type Backup, type Theme } from "@/api/client";
@@ -44,6 +44,7 @@ function RecordsCard() {
   const links = [
     { to: "/settings/accounts", label: "Contas bancárias", hint: "Saldos, extrato, ajustes e transferências", icon: Landmark },
     { to: "/settings/incomes", label: "Rendas", hint: "Salários, bolsa, 13º e confirmação do recebimento", icon: HandCoins },
+    { to: "/settings/budgets", label: "Orçamentos", hint: "Limite mensal por categoria, com aviso a 80% e 100%", icon: Target },
     { to: "/settings/categories", label: "Categorias", hint: "Criar, renomear, mover e desativar", icon: Tags },
   ];
   return (
