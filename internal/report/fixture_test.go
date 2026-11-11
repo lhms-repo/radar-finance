@@ -78,14 +78,7 @@ func newWorld(t *testing.T) *world {
 		ledger: ledger.NewService(conn), cards: card.NewService(conn), bills: bill.NewService(conn), financings: financing.NewService(conn),
 		incomes: income.NewService(conn), alelo: alelo.NewService(conn), savings: savings.NewService(conn), recv: receivable.NewService(conn),
 	}
-	rows, _ := conn.Query(`SELECT id, name FROM categories`)
-	for rows.Next() {
-		var id int64
-		var name string
-		_ = rows.Scan(&id, &name)
-		w.cat[name] = id
-	}
-	_ = rows.Close()
+	loadCategories(t, conn, w.cat)
 	must := func(err error) {
 		t.Helper()
 		if err != nil {
@@ -149,4 +142,22 @@ func newWorld(t *testing.T) *world {
 	_, err = w.alelo.AddPurchase(ctx, w.userID, alelo.Purchase{AleloID: aleloCard.ID, Date: d(2026, time.November, 9), Description: "Mercado", AmountCents: 32_000})
 	must(err)
 	return w
+}
+
+// loadCategories maps every category name to its id.
+func loadCategories(t *testing.T, conn *sql.DB, into map[string]int64) {
+	t.Helper()
+	rows, err := conn.Query(`SELECT id, name FROM categories`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			t.Fatal(err)
+		}
+		into[name] = id
+	}
 }

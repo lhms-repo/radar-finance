@@ -107,7 +107,7 @@ func (s *Service) Spending(ctx context.Context, first, last civil.Month) ([]Mont
 			return nil, err
 		}
 	}
-	aleloRows, err := q.AleloSpendingByMonth(ctx, store.AleloSpendingByMonthParams{FirstDay: days.FirstDay, LastDay: days.LastDay})
+	aleloRows, err := q.AleloSpendingByMonth(ctx, store.AleloSpendingByMonthParams(days))
 	if err != nil {
 		return nil, fmt.Errorf("alelo spending: %w", err)
 	}
