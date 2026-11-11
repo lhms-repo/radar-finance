@@ -61,3 +61,8 @@ WHERE id = ?;
 -- name: DeleteListItem :exec
 DELETE FROM list_items
 WHERE id = ?;
+
+-- name: FinishShoppingList :exec
+UPDATE shopping_lists
+SET status = 'done', finished_at = ?, paid_cents = ?, paid_on = ?, paid_method = ?, paid_with = ?
+WHERE id = ? AND status = 'open';

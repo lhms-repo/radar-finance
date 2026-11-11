@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/problem"
@@ -51,10 +52,11 @@ type ListItem struct {
 	PickedByName  string
 }
 
-// ListDetail is a list with its items, not picked first.
+// ListDetail is a list with its items, not picked first, and the payment once finished.
 type ListDetail struct {
 	ShoppingList
 	Items []ListItem
+	Paid  *Payment
 }
 
 // Lists returns the lists, open ones first.
@@ -119,6 +121,13 @@ func (s *Service) ListDetail(ctx context.Context, id int64) (ListDetail, error) 
 		return ListDetail{}, fmt.Errorf("list items: %w", err)
 	}
 	out := ListDetail{ShoppingList: ShoppingList{ID: l.ID, Name: l.Name, Done: l.Status == ListDone, CreatedAt: l.CreatedAt}, Items: make([]ListItem, 0, len(rows))}
+	if l.PaidCents.Valid {
+		paidOn, err := civil.ParseDate(l.PaidOn.String)
+		if err != nil {
+			return ListDetail{}, err
+		}
+		out.Paid = &Payment{Method: PayMethod(l.PaidMethod.String), TotalCents: l.PaidCents.Int64, Date: paidOn, Description: l.PaidWith}
+	}
 	for _, r := range rows {
 		out.ItemCount++
 		if r.Picked {

@@ -345,6 +345,17 @@ func (s *Service) UndoCredit(ctx context.Context, id int64, m civil.Month) error
 
 // AddPurchase records a purchase with a free description, filed as Alimentação, Compras para casa (RF-33, RN-15).
 func (s *Service) AddPurchase(ctx context.Context, userID int64, p Purchase) (PurchaseItem, error) {
+	var out PurchaseItem
+	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		var err error
+		out, err = s.AddPurchaseTx(ctx, q, userID, p)
+		return err
+	})
+	return out, err
+}
+
+// AddPurchaseTx records the purchase inside a transaction of the caller.
+func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID int64, p Purchase) (PurchaseItem, error) {
 	desc := strings.TrimSpace(p.Description)
 	if desc == "" {
 		return PurchaseItem{}, ErrDescriptionRequired
@@ -358,30 +369,25 @@ func (s *Service) AddPurchase(ctx context.Context, userID int64, p Purchase) (Pu
 	if p.Date.IsZero() {
 		return PurchaseItem{}, ledger.ErrDateRequired
 	}
-	var out PurchaseItem
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		c, err := getCard(ctx, q, p.AleloID)
-		if err != nil {
-			return err
-		}
-		if !c.Active {
-			return ErrInactive
-		}
-		groceries, err := q.GetCategoryBySystemKey(ctx, sql.NullString{String: GroceriesKey, Valid: true})
-		if err != nil {
-			return fmt.Errorf("groceries category: %w", err)
-		}
-		r, err := q.CreateAleloPurchase(ctx, store.CreateAleloPurchaseParams{
-			AleloID: c.ID, PurchasedOn: p.Date.String(), Description: desc, AmountCents: p.AmountCents, CategoryID: groceries,
-			CreatedBy: userID, CreatedAt: s.now().UTC(),
-		})
-		if err != nil {
-			return fmt.Errorf("create alelo purchase: %w", err)
-		}
-		out = PurchaseItem{ID: r.ID, Date: p.Date, Description: desc, AmountCents: r.AmountCents}
-		return nil
+	c, err := getCard(ctx, q, p.AleloID)
+	if err != nil {
+		return PurchaseItem{}, err
+	}
+	if !c.Active {
+		return PurchaseItem{}, ErrInactive
+	}
+	groceries, err := q.GetCategoryBySystemKey(ctx, sql.NullString{String: GroceriesKey, Valid: true})
+	if err != nil {
+		return PurchaseItem{}, fmt.Errorf("groceries category: %w", err)
+	}
+	r, err := q.CreateAleloPurchase(ctx, store.CreateAleloPurchaseParams{
+		AleloID: c.ID, PurchasedOn: p.Date.String(), Description: desc, AmountCents: p.AmountCents, CategoryID: groceries,
+		CreatedBy: userID, CreatedAt: s.now().UTC(),
 	})
-	return out, err
+	if err != nil {
+		return PurchaseItem{}, fmt.Errorf("create alelo purchase: %w", err)
+	}
+	return PurchaseItem{ID: r.ID, Date: p.Date, Description: desc, AmountCents: r.AmountCents}, nil
 }
 
 // DeletePurchase removes a purchase.

@@ -39,7 +39,7 @@ func (q *Queries) CreateListItem(ctx context.Context, arg CreateListItemParams) 
 const createShoppingList = `-- name: CreateShoppingList :one
 INSERT INTO shopping_lists (name, created_by, created_at)
 VALUES (?, ?, ?)
-RETURNING id, name, status, created_by, created_at, finished_at
+RETURNING id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with
 `
 
 type CreateShoppingListParams struct {
@@ -58,6 +58,10 @@ func (q *Queries) CreateShoppingList(ctx context.Context, arg CreateShoppingList
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.PaidCents,
+		&i.PaidOn,
+		&i.PaidMethod,
+		&i.PaidWith,
 	)
 	return i, err
 }
@@ -79,6 +83,33 @@ WHERE id = ?
 
 func (q *Queries) DeleteShoppingList(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteShoppingList, id)
+	return err
+}
+
+const finishShoppingList = `-- name: FinishShoppingList :exec
+UPDATE shopping_lists
+SET status = 'done', finished_at = ?, paid_cents = ?, paid_on = ?, paid_method = ?, paid_with = ?
+WHERE id = ? AND status = 'open'
+`
+
+type FinishShoppingListParams struct {
+	FinishedAt sql.NullTime
+	PaidCents  sql.NullInt64
+	PaidOn     sql.NullString
+	PaidMethod sql.NullString
+	PaidWith   string
+	ID         int64
+}
+
+func (q *Queries) FinishShoppingList(ctx context.Context, arg FinishShoppingListParams) error {
+	_, err := q.db.ExecContext(ctx, finishShoppingList,
+		arg.FinishedAt,
+		arg.PaidCents,
+		arg.PaidOn,
+		arg.PaidMethod,
+		arg.PaidWith,
+		arg.ID,
+	)
 	return err
 }
 
@@ -104,7 +135,7 @@ func (q *Queries) GetListItem(ctx context.Context, id int64) (ListItem, error) {
 }
 
 const getShoppingList = `-- name: GetShoppingList :one
-SELECT id, name, status, created_by, created_at, finished_at
+SELECT id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with
 FROM shopping_lists
 WHERE id = ?
 `
@@ -119,6 +150,10 @@ func (q *Queries) GetShoppingList(ctx context.Context, id int64) (ShoppingList, 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.PaidCents,
+		&i.PaidOn,
+		&i.PaidMethod,
+		&i.PaidWith,
 	)
 	return i, err
 }
@@ -213,7 +248,7 @@ func (q *Queries) ListItems(ctx context.Context, listID int64) ([]ListItemsRow, 
 }
 
 const listShoppingLists = `-- name: ListShoppingLists :many
-SELECT l.id, l.name, l.status, l.created_by, l.created_at, l.finished_at,
+SELECT l.id, l.name, l.status, l.created_by, l.created_at, l.finished_at, l.paid_cents, l.paid_on, l.paid_method, l.paid_with,
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id) AS INTEGER) AS item_count,
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id AND i.picked) AS INTEGER) AS picked_count
 FROM shopping_lists l
@@ -227,6 +262,10 @@ type ListShoppingListsRow struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	FinishedAt  sql.NullTime
+	PaidCents   sql.NullInt64
+	PaidOn      sql.NullString
+	PaidMethod  sql.NullString
+	PaidWith    string
 	ItemCount   int64
 	PickedCount int64
 }
@@ -247,6 +286,10 @@ func (q *Queries) ListShoppingLists(ctx context.Context) ([]ListShoppingListsRow
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.FinishedAt,
+			&i.PaidCents,
+			&i.PaidOn,
+			&i.PaidMethod,
+			&i.PaidWith,
 			&i.ItemCount,
 			&i.PickedCount,
 		); err != nil {

@@ -283,36 +283,42 @@ func (s *Service) DeleteAccount(ctx context.Context, id int64) error {
 
 // AddExpense records a confirmed one off expense from an account, classified by a subcategory.
 func (s *Service) AddExpense(ctx context.Context, userID int64, in NewExpense) (Entry, error) {
-	if err := CheckPositive(in.AmountCents); err != nil {
-		return Entry{}, err
-	}
-	desc, err := CleanDescription(in.Description)
-	if err != nil {
-		return Entry{}, err
-	}
-	if in.Date.IsZero() {
-		return Entry{}, ErrDateRequired
-	}
 	var id int64
-	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
-			return err
-		}
-		if err := category.CheckSelectable(ctx, q, in.CategoryID); err != nil {
-			return err
-		}
-		e, err := s.insert(ctx, q, userID, store.CreateEntryParams{
-			AccountID: in.AccountID, Kind: string(KindExpense), AmountCents: -in.AmountCents,
-			OccurredOn: in.Date.String(), Confirmed: true,
-			CategoryID: sql.NullInt64{Int64: in.CategoryID, Valid: true}, Description: desc,
-		})
-		id = e.ID
+	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		var err error
+		id, err = s.AddExpenseTx(ctx, q, userID, in)
 		return err
 	})
 	if err != nil {
 		return Entry{}, err
 	}
 	return s.Entry(ctx, id)
+}
+
+// AddExpenseTx records the expense inside a transaction of the caller and returns the entry id.
+func (s *Service) AddExpenseTx(ctx context.Context, q *store.Queries, userID int64, in NewExpense) (int64, error) {
+	if err := CheckPositive(in.AmountCents); err != nil {
+		return 0, err
+	}
+	desc, err := CleanDescription(in.Description)
+	if err != nil {
+		return 0, err
+	}
+	if in.Date.IsZero() {
+		return 0, ErrDateRequired
+	}
+	if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
+		return 0, err
+	}
+	if err := category.CheckSelectable(ctx, q, in.CategoryID); err != nil {
+		return 0, err
+	}
+	e, err := s.insert(ctx, q, userID, store.CreateEntryParams{
+		AccountID: in.AccountID, Kind: string(KindExpense), AmountCents: -in.AmountCents,
+		OccurredOn: in.Date.String(), Confirmed: true,
+		CategoryID: sql.NullInt64{Int64: in.CategoryID, Valid: true}, Description: desc,
+	})
+	return e.ID, err
 }
 
 // NewIncome is a one off income received in an account, outside the registered incomes (RF-13).

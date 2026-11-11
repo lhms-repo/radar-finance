@@ -376,6 +376,10 @@ type ShoppingList struct {
 	CreatedBy  int64
 	CreatedAt  time.Time
 	FinishedAt sql.NullTime
+	PaidCents  sql.NullInt64
+	PaidOn     sql.NullString
+	PaidMethod sql.NullString
+	PaidWith   string
 }
 
 type Split struct {

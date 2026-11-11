@@ -12,6 +12,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/italogfx/radar-finance/internal/alelo"
+	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
@@ -77,6 +79,7 @@ type Service struct {
 	today    func() civil.Date
 	receipts Fetcher
 	cache    *receiptCache
+	payments payments
 }
 
 // NewService returns the service with the real clock in São Paulo.
@@ -85,7 +88,8 @@ func NewService(conn *sql.DB) *Service {
 	if err != nil {
 		loc = time.UTC
 	}
-	return &Service{conn: conn, now: time.Now, today: func() civil.Date { return civil.Today(loc) }, receipts: nfce.NewClient(), cache: newReceiptCache()}
+	return &Service{conn: conn, now: time.Now, today: func() civil.Date { return civil.Today(loc) }, receipts: nfce.NewClient(), cache: newReceiptCache(),
+		payments: payments{ledger: ledger.NewService(conn), cards: card.NewService(conn), alelo: alelo.NewService(conn)}}
 }
 
 // Market is a store where prices are taken (RF-65).

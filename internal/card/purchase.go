@@ -70,29 +70,35 @@ type CreditInput struct {
 func (s *Service) AddPurchase(ctx context.Context, userID int64, in PurchaseInput) (Purchase, error) {
 	var id int64
 	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		p, err := s.preparePurchase(ctx, q, in)
-		if err != nil {
-			return err
-		}
-		now := s.now().UTC()
-		row, err := q.CreatePurchase(ctx, store.CreatePurchaseParams{
-			CardID: p.CardID, Kind: kindPurchase, PurchasedOn: p.Date.String(), Merchant: p.Merchant, Description: p.Description,
-			CategoryID: nullID(p.CategoryID), BuyerPersonID: nullID(p.BuyerPersonID), TotalCents: p.TotalCents,
-			InstallmentCount: int64(p.Installments), FirstInvoice: p.FirstInvoice.String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
-		})
-		if err != nil {
-			return fmt.Errorf("create purchase: %w", err)
-		}
-		id = row.ID
-		if err := writeInstallments(ctx, q, id, p, 1); err != nil {
-			return err
-		}
-		return s.writeSplits(ctx, q, userID, id, p, p.shares)
+		var err error
+		id, err = s.AddPurchaseTx(ctx, q, userID, in)
+		return err
 	})
 	if err != nil {
 		return Purchase{}, err
 	}
 	return s.getPurchase(ctx, store.New(s.conn), id)
+}
+
+// AddPurchaseTx registers the purchase inside a transaction of the caller and returns its id.
+func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID int64, in PurchaseInput) (int64, error) {
+	p, err := s.preparePurchase(ctx, q, in)
+	if err != nil {
+		return 0, err
+	}
+	now := s.now().UTC()
+	row, err := q.CreatePurchase(ctx, store.CreatePurchaseParams{
+		CardID: p.CardID, Kind: kindPurchase, PurchasedOn: p.Date.String(), Merchant: p.Merchant, Description: p.Description,
+		CategoryID: nullID(p.CategoryID), BuyerPersonID: nullID(p.BuyerPersonID), TotalCents: p.TotalCents,
+		InstallmentCount: int64(p.Installments), FirstInvoice: p.FirstInvoice.String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("create purchase: %w", err)
+	}
+	if err := writeInstallments(ctx, q, row.ID, p, 1); err != nil {
+		return 0, err
+	}
+	return row.ID, s.writeSplits(ctx, q, userID, row.ID, p, p.shares)
 }
 
 // UpdatePurchase replaces a purchase and regenerates its installments and shares; the card stays the same.

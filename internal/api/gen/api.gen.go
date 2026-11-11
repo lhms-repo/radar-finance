@@ -394,6 +394,27 @@ func (e NotificationSeverity) Valid() bool {
 	}
 }
 
+// Defines values for PayMethod.
+const (
+	PayMethodAccount PayMethod = "account"
+	PayMethodAlelo   PayMethod = "alelo"
+	PayMethodCard    PayMethod = "card"
+)
+
+// Valid indicates whether the value is a known member of the PayMethod enum.
+func (e PayMethod) Valid() bool {
+	switch e {
+	case PayMethodAccount:
+		return true
+	case PayMethodAlelo:
+		return true
+	case PayMethodCard:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PingStatus.
 const (
 	PingStatusOk PingStatus = "ok"
@@ -1574,6 +1595,20 @@ type LatestPrice struct {
 	Stale bool `json:"stale"`
 }
 
+// ListFinish defines model for ListFinish.
+type ListFinish struct {
+	AccountId    *int64             `json:"accountId,omitempty"`
+	AleloId      *int64             `json:"aleloId,omitempty"`
+	CardId       *int64             `json:"cardId,omitempty"`
+	Date         openapi_types.Date `json:"date"`
+	Description  string             `json:"description"`
+	Installments *int               `json:"installments,omitempty"`
+	Method       PayMethod          `json:"method"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
 // ListItem defines model for ListItem.
 type ListItem struct {
 	Id           int64         `json:"id"`
@@ -1599,6 +1634,16 @@ type ListItemPicked struct {
 // ListItemQuantity defines model for ListItemQuantity.
 type ListItemQuantity struct {
 	QuantityMilli int64 `json:"quantityMilli"`
+}
+
+// ListPayment defines model for ListPayment.
+type ListPayment struct {
+	Date        openapi_types.Date `json:"date"`
+	Description string             `json:"description"`
+	Method      PayMethod          `json:"method"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -1796,6 +1841,9 @@ type PartyShare struct {
 	// ShareCents Amount in cents (RN-21).
 	ShareCents *Cents `json:"shareCents,omitempty"`
 }
+
+// PayMethod defines model for PayMethod.
+type PayMethod string
 
 // Person defines model for Person.
 type Person struct {
@@ -2209,12 +2257,13 @@ type ShoppingList struct {
 
 // ShoppingListDetail defines model for ShoppingListDetail.
 type ShoppingListDetail struct {
-	Done        bool       `json:"done"`
-	Id          int64      `json:"id"`
-	ItemCount   int64      `json:"itemCount"`
-	Items       []ListItem `json:"items"`
-	Name        string     `json:"name"`
-	PickedCount int64      `json:"pickedCount"`
+	Done        bool         `json:"done"`
+	Id          int64        `json:"id"`
+	ItemCount   int64        `json:"itemCount"`
+	Items       []ListItem   `json:"items"`
+	Name        string       `json:"name"`
+	Paid        *ListPayment `json:"paid,omitempty"`
+	PickedCount int64        `json:"pickedCount"`
 }
 
 // ShoppingListInput defines model for ShoppingListInput.
@@ -2517,6 +2566,9 @@ type CreateShoppingListJSONRequestBody = ShoppingListInput
 // RenameShoppingListJSONRequestBody defines body for RenameShoppingList for application/json ContentType.
 type RenameShoppingListJSONRequestBody = ShoppingListInput
 
+// FinishShoppingListJSONRequestBody defines body for FinishShoppingList for application/json ContentType.
+type FinishShoppingListJSONRequestBody = ListFinish
+
 // AddListItemJSONRequestBody defines body for AddListItem for application/json ContentType.
 type AddListItemJSONRequestBody = ListItemInput
 
@@ -2813,6 +2865,9 @@ type ServerInterface interface {
 	// CompareList Ranking of the markets for the list and the best split among them (RF-72 to RF-75, RN-22 to RN-25).
 	// (GET /market/lists/{id}/comparison)
 	CompareList(w http.ResponseWriter, r *http.Request, id Id)
+	// FinishShoppingList Records the real total as an expense of Compras para casa by account or card, or as an Alelo purchase, and closes the list (RF-77, RN-26).
+	// (POST /market/lists/{id}/finish)
+	FinishShoppingList(w http.ResponseWriter, r *http.Request, id Id)
 	// AddListItem Puts a product on the list; the same product again adds to its quantity (RF-71).
 	// (POST /market/lists/{id}/items)
 	AddListItem(w http.ResponseWriter, r *http.Request, id Id)
@@ -4862,6 +4917,32 @@ func (siw *ServerInterfaceWrapper) CompareList(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// FinishShoppingList operation middleware
+func (siw *ServerInterfaceWrapper) FinishShoppingList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FinishShoppingList(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // AddListItem operation middleware
 func (siw *ServerInterfaceWrapper) AddListItem(w http.ResponseWriter, r *http.Request) {
 
@@ -6209,6 +6290,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/list-items/{id}", wrapper.UpdateListItem)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/list-items/{id}/picked", wrapper.SetListItemPicked)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/lists/{id}/comparison", wrapper.CompareList)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/lists/{id}/finish", wrapper.FinishShoppingList)
 
 	return m
 }
@@ -10869,6 +10951,79 @@ func (response CompareList404JSONResponse) VisitCompareListResponse(w http.Respo
 	return err
 }
 
+type FinishShoppingListRequestObject struct {
+	Id   Id `json:"id"`
+	Body *FinishShoppingListJSONRequestBody
+}
+
+type FinishShoppingListResponseObject interface {
+	VisitFinishShoppingListResponse(w http.ResponseWriter) error
+}
+
+type FinishShoppingList204Response struct {
+}
+
+func (response FinishShoppingList204Response) VisitFinishShoppingListResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type FinishShoppingList400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response FinishShoppingList400JSONResponse) VisitFinishShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FinishShoppingList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response FinishShoppingList401JSONResponse) VisitFinishShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FinishShoppingList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response FinishShoppingList404JSONResponse) VisitFinishShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FinishShoppingList409JSONResponse struct{ ConflictJSONResponse }
+
+func (response FinishShoppingList409JSONResponse) VisitFinishShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type AddListItemRequestObject struct {
 	Id   Id `json:"id"`
 	Body *AddListItemJSONRequestBody
@@ -13702,6 +13857,9 @@ type StrictServerInterface interface {
 	// CompareList Ranking of the markets for the list and the best split among them (RF-72 to RF-75, RN-22 to RN-25).
 	// (GET /market/lists/{id}/comparison)
 	CompareList(ctx context.Context, request CompareListRequestObject) (CompareListResponseObject, error)
+	// FinishShoppingList Records the real total as an expense of Compras para casa by account or card, or as an Alelo purchase, and closes the list (RF-77, RN-26).
+	// (POST /market/lists/{id}/finish)
+	FinishShoppingList(ctx context.Context, request FinishShoppingListRequestObject) (FinishShoppingListResponseObject, error)
 	// AddListItem Puts a product on the list; the same product again adds to its quantity (RF-71).
 	// (POST /market/lists/{id}/items)
 	AddListItem(ctx context.Context, request AddListItemRequestObject) (AddListItemResponseObject, error)
@@ -16148,6 +16306,39 @@ func (sh *strictHandler) CompareList(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CompareListResponseObject); ok {
 		if err := validResponse.VisitCompareListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FinishShoppingList operation middleware
+func (sh *strictHandler) FinishShoppingList(w http.ResponseWriter, r *http.Request, id Id) {
+	var request FinishShoppingListRequestObject
+
+	request.Id = id
+
+	var body FinishShoppingListJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FinishShoppingList(ctx, request.(FinishShoppingListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FinishShoppingList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FinishShoppingListResponseObject); ok {
+		if err := validResponse.VisitFinishShoppingListResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

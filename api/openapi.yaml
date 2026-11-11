@@ -2785,6 +2785,31 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /market/lists/{id}/finish:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: finishShoppingList
+      tags: [market]
+      summary: Records the real total as an expense of Compras para casa by account or card, or as an Alelo purchase, and closes the list (RF-77, RN-26).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListFinish"
+      responses:
+        "204":
+          description: Finished.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
 components:
   parameters:
     Id:
@@ -5296,6 +5321,8 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/ListItem"
+            paid:
+              $ref: "#/components/schemas/ListPayment"
 
     ListItemInput:
       type: object
@@ -5408,6 +5435,52 @@ components:
             type: string
         settings:
           $ref: "#/components/schemas/MarketSettings"
+
+    PayMethod:
+      type: string
+      enum: [account, card, alelo]
+
+    ListFinish:
+      type: object
+      required: [method, totalCents, date, description]
+      properties:
+        method:
+          $ref: "#/components/schemas/PayMethod"
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 120
+        accountId:
+          type: integer
+          format: int64
+        cardId:
+          type: integer
+          format: int64
+        installments:
+          type: integer
+          minimum: 1
+          maximum: 48
+        aleloId:
+          type: integer
+          format: int64
+
+    ListPayment:
+      type: object
+      required: [method, totalCents, date, description]
+      properties:
+        method:
+          $ref: "#/components/schemas/PayMethod"
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
 
 security:
   - session: []

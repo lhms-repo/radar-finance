@@ -1658,6 +1658,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/market/lists/{id}/finish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Records the real total as an expense of Compras para casa by account or card, or as an Alelo purchase, and closes the list (RF-77, RN-26). */
+        post: operations["finishShoppingList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2953,6 +2972,7 @@ export interface components {
         };
         ShoppingListDetail: components["schemas"]["ShoppingList"] & {
             items: components["schemas"]["ListItem"][];
+            paid?: components["schemas"]["ListPayment"];
         };
         ListItemInput: {
             /** Format: int64 */
@@ -3005,6 +3025,29 @@ export interface components {
             /** @description Items without price in any market, left out of the split (RN-24). */
             uncovered: string[];
             settings: components["schemas"]["MarketSettings"];
+        };
+        /** @enum {string} */
+        PayMethod: "account" | "card" | "alelo";
+        ListFinish: {
+            method: components["schemas"]["PayMethod"];
+            totalCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+            description: string;
+            /** Format: int64 */
+            accountId?: number;
+            /** Format: int64 */
+            cardId?: number;
+            installments?: number;
+            /** Format: int64 */
+            aleloId?: number;
+        };
+        ListPayment: {
+            method: components["schemas"]["PayMethod"];
+            totalCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+            description: string;
         };
     };
     responses: {
@@ -6283,6 +6326,34 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    finishShoppingList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ListFinish"];
+            };
+        };
+        responses: {
+            /** @description Finished. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

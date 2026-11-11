@@ -49,6 +49,9 @@ func (a *API) GetShoppingList(ctx context.Context, req gen.GetShoppingListReques
 		}
 		out.Items = append(out.Items, item)
 	}
+	if d.Paid != nil {
+		out.Paid = &gen.ListPayment{Method: gen.PayMethod(d.Paid.Method), TotalCents: d.Paid.TotalCents, Date: apiDate(d.Paid.Date), Description: d.Paid.Description}
+	}
 	return out, nil
 }
 
@@ -149,4 +152,29 @@ func (a *API) CompareList(ctx context.Context, req gen.CompareListRequestObject)
 		out.Split = &sp
 	}
 	return out, nil
+}
+
+// FinishShoppingList records the real total of the purchase and closes the list (RF-77, RN-26).
+func (a *API) FinishShoppingList(ctx context.Context, req gen.FinishShoppingListRequestObject) (gen.FinishShoppingListResponseObject, error) {
+	if req.Body == nil {
+		return nil, errNoBody
+	}
+	b := req.Body
+	in := market.Finish{Method: market.PayMethod(b.Method), TotalCents: b.TotalCents, Date: fromDate(b.Date), Description: b.Description}
+	if b.AccountId != nil {
+		in.AccountID = *b.AccountId
+	}
+	if b.CardId != nil {
+		in.CardID = *b.CardId
+	}
+	if b.Installments != nil {
+		in.Installments = *b.Installments
+	}
+	if b.AleloId != nil {
+		in.AleloID = *b.AleloId
+	}
+	if err := a.d.Market.FinishList(ctx, auth.UserID(ctx), req.Id, in); err != nil {
+		return nil, err
+	}
+	return gen.FinishShoppingList204Response{}, nil
 }

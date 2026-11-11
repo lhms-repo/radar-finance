@@ -10,25 +10,12 @@ export function useLiveUpdates() {
   useEffect(() => {
     if (typeof EventSource === "undefined") return;
     const source = new EventSource("/api/events");
-    const topics = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    /** Refreshes the market queries for market changes and everything else for other areas. */
-    const flush = () => {
-      if (topics.size === 1 && topics.has("market")) void qc.invalidateQueries({ queryKey: ["market"] });
-      else void qc.invalidateQueries();
-      topics.clear();
-    };
-
-    source.addEventListener("change", (e) => {
-      try {
-        const { topic } = JSON.parse((e as MessageEvent<string>).data) as { topic: string };
-        topics.add(topic);
-      } catch {
-        topics.add("all");
-      }
+    // Any change refreshes the queries on screen; the others refresh when they are opened again.
+    source.addEventListener("change", () => {
       clearTimeout(timer);
-      timer = setTimeout(flush, SETTLE_MS);
+      timer = setTimeout(() => void qc.invalidateQueries(), SETTLE_MS);
     });
     return () => {
       clearTimeout(timer);
