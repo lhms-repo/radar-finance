@@ -54,6 +54,14 @@ Sistema web de gestão financeira de um casal, hospedado em casa e acessado só 
 - Toda animação respeita `prefers-reduced-motion`.
 - Nunca grave dados reais de exemplo no repositório. Use dados fictícios nos testes e nas seeds.
 
+## Estado atual
+
+- Fase 1 (Fundação) entregue e em produção desde 10/11/2026, aguardando aprovação do dono para começar a Fase 2.
+- Entrada sem senha com dois usuários fixos (RF-01 reescrito por decisão do dono). Os nomes reais ficam só no banco de produção.
+- Produção nesta máquina Windows: `https://<nome-do-pc>.local` e IPs reservados no roteador, definidos em `deploy/.env` (fora do git). Certificados em `deploy/certs/`, com a autoridade local em `deploy/certs/ca`, que nunca sai do PC. Para regenerar o certificado, reutilize a mesma autoridade, senão os iPhones deixam de confiar.
+- Pendente: POC da NFC-e testada com uma nota real; login automático e energia do Windows (seção 2 de `docs/instalacao.md`).
+- Atualize esta seção ao fim de cada fase.
+
 ## Plataforma
 
 - Única plataforma móvel: iPhone com Safari. Não é preciso suportar Android.
