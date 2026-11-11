@@ -109,8 +109,13 @@ type Health struct {
 
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login string `json:"login"`
+}
+
+// LoginUser defines model for LoginUser.
+type LoginUser struct {
+	Login string `json:"login"`
+	Name  string `json:"name"`
 }
 
 // Me defines model for Me.
@@ -156,12 +161,15 @@ type UpdatePreferencesJSONRequestBody = PreferencesUpdate
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Login Signs in with login and password (RF-01).
+	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
 	// Logout Ends the current session.
 	// (POST /auth/logout)
 	Logout(w http.ResponseWriter, r *http.Request)
+	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
+	// (GET /auth/users)
+	ListLoginUsers(w http.ResponseWriter, r *http.Request)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -213,6 +221,20 @@ func (siw *ServerInterfaceWrapper) Logout(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.Logout(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListLoginUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListLoginUsers(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLoginUsers(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -441,6 +463,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/ping", wrapper.Ping)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/users", wrapper.ListLoginUsers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/login", wrapper.Login)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
@@ -509,30 +532,6 @@ func (response Login401JSONResponse) VisitLoginResponse(w http.ResponseWriter) e
 	return err
 }
 
-type Login429ResponseHeaders struct {
-	RetryAfter *int
-}
-
-type Login429JSONResponse struct {
-	Body    Error
-	Headers Login429ResponseHeaders
-}
-
-func (response Login429JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if response.Headers.RetryAfter != nil {
-		w.Header().Set("Retry-After", fmt.Sprint(*response.Headers.RetryAfter))
-	}
-	w.WriteHeader(429)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type LogoutRequestObject struct {
 }
 
@@ -546,6 +545,27 @@ type Logout204Response struct {
 func (response Logout204Response) VisitLogoutResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
 	return nil
+}
+
+type ListLoginUsersRequestObject struct {
+}
+
+type ListLoginUsersResponseObject interface {
+	VisitListLoginUsersResponse(w http.ResponseWriter) error
+}
+
+type ListLoginUsers200JSONResponse []LoginUser
+
+func (response ListLoginUsers200JSONResponse) VisitListLoginUsersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetMeRequestObject struct {
@@ -824,12 +844,15 @@ func (response GetHealth401JSONResponse) VisitGetHealthResponse(w http.ResponseW
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// Login Signs in with login and password (RF-01).
+	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
 	// Logout Ends the current session.
 	// (POST /auth/logout)
 	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
+	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
+	// (GET /auth/users)
+	ListLoginUsers(ctx context.Context, request ListLoginUsersRequestObject) (ListLoginUsersResponseObject, error)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -940,6 +963,30 @@ func (sh *strictHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(LogoutResponseObject); ok {
 		if err := validResponse.VisitLogoutResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListLoginUsers operation middleware
+func (sh *strictHandler) ListLoginUsers(w http.ResponseWriter, r *http.Request) {
+	var request ListLoginUsersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListLoginUsers(ctx, request.(ListLoginUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListLoginUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListLoginUsersResponseObject); ok {
+		if err := validResponse.VisitListLoginUsersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

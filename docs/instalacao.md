@@ -65,11 +65,10 @@ No terminal do Ubuntu, na pasta do repositório:
 ```bash
 cp deploy/.env.example deploy/.env   # ajuste RADAR_HOSTS e RADAR_BACKUP_HOST_DIR
 make deploy
-make deploy-user-add LOGIN=italo NAME="Ítalo"
-make deploy-user-add LOGIN=<login> NAME="<nome>"
+make deploy-user-add LOGIN=<login> NAME="<nome>"   # uma vez para cada pessoa, no máximo duas
 ```
 
-O comando pede a senha duas vezes, sem mostrar na tela. Atualizações futuras usam o mesmo `make deploy` (RNF-19). As migrações rodam sozinhas.
+Os usuários não têm senha (RF-01) e ficam só no banco, nunca no repositório. Atualizações futuras usam o mesmo `make deploy` (RNF-19). As migrações rodam sozinhas.
 
 ## 5. Instalar como app no iPhone (RNF-23)
 

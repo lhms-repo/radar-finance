@@ -1,14 +1,15 @@
 import { expect, type Page } from "@playwright/test";
 
-/** Fictional credentials created by e2e/server.sh. */
-export const USER = { login: "teste", password: "senha-ficticia-123", name: "Pessoa Teste" };
+/** Fictional users created by e2e/server.sh. */
+export const USERS = [
+  { login: "ana", name: "Ana Ficticia" },
+  { login: "bruno", name: "Bruno Ficticio" },
+];
 
-/** Logs in through the form and waits for the app shell. */
-export async function login(page: Page) {
+/** Picks a user on the "who is using" screen and waits for the app shell. */
+export async function login(page: Page, name = USERS[0]!.name) {
   await page.goto("/login");
-  await page.getByLabel("Usuário").fill(USER.login);
-  await page.getByLabel("Senha").fill(USER.password);
-  await page.getByRole("button", { name: "Entrar" }).click();
+  await page.getByRole("button", { name }).click();
   await expect(page).toHaveURL(/\/$/);
 }
 

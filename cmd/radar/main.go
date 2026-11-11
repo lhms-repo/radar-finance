@@ -2,25 +2,20 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	// Embedded time zone database, so the minimal image knows America/Sao_Paulo.
 	_ "time/tzdata"
-
-	"golang.org/x/term"
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/auth"
@@ -38,8 +33,7 @@ const usage = `Uso: radar <comando>
 
 Comandos:
   serve                  inicia o servidor (padrão)
-  user add               cria um usuário e a pessoa ligada a ele
-  user password          troca a senha de um usuário
+  user add               cria um usuário e a pessoa ligada a ele (máximo de dois)
   user list              lista os usuários
   backup                 gera um backup manual
   healthcheck            verifica se o servidor responde
@@ -100,10 +94,7 @@ func serve(log *slog.Logger) error {
 	if err := db.Migrate(ctx, conn, log); err != nil {
 		return err
 	}
-	accounts, err := account.NewService(conn)
-	if err != nil {
-		return err
-	}
+	accounts := account.NewService(conn)
 	sessions := auth.NewSessionManager(conn, auth.SessionOptions{
 		Idle: cfg.SessionIdle, Lifetime: cfg.SessionLifetime, Secure: cfg.CookieSecure,
 	})
@@ -120,7 +111,6 @@ func serve(log *slog.Logger) error {
 		Accounts:  accounts,
 		Sessions:  sessions,
 		Backups:   backups,
-		Throttle:  auth.NewThrottle(5, 15*time.Minute, 5*time.Minute, nil),
 		Version:   version,
 		StartedAt: time.Now(),
 		Log:       log,
@@ -166,24 +156,18 @@ func openForCommand(log *slog.Logger) (*account.Service, func(), error) {
 		_ = conn.Close()
 		return nil, nil, err
 	}
-	accounts, err := account.NewService(conn)
-	if err != nil {
-		_ = conn.Close()
-		return nil, nil, err
-	}
-	return accounts, func() { _ = conn.Close() }, nil
+	return account.NewService(conn), func() { _ = conn.Close() }, nil
 }
 
-// userCommand handles the "user add", "user password" and "user list" subcommands.
+// userCommand handles the "user add" and "user list" subcommands.
 func userCommand(args []string, log *slog.Logger) error {
 	if len(args) == 0 {
-		return errors.New("use: radar user add|password|list")
+		return errors.New("use: radar user add|list")
 	}
 	sub, args := args[0], args[1:]
 	fs := flag.NewFlagSet("user "+sub, flag.ContinueOnError)
 	login := fs.String("login", "", "login do usuário")
 	name := fs.String("name", "", "nome da pessoa")
-	fromStdin := fs.Bool("password-stdin", false, "lê a senha da primeira linha da entrada padrão")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -196,67 +180,23 @@ func userCommand(args []string, log *slog.Logger) error {
 
 	switch sub {
 	case "add":
-		password, err := readPassword(*fromStdin)
-		if err != nil {
-			return err
-		}
-		u, err := accounts.Create(ctx, *login, *name, password)
+		u, err := accounts.Create(ctx, *login, *name)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Usuário %q criado para %s.\n", u.Login, u.Name)
-	case "password":
-		if *login == "" {
-			return errors.New("informe --login")
-		}
-		password, err := readPassword(*fromStdin)
-		if err != nil {
-			return err
-		}
-		if err := accounts.SetPassword(ctx, *login, password); err != nil {
-			return err
-		}
-		fmt.Println("Senha alterada.")
 	case "list":
 		users, err := accounts.List(ctx)
 		if err != nil {
 			return err
 		}
 		for _, u := range users {
-			fmt.Printf("%d\t%s\t%s\n", u.ID, u.Login, u.PersonName)
+			fmt.Printf("%d\t%s\t%s\n", u.ID, u.Login, u.Name)
 		}
 	default:
 		return fmt.Errorf("subcomando desconhecido: user %s", sub)
 	}
 	return nil
-}
-
-// readPassword reads a password from stdin, asking twice without echo on a terminal.
-func readPassword(fromStdin bool) (string, error) {
-	fd := int(os.Stdin.Fd())
-	if fromStdin || !term.IsTerminal(fd) {
-		line, err := bufio.NewReader(os.Stdin).ReadString('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			return "", err
-		}
-		return strings.TrimRight(line, "\r\n"), nil
-	}
-	fmt.Print("Senha: ")
-	first, err := term.ReadPassword(fd)
-	fmt.Println()
-	if err != nil {
-		return "", err
-	}
-	fmt.Print("Repita a senha: ")
-	second, err := term.ReadPassword(fd)
-	fmt.Println()
-	if err != nil {
-		return "", err
-	}
-	if string(first) != string(second) {
-		return "", errors.New("as senhas não conferem")
-	}
-	return string(first), nil
 }
 
 // backupCommand runs a manual backup against the configured database.

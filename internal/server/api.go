@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"time"
 
@@ -28,37 +27,35 @@ func (a *API) Ping(_ context.Context, _ gen.PingRequestObject) (gen.PingResponse
 	return gen.Ping200JSONResponse{Status: "ok"}, nil
 }
 
-// Login checks the credentials, throttles repeated failures and starts a session (RF-01).
+// ListLoginUsers lists the users shown on the "who is using" screen (RF-01).
+func (a *API) ListLoginUsers(ctx context.Context, _ gen.ListLoginUsersRequestObject) (gen.ListLoginUsersResponseObject, error) {
+	users, err := a.d.Accounts.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(gen.ListLoginUsers200JSONResponse, 0, len(users))
+	for _, u := range users {
+		out = append(out, gen.LoginUser{Login: u.Login, Name: u.Name})
+	}
+	return out, nil
+}
+
+// Login starts a session for the chosen user; there are no passwords (RF-01).
 func (a *API) Login(ctx context.Context, req gen.LoginRequestObject) (gen.LoginResponseObject, error) {
-	if req.Body == nil || req.Body.Login == "" || req.Body.Password == "" {
+	if req.Body == nil || req.Body.Login == "" {
 		return gen.Login400JSONResponse{BadRequestJSONResponse: gen.BadRequestJSONResponse{
-			Code: "invalid_request", Message: "Informe usuário e senha.",
+			Code: "invalid_request", Message: "Escolha quem está usando.",
 		}}, nil
 	}
-	login := req.Body.Login
-	if ok, wait := a.d.Throttle.Allowed(login); !ok {
-		seconds := int(math.Ceil(wait.Seconds()))
-		minutes := int(math.Ceil(wait.Minutes()))
-		return gen.Login429JSONResponse{
-			Body: gen.Error{
-				Code:    "too_many_attempts",
-				Message: fmt.Sprintf("Muitas tentativas. Tente de novo em %d min.", minutes),
-			},
-			Headers: gen.Login429ResponseHeaders{RetryAfter: &seconds},
-		}, nil
-	}
-	user, err := a.d.Accounts.Authenticate(ctx, login, req.Body.Password)
-	if errors.Is(err, account.ErrInvalidCredentials) {
-		a.d.Throttle.Failure(login)
-		a.d.Log.Warn("login failed", "login", login)
+	user, err := a.d.Accounts.GetByLogin(ctx, req.Body.Login)
+	if errors.Is(err, account.ErrNotFound) {
 		return gen.Login401JSONResponse{UnauthorizedJSONResponse: gen.UnauthorizedJSONResponse{
-			Code: "invalid_credentials", Message: "Usuário ou senha incorretos.",
+			Code: "unknown_user", Message: "Usuário não encontrado.",
 		}}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	a.d.Throttle.Success(login)
 	if err := auth.SignIn(ctx, a.d.Sessions, user.ID); err != nil {
 		return nil, err
 	}

@@ -36,12 +36,11 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 	if err := db.Migrate(context.Background(), conn, log); err != nil {
 		t.Fatal(err)
 	}
-	accounts, err := account.NewService(conn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := accounts.Create(context.Background(), "ana", "Ana Ficticia", "senha-ficticia-1"); err != nil {
-		t.Fatal(err)
+	accounts := account.NewService(conn)
+	for _, u := range [][2]string{{"ana", "Ana Ficticia"}, {"bruno", "Bruno Ficticio"}} {
+		if _, err := accounts.Create(context.Background(), u[0], u[1]); err != nil {
+			t.Fatal(err)
+		}
 	}
 	loc, _ := time.LoadLocation(config.Location)
 	cfg := config.Config{DBPath: filepath.Join(dir, "radar.db"), BackupDir: filepath.Join(dir, "backups"), BackupKeep: 30, BackupHour: 3, Loc: loc}
@@ -51,7 +50,6 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Accounts:  accounts,
 		Sessions:  auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
 		Backups:   backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
-		Throttle:  auth.NewThrottle(5, 15*time.Minute, 5*time.Minute, nil),
 		Version:   "test",
 		StartedAt: time.Now(),
 		Log:       log,
@@ -104,12 +102,19 @@ func TestLoginFlow(t *testing.T) {
 		t.Fatalf("me without session = %d, want 401", resp.StatusCode)
 	}
 
-	resp = postJSON(t, c, srv, "/api/auth/login", `{"login":"ana","password":"errada-123"}`)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("wrong password = %d, want 401", resp.StatusCode)
+	resp = get(t, c, srv.URL+"/api/auth/users")
+	var users []struct{ Login, Name string }
+	_ = json.NewDecoder(resp.Body).Decode(&users)
+	if resp.StatusCode != http.StatusOK || len(users) != 2 || users[0].Name != "Ana Ficticia" {
+		t.Fatalf("login users = %d %+v", resp.StatusCode, users)
 	}
 
-	resp = postJSON(t, c, srv, "/api/auth/login", `{"login":"ANA","password":"senha-ficticia-1"}`)
+	resp = postJSON(t, c, srv, "/api/auth/login", `{"login":"carla"}`)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unknown user = %d, want 401", resp.StatusCode)
+	}
+
+	resp = postJSON(t, c, srv, "/api/auth/login", `{"login":"ANA"}`)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("login = %d, want 200", resp.StatusCode)
 	}
@@ -141,27 +146,11 @@ func TestLoginFlow(t *testing.T) {
 	}
 }
 
-// TestLoginThrottle checks the lock after repeated failures.
-func TestLoginThrottle(t *testing.T) {
-	srv, _ := testServer(t)
-	c := newClient(t)
-	for i := 0; i < 5; i++ {
-		postJSON(t, c, srv, "/api/auth/login", `{"login":"ana","password":"errada-123"}`)
-	}
-	resp := postJSON(t, c, srv, "/api/auth/login", `{"login":"ana","password":"senha-ficticia-1"}`)
-	if resp.StatusCode != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want 429", resp.StatusCode)
-	}
-	if resp.Header.Get("Retry-After") == "" {
-		t.Fatal("missing Retry-After")
-	}
-}
-
 // TestCrossOriginBlocked checks that another site cannot post with the session.
 func TestCrossOriginBlocked(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/login", strings.NewReader(`{"login":"ana","password":"senha-ficticia-1"}`))
+	req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/auth/login", strings.NewReader(`{"login":"ana"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://evil.example")
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
@@ -179,7 +168,7 @@ func TestCrossOriginBlocked(t *testing.T) {
 func TestBackupAndExport(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana","password":"senha-ficticia-1"}`)
+	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
 
 	resp := postJSON(t, c, srv, "/api/system/backups", "")
 	if resp.StatusCode != http.StatusCreated {
@@ -221,8 +210,8 @@ func TestBackupAndExport(t *testing.T) {
 	if !ok {
 		t.Fatal("users.csv missing")
 	}
-	if strings.Contains(users, "password_hash") || strings.Contains(users, "argon2id") {
-		t.Fatal("password hashes must not be exported")
+	if !strings.Contains(users, "bruno") {
+		t.Fatal("users.csv missing data")
 	}
 	if !strings.Contains(names["persons.csv"], "Ana Ficticia") {
 		t.Fatal("persons.csv missing data")
@@ -233,7 +222,7 @@ func TestBackupAndExport(t *testing.T) {
 func TestUnknownAPIRoute(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana","password":"senha-ficticia-1"}`)
+	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
 	resp := get(t, c, srv.URL+"/api/nada")
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {

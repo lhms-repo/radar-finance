@@ -1,3 +1,4 @@
+// Package auth handles sessions and the logged in user (RF-01, RF-03, RNF-10).
 package auth
 
 import (

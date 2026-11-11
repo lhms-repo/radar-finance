@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+const countUsers = `-- name: CountUsers :one
+SELECT count(*) FROM users
+`
+
+func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createPerson = `-- name: CreatePerson :one
 INSERT INTO persons (name, created_at)
 VALUES (?, ?)
@@ -29,23 +40,21 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (login, password_hash, person_id, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
-RETURNING id, login, password_hash, person_id, theme, haptics, created_at, updated_at
+INSERT INTO users (login, person_id, created_at, updated_at)
+VALUES (?, ?, ?, ?)
+RETURNING id, login, person_id, theme, haptics, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	Login        string
-	PasswordHash string
-	PersonID     int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	Login     string
+	PersonID  int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
 		arg.Login,
-		arg.PasswordHash,
 		arg.PersonID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
@@ -54,7 +63,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	err := row.Scan(
 		&i.ID,
 		&i.Login,
-		&i.PasswordHash,
 		&i.PersonID,
 		&i.Theme,
 		&i.Haptics,
@@ -93,19 +101,18 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 }
 
 const getUserByLogin = `-- name: GetUserByLogin :one
-SELECT u.id, u.login, u.password_hash, u.theme, u.haptics, p.name AS person_name
+SELECT u.id, u.login, u.theme, u.haptics, p.name AS person_name
 FROM users u
 JOIN persons p ON p.id = u.person_id
 WHERE u.login = ?
 `
 
 type GetUserByLoginRow struct {
-	ID           int64
-	Login        string
-	PasswordHash string
-	Theme        string
-	Haptics      bool
-	PersonName   string
+	ID         int64
+	Login      string
+	Theme      string
+	Haptics    bool
+	PersonName string
 }
 
 func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLoginRow, error) {
@@ -114,7 +121,6 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 	err := row.Scan(
 		&i.ID,
 		&i.Login,
-		&i.PasswordHash,
 		&i.Theme,
 		&i.Haptics,
 		&i.PersonName,
@@ -162,26 +168,6 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateUserPassword = `-- name: UpdateUserPassword :execrows
-UPDATE users
-SET password_hash = ?, updated_at = ?
-WHERE login = ?
-`
-
-type UpdateUserPasswordParams struct {
-	PasswordHash string
-	UpdatedAt    time.Time
-	Login        string
-}
-
-func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateUserPassword, arg.PasswordHash, arg.UpdatedAt, arg.Login)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const updateUserPreferences = `-- name: UpdateUserPreferences :exec

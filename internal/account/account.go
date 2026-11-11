@@ -1,4 +1,4 @@
-// Package account manages the users of the couple and their preferences (RF-01, RF-02).
+// Package account manages the two users of the couple and their preferences (RF-01, RF-02).
 package account
 
 import (
@@ -9,16 +9,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 )
 
-// ErrInvalidCredentials is returned when the login or the password is wrong.
-var ErrInvalidCredentials = errors.New("invalid credentials")
+// MaxUsers is the number of users the system accepts: one per person of the couple.
+const MaxUsers = 2
 
 // ErrNotFound is returned when the user does not exist.
 var ErrNotFound = errors.New("user not found")
+
+// ErrLimitReached is returned when both users already exist.
+var ErrLimitReached = fmt.Errorf("o Radar aceita no máximo %d usuários", MaxUsers)
 
 // Themes accepted as user preference (RNF-14).
 var validThemes = map[string]bool{"system": true, "light": true, "dark": true}
@@ -38,47 +40,39 @@ type Preferences struct {
 	Haptics *bool
 }
 
-// Service creates, authenticates and updates users.
+// Service creates, finds and updates users.
 type Service struct {
 	conn *sql.DB
 	now  func() time.Time
-	// dummyHash is verified when the login does not exist, so timing does not reveal valid logins.
-	dummyHash string
 }
 
 // NewService creates the account service.
-func NewService(conn *sql.DB) (*Service, error) {
-	dummy, err := auth.HashPassword("radar-dummy-password")
-	if err != nil {
-		return nil, err
-	}
-	return &Service{conn: conn, now: time.Now, dummyHash: dummy}, nil
+func NewService(conn *sql.DB) *Service {
+	return &Service{conn: conn, now: time.Now}
 }
 
-// Create adds a person of the couple and the user linked to it.
-func (s *Service) Create(ctx context.Context, login, name, password string) (User, error) {
-	login = strings.TrimSpace(login)
+// Create adds a person of the couple and the user linked to it, up to MaxUsers.
+func (s *Service) Create(ctx context.Context, login, name string) (User, error) {
+	login = strings.ToLower(strings.TrimSpace(login))
 	name = strings.TrimSpace(name)
 	if login == "" || name == "" {
 		return User{}, errors.New("login e nome são obrigatórios")
 	}
-	if err := auth.ValidatePassword(password); err != nil {
-		return User{}, err
-	}
-	hash, err := auth.HashPassword(password)
-	if err != nil {
-		return User{}, err
-	}
 	now := s.now().UTC()
 	var u store.User
-	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		count, err := q.CountUsers(ctx)
+		if err != nil {
+			return err
+		}
+		if count >= MaxUsers {
+			return ErrLimitReached
+		}
 		p, err := q.CreatePerson(ctx, store.CreatePersonParams{Name: name, CreatedAt: now})
 		if err != nil {
 			return fmt.Errorf("create person: %w", err)
 		}
-		u, err = q.CreateUser(ctx, store.CreateUserParams{
-			Login: login, PasswordHash: hash, PersonID: p.ID, CreatedAt: now, UpdatedAt: now,
-		})
+		u, err = q.CreateUser(ctx, store.CreateUserParams{Login: login, PersonID: p.ID, CreatedAt: now, UpdatedAt: now})
 		if err != nil {
 			return fmt.Errorf("create user: %w", err)
 		}
@@ -90,22 +84,14 @@ func (s *Service) Create(ctx context.Context, login, name, password string) (Use
 	return User{ID: u.ID, Login: u.Login, Name: name, Theme: u.Theme, Haptics: u.Haptics}, nil
 }
 
-// Authenticate returns the user when login and password match.
-func (s *Service) Authenticate(ctx context.Context, login, password string) (User, error) {
+// GetByLogin returns the user with the given login.
+func (s *Service) GetByLogin(ctx context.Context, login string) (User, error) {
 	row, err := store.New(s.conn).GetUserByLogin(ctx, strings.TrimSpace(login))
 	if errors.Is(err, sql.ErrNoRows) {
-		_, _ = auth.VerifyPassword(s.dummyHash, password)
-		return User{}, ErrInvalidCredentials
+		return User{}, ErrNotFound
 	}
 	if err != nil {
 		return User{}, err
-	}
-	ok, err := auth.VerifyPassword(row.PasswordHash, password)
-	if err != nil {
-		return User{}, err
-	}
-	if !ok {
-		return User{}, ErrInvalidCredentials
 	}
 	return User{ID: row.ID, Login: row.Login, Name: row.PersonName, Theme: row.Theme, Haptics: row.Haptics}, nil
 }
@@ -148,30 +134,15 @@ func (s *Service) UpdatePreferences(ctx context.Context, id int64, p Preferences
 	return u, nil
 }
 
-// SetPassword replaces the password of the user with the given login.
-func (s *Service) SetPassword(ctx context.Context, login, password string) error {
-	if err := auth.ValidatePassword(password); err != nil {
-		return err
-	}
-	hash, err := auth.HashPassword(password)
+// List returns every user, in creation order.
+func (s *Service) List(ctx context.Context) ([]User, error) {
+	rows, err := store.New(s.conn).ListUsers(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		n, err := q.UpdateUserPassword(ctx, store.UpdateUserPasswordParams{
-			PasswordHash: hash, UpdatedAt: s.now().UTC(), Login: strings.TrimSpace(login),
-		})
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return ErrNotFound
-		}
-		return nil
-	})
-}
-
-// List returns every user.
-func (s *Service) List(ctx context.Context) ([]store.ListUsersRow, error) {
-	return store.New(s.conn).ListUsers(ctx)
+	out := make([]User, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, User{ID: r.ID, Login: r.Login, Name: r.PersonName})
+	}
+	return out, nil
 }

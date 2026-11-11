@@ -18,11 +18,6 @@ var skippedTables = map[string]bool{
 	"goose_db_version": true,
 }
 
-// skippedColumns are secrets that never leave the database.
-var skippedColumns = map[string]bool{
-	"password_hash": true,
-}
-
 // WriteZip writes one CSV per table from a single consistent read snapshot.
 func WriteZip(ctx context.Context, conn *sql.DB, w io.Writer) error {
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
@@ -80,16 +75,8 @@ func writeTable(ctx context.Context, tx *sql.Tx, table string, w io.Writer) erro
 	if err != nil {
 		return err
 	}
-	keep := make([]int, 0, len(cols))
-	header := make([]string, 0, len(cols))
-	for i, c := range cols {
-		if !skippedColumns[c] {
-			keep = append(keep, i)
-			header = append(header, c)
-		}
-	}
 	cw := csv.NewWriter(w)
-	if err := cw.Write(header); err != nil {
+	if err := cw.Write(cols); err != nil {
 		return err
 	}
 	values := make([]any, len(cols))
@@ -97,13 +84,13 @@ func writeTable(ctx context.Context, tx *sql.Tx, table string, w io.Writer) erro
 	for i := range values {
 		ptrs[i] = &values[i]
 	}
-	record := make([]string, len(keep))
+	record := make([]string, len(cols))
 	for rows.Next() {
 		if err := rows.Scan(ptrs...); err != nil {
 			return err
 		}
-		for j, i := range keep {
-			record[j] = formatValue(values[i])
+		for i, v := range values {
+			record[i] = formatValue(v)
 		}
 		if err := cw.Write(record); err != nil {
 			return err

@@ -14,5 +14,6 @@ export RADAR_ADDR=":${E2E_PORT:-8090}"
 
 (cd web && pnpm run build >/dev/null)
 CGO_ENABLED=0 go build -tags embedweb -o "$dir/radar" ./cmd/radar
-printf 'senha-ficticia-123\n' | "$dir/radar" user add --login teste --name "Pessoa Teste" --password-stdin
+"$dir/radar" user add --login ana --name "Ana Ficticia"
+"$dir/radar" user add --login bruno --name "Bruno Ficticio"
 exec "$dir/radar" serve

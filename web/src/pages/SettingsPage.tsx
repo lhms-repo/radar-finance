@@ -203,7 +203,7 @@ function DataCard() {
         </Button>
         <Button variant="ghost" onClick={() => logout.mutate()}>
           <LogOut />
-          Sair{me ? ` (${me.login})` : ""}
+          Trocar de usuário{me ? ` (${me.name})` : ""}
         </Button>
       </div>
     </Card>

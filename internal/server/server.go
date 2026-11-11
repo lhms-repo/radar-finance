@@ -28,6 +28,7 @@ const maxBodyBytes = 1 << 20
 // publicRoutes do not require a logged in user.
 var publicRoutes = map[string]bool{
 	"GET /api/ping":        true,
+	"GET /api/auth/users":  true,
 	"POST /api/auth/login": true,
 }
 
@@ -43,7 +44,6 @@ type Deps struct {
 	Accounts  *account.Service
 	Sessions  *scs.SessionManager
 	Backups   *backup.Service
-	Throttle  *auth.Throttle
 	Version   string
 	StartedAt time.Time
 	Log       *slog.Logger

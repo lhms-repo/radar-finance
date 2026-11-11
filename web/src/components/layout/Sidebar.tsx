@@ -230,7 +230,8 @@ function SidebarFooter({ collapsed, onToggle }: { collapsed: boolean; onToggle: 
           <button
             type="button"
             onClick={() => logout.mutate()}
-            aria-label="Sair"
+            aria-label="Trocar de usuário"
+            title="Trocar de usuário"
             className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
           >
             <LogOut className="size-4" />

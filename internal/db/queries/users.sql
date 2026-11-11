@@ -4,12 +4,15 @@ VALUES (?, ?)
 RETURNING *;
 
 -- name: CreateUser :one
-INSERT INTO users (login, password_hash, person_id, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO users (login, person_id, created_at, updated_at)
+VALUES (?, ?, ?, ?)
 RETURNING *;
 
+-- name: CountUsers :one
+SELECT count(*) FROM users;
+
 -- name: GetUserByLogin :one
-SELECT u.id, u.login, u.password_hash, u.theme, u.haptics, p.name AS person_name
+SELECT u.id, u.login, u.theme, u.haptics, p.name AS person_name
 FROM users u
 JOIN persons p ON p.id = u.person_id
 WHERE u.login = ?;
@@ -30,8 +33,3 @@ ORDER BY u.id;
 UPDATE users
 SET theme = ?, haptics = ?, updated_at = ?
 WHERE id = ?;
-
--- name: UpdateUserPassword :execrows
-UPDATE users
-SET password_hash = ?, updated_at = ?
-WHERE login = ?;

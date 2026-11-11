@@ -1,4 +1,5 @@
 -- Foundation schema: people of the couple, users and sessions (RF-01, RF-02).
+-- Users have no password: the couple picks who is using the app (RF-01).
 --
 -- Convention for every business table created in later phases (RF-03):
 --   created_by INTEGER NOT NULL REFERENCES users(id)
@@ -14,13 +15,12 @@ CREATE TABLE persons (
 
 CREATE TABLE users (
     id            INTEGER PRIMARY KEY,
-    login         TEXT     NOT NULL UNIQUE COLLATE NOCASE CHECK (length(trim(login)) > 0),
-    password_hash TEXT     NOT NULL,
-    person_id     INTEGER  NOT NULL UNIQUE REFERENCES persons (id),
-    theme         TEXT     NOT NULL DEFAULT 'system' CHECK (theme IN ('system', 'light', 'dark')),
-    haptics       BOOLEAN  NOT NULL DEFAULT 1,
-    created_at    DATETIME NOT NULL,
-    updated_at    DATETIME NOT NULL
+    login      TEXT     NOT NULL UNIQUE COLLATE NOCASE CHECK (length(trim(login)) > 0),
+    person_id  INTEGER  NOT NULL UNIQUE REFERENCES persons (id),
+    theme      TEXT     NOT NULL DEFAULT 'system' CHECK (theme IN ('system', 'light', 'dark')),
+    haptics    BOOLEAN  NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL
 );
 
 CREATE TABLE sessions (
