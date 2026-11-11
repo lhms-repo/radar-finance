@@ -59,7 +59,7 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 | RF-18 | Atribuir cada compra à fatura conforme o dia de fechamento do cartão. |
 | RF-19 | Exibir a fatura com total real, cotas de terceiros, valor recebido, valor pendente e parte líquida do casal. |
 | RF-20 | Exibir limite usado e limite livre, considerando as parcelas futuras. |
-| RF-21 | Registrar o pagamento da fatura, informando a conta de origem. |
+| RF-21 | Registrar o pagamento da fatura, informando a conta de origem. O pagamento é sempre integral, pelo total real da fatura. |
 | RF-22 | Lançar estornos e créditos na fatura. |
 | RF-23 | Prever as próximas faturas somando parcelas e recorrências já comprometidas. |
 
@@ -175,7 +175,7 @@ As regras abaixo definem como o sistema calcula e classifica os valores. Elas vi
 
 | ID | Regra |
 | --- | --- |
-| RN-01 | Compras no cartão pertencem ao mês da fatura. A data da compra é guardada apenas como informação. |
+| RN-01 | Compras no cartão pertencem ao mês da fatura. A data da compra é guardada apenas como informação. O mês da fatura é o mês do vencimento: a fatura que fecha em 28/11 e vence em 05/12 é a de dezembro. |
 | RN-02 | Compra feita no dia de fechamento ou depois entra na fatura seguinte. |
 | RN-03 | Em compra parcelada, cada parcela cai em uma fatura consecutiva a partir da primeira. Diferenças de centavos na divisão vão para a primeira parcela. |
 | RN-04 | Nas análises e gráficos de gasto, só a cota do casal conta como gasto. A cota de terceiros é valor a receber. |
@@ -313,6 +313,8 @@ Card único aberto pelo botão Adicionar, inspirado no card de valor com rolagem
 | Receita e Fixo | Renda recorrente | Conta de destino, dia de recebimento, pessoa, data de término opcional |
 
 A data vem preenchida com hoje e o último cartão ou conta usado vem pré-selecionado, para cumprir o lançamento em poucos toques do RNF-13.
+
+Combinações que dependem de módulos ainda não construídos ficam ocultas até a fase deles: Conta fixa e Alelo até a Fase 3, dividir com terceiros até a Fase 4.
 
 **Ícones das categorias**
 
