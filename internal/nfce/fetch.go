@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/italogfx/radar-finance/internal/problem"
 )
@@ -36,9 +37,15 @@ func NewClient() *Client {
 	return &Client{timeout: 30 * time.Second, allowHost: isGovHost}
 }
 
-// normalize trims the text read from the QR code and adds https:// when the code brings only the host and path.
+// normalize drops the line breaks, control and invisible characters some QR codes carry inside the address,
+// which a valid address never has, and adds https:// when the code brings only the host and path.
 func normalize(raw string) string {
-	raw = strings.TrimSpace(raw)
+	raw = strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, raw)
 	if !strings.Contains(raw, "://") {
 		raw = "https://" + raw
 	}

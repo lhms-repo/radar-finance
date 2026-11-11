@@ -118,8 +118,10 @@ export function ReceiptPage() {
             </div>
           ) : scanning ? (
             <QrScanner
-              onRead={(text) => {
+              onRead={(raw) => {
                 // One read per scan: the camera stops until the user asks again, so an error does not loop.
+                // Some QR codes carry line breaks or invisible characters inside the address; a valid address has none.
+                const text = raw.replace(/[\s\p{Cc}\p{Cf}]/gu, "");
                 setScanning(false);
                 setLink(text);
                 load(text);
