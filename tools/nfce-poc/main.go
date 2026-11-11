@@ -41,6 +41,9 @@ func main() {
 	switch {
 	case *file != "":
 		body, err = os.ReadFile(*file)
+		if inner, innerErr := embeddedReceipt(body); err == nil && innerErr == nil {
+			body = inner
+		}
 	case *rawURL != "":
 		body, err = fetch(*rawURL)
 		if err == nil && *save {
@@ -72,7 +75,8 @@ func main() {
 	fmt.Fprintf(os.Stderr, "%d itens lidos.\n", len(rec.Items))
 }
 
-// fetch downloads the receipt page, keeping cookies across redirects.
+// fetch downloads the receipt; on the Goiás shell page it follows the iframe
+// with the same cookies and unwraps the HTML embedded in the frame script.
 func fetch(raw string) ([]byte, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -83,27 +87,51 @@ func fetch(raw string) ([]byte, error) {
 	}
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{Timeout: 30 * time.Second, Jar: jar}
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	page, final, err := get(client, u.String(), "")
 	if err != nil {
-		return nil, err
+		return page, err
+	}
+	frame, ok := frameURL(page, final)
+	if !ok {
+		return page, nil
+	}
+	body, _, err := get(client, frame, final.String())
+	if err != nil {
+		return body, err
+	}
+	receipt, err := embeddedReceipt(body)
+	if err != nil {
+		return body, err
+	}
+	return receipt, nil
+}
+
+// get downloads one page with the iPhone headers, returning the body and the final URL.
+func get(client *http.Client, target, referer string) ([]byte, *url.URL, error) {
+	req, err := http.NewRequest(http.MethodGet, target, nil)
+	if err != nil {
+		return nil, nil, err
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml")
 	req.Header.Set("Accept-Language", "pt-BR,pt;q=0.9")
+	if referer != "" {
+		req.Header.Set("Referer", referer)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	fmt.Fprintf(os.Stderr, "HTTP %d, %d bytes, URL final %s\n", resp.StatusCode, len(body), resp.Request.URL)
+	fmt.Fprintf(os.Stderr, "HTTP %d, %d bytes, %s\n", resp.StatusCode, len(body), resp.Request.URL.Path)
 	if resp.StatusCode != http.StatusOK {
-		return body, fmt.Errorf("a Sefaz respondeu %d", resp.StatusCode)
+		return body, resp.Request.URL, fmt.Errorf("a Sefaz respondeu %d", resp.StatusCode)
 	}
-	return body, nil
+	return body, resp.Request.URL, nil
 }
 
 // saveSample writes the raw page to the git ignored samples folder.

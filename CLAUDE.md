@@ -59,7 +59,9 @@ Sistema web de gestão financeira de um casal, hospedado em casa e acessado só 
 - Fase 1 (Fundação) entregue e em produção desde 10/11/2026, aguardando aprovação do dono para começar a Fase 2.
 - Entrada sem senha com dois usuários fixos (RF-01 reescrito por decisão do dono). Os nomes reais ficam só no banco de produção.
 - Produção nesta máquina Windows: `https://<nome-do-pc>.local` e IPs reservados no roteador, definidos em `deploy/.env` (fora do git). Certificados em `deploy/certs/`, com a autoridade local em `deploy/certs/ca`, que nunca sai do PC. Para regenerar o certificado, reutilize a mesma autoridade, senão os iPhones deixam de confiar.
-- Pendente: POC da NFC-e testada com uma nota real; login automático e energia do Windows (seção 2 de `docs/instalacao.md`).
+- POC da NFC-e validada com uma nota real de Goiás em 11/11/2026. O link do QR code devolve uma casca com iframe; o iframe, buscado com o mesmo cookie, traz o DANFE como string em `new DanfeNFCe(...)`, no layout do portal nacional. Para a Fase 7: preço unitário pode ter três casas decimais (combustível) e hoje é truncado em centavos.
+- Pendente: login automático e energia do Windows (seção 2 de `docs/instalacao.md`).
+- Fase 2 em andamento: etapa 2.1 (categorias) entregue.
 - Atualize esta seção ao fim de cada fase.
 
 ## Plataforma

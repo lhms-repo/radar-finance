@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><title>Nota Fiscal do Consumidor(NFC-e)</title></head>
+<body>
+<div class="container" id="content"><div id="danfe-nfce-container"></div></div>
+<script charset="utf-8" type="text/javascript">
+        new DanfeNFCe(
+			'#danfe-nfce-container',
+           	'/nfeweb/imagens/',
+      		'\n  <div id=\"conteudo\">\n    <div class=\"txtCenter\">\n      <div id=\"u20\" class=\"txtTopo\">MERCADO FICTICIO LTDA<\/div>\n      <div class=\"text\">CNPJ: 00.000.000\/0001-91<\/div>\n      <div class=\"text\">RUA DE EXEMPLO, 100, BAIRRO TESTE, GOIANIA, GO<\/div>\n    <\/div>\n    <table id=\"tabResult\" cellspacing=\"0\" cellpadding=\"0\" align=\"center\">\n      <tr id=\"Item + 1\">\n        <td valign=\"top\">\n          <span class=\"txtTit\">CAFE TRES COR 500G<\/span>\n          <span class=\"RCod\">(Código: 7890000000017 )<\/span><br>\n          <span class=\"Rqtd\"><strong>Qtde.:<\/strong>1<\/span>\n          <span class=\"RUN\"><strong>UN: <\/strong>UN<\/span>\n          <span class=\"RvlUnit\"><strong>Vl. Unit.:<\/strong>&nbsp;18,99<\/span>\n        <\/td>\n        <td align=\"right\" valign=\"top\" class=\"txtTit noWrap\">Vl. Total<br><span class=\"valor\">18,99<\/span><\/td>\n      <\/tr>\n      <tr id=\"Item + 2\">\n        <td valign=\"top\">\n          <span class=\"txtTit\">BANANA PRATA KG<\/span>\n          <span class=\"RCod\">(Código: 2001 )<\/span><br>\n          <span class=\"Rqtd\"><strong>Qtde.:<\/strong>1,288<\/span>\n          <span class=\"RUN\"><strong>UN: <\/strong>KG<\/span>\n          <span class=\"RvlUnit\"><strong>Vl. Unit.:<\/strong>&nbsp;10,00<\/span>\n        <\/td>\n        <td align=\"right\" valign=\"top\" class=\"txtTit noWrap\">Vl. Total<br><span class=\"valor\">12,88<\/span><\/td>\n      <\/tr>\n    <\/table>\n    <div id=\"totalNota\" class=\"txtRight\">\n      <div id=\"linhaTotal\"><label>Qtd. total de itens:<\/label><span class=\"totalNumb\">2<\/span><\/div>\n      <div id=\"linhaTotal\" class=\"linhaShade\"><label>Valor a pagar R$:<\/label><span class=\"totalNumb txtMax\">31,87<\/span><\/div>\n    <\/div>\n    <div id=\"infos\">\n      <ul><li><strong>Número: <\/strong>123 <strong>Série: <\/strong>1 <strong>Emissão: <\/strong>05\/01\/2026 18:42:10 - Via Consumidor<\/li><\/ul>\n      <span class=\"chave\">5226 0100 0000 0000 0191 6500 1000 0001 2310 0000 0011<\/span>\n    <\/div>\n  <\/div>\n'
+      	);
+</script>
+</body>
+</html>

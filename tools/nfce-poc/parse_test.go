@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"net/url"
 	"os"
 	"testing"
 )
@@ -59,5 +61,65 @@ func TestParseCents(t *testing.T) {
 		if err != nil || got != tt.want {
 			t.Errorf("parseCents(%q) = %d, %v; want %d", tt.in, got, err, tt.want)
 		}
+	}
+}
+
+// TestGoiasShellFrameURL finds the receipt iframe in the Goiás shell page.
+func TestGoiasShellFrameURL(t *testing.T) {
+	page, err := os.ReadFile("testdata/fictional-goias-shell.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := url.Parse("https://nfeweb.sefaz.go.gov.br/nfeweb/sites/nfce/danfeNFCe?p=x")
+	got, ok := frameURL(page, base)
+	want := "https://nfeweb.sefaz.go.gov.br/nfeweb/sites/nfce/render/danfeNFCe?chNFe=00000000000000000000000000000000000000000000"
+	if !ok || got != want {
+		t.Fatalf("frameURL = %q, %v; want %q", got, ok, want)
+	}
+	if _, ok := frameURL([]byte("<html></html>"), base); ok {
+		t.Fatal("found an iframe in a page without one")
+	}
+}
+
+// TestGoiasEmbeddedReceipt unwraps the receipt passed to new DanfeNFCe and parses it like the national layout.
+func TestGoiasEmbeddedReceipt(t *testing.T) {
+	frame, err := os.ReadFile("testdata/fictional-goias-frame.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := embeddedReceipt(frame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := Parse(bytes.NewReader(inner))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.StoreName != "MERCADO FICTICIO LTDA" || rec.TotalCents != 3187 || len(rec.Items) != 2 {
+		t.Fatalf("receipt = %+v", rec)
+	}
+	if _, err := embeddedReceipt([]byte("<html>sem script</html>")); err == nil {
+		t.Fatal("expected an error without DanfeNFCe")
+	}
+}
+
+// TestReadJSString decodes the escapes the portal uses in the embedded HTML.
+func TestReadJSString(t *testing.T) {
+	tests := []struct {
+		in, want string
+		consumed int
+	}{
+		{in: `'abc' rest`, want: "abc", consumed: 5},
+		{in: `'<\/p>\n\t\"x\" \'y\''`, want: "</p>\n\t\"x\" 'y'", consumed: 22},
+		{in: `'caf\u00e9'`, want: "café", consumed: 11},
+	}
+	for _, tt := range tests {
+		got, n, err := readJSString(tt.in)
+		if err != nil || got != tt.want || n != tt.consumed {
+			t.Errorf("readJSString(%q) = %q, %d, %v; want %q, %d", tt.in, got, n, err, tt.want, tt.consumed)
+		}
+	}
+	if _, _, err := readJSString(`'unterminated`); err == nil {
+		t.Error("expected an error for an unterminated string")
 	}
 }
