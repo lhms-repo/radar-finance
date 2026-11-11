@@ -15,8 +15,10 @@ import { BudgetsPage } from "@/pages/BudgetsPage";
 import { CardsPage } from "@/pages/CardsPage";
 import { CashFlowPage } from "@/pages/CashFlowPage";
 import { CategoriesPage } from "@/pages/CategoriesPage";
+import { ImportPage } from "@/pages/ImportPage";
 import { IncomesPage } from "@/pages/IncomesPage";
 import { ReceivablesPage } from "@/pages/ReceivablesPage";
+import { RulesPage } from "@/pages/RulesPage";
 import { SavingsPage } from "@/pages/SavingsPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { OverviewPage } from "@/pages/OverviewPage";
@@ -49,6 +51,8 @@ const router = createBrowserRouter([
       { path: "settings/accounts/:id", element: <AccountDetailPage /> },
       { path: "settings/incomes", element: <IncomesPage /> },
       { path: "settings/budgets", element: <BudgetsPage /> },
+      { path: "settings/import", element: <ImportPage /> },
+      { path: "settings/rules", element: <RulesPage /> },
       { path: "*", element: <OverviewPage /> },
     ],
   },

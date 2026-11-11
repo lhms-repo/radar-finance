@@ -1,13 +1,14 @@
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowDownLeft, ChevronDown, CreditCard, FileUp, Plus, ShoppingBag, Utensils, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useQuickEntry, type QuickEntryPreset } from "@/features/quick-entry/QuickEntry";
 import { haptic } from "@/lib/haptics";
 import { spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-type Shortcut = { id: string; label: string; icon: LucideIcon; preset?: QuickEntryPreset; phase?: number };
+type Shortcut = { id: string; label: string; icon: LucideIcon; preset?: QuickEntryPreset; path?: string; phase?: number };
 
 /** Shortcuts of the Add button (section 5.1); the ones without a preset arrive in later phases. */
 export const SHORTCUTS: Shortcut[] = [
@@ -15,15 +16,17 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "expense", label: "Despesa", icon: ShoppingBag, preset: { nature: "expense", method: "cash" } },
   { id: "income", label: "Receita", icon: ArrowDownLeft, preset: { nature: "income" } },
   { id: "alelo", label: "Compra no Alelo", icon: Utensils, preset: { nature: "expense", method: "alelo" } },
-  { id: "csv", label: "Importar CSV", icon: FileUp, phase: 6 },
+  { id: "csv", label: "Importar CSV", icon: FileUp, path: "/settings/import" },
 ];
 
 /** Returns the action of a shortcut: the quick entry card, or a notice for later phases. */
 function useOpenShortcut() {
   const { open } = useQuickEntry();
+  const navigate = useNavigate();
   return (s: Shortcut) => {
     haptic();
     if (s.preset) open(s.preset);
+    else if (s.path) navigate(s.path);
     else toast(s.label, { description: `Chega na fase ${s.phase}.` });
   };
 }

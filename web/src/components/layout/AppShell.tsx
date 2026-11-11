@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef } from "react";
-import { Navigate, Outlet, useLocation, useNavigate } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Navigate, useLocation, useNavigate, useOutlet } from "react-router";
 import { onUnauthorized } from "@/api/client";
 import { ME_KEY, useMeQuery } from "@/app/session";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -56,7 +56,7 @@ export function AppShell() {
                 exit={{ opacity: 0, y: -4 }}
                 transition={fade}
               >
-                <Outlet />
+                <FrozenOutlet />
               </motion.div>
             </AnimatePresence>
           </main>
@@ -65,6 +65,13 @@ export function AppShell() {
       </div>
     </QuickEntryProvider>
   );
+}
+
+/** Keeps the page it was mounted with, so the copy fading out does not render the next route and lose its state. */
+function FrozenOutlet() {
+  const outlet = useOutlet();
+  const [frozen] = useState(outlet);
+  return frozen;
 }
 
 /** Loading screen shown while the session is checked. */
