@@ -20,6 +20,41 @@ type Account struct {
 	UpdatedAt           time.Time
 }
 
+type AleloCard struct {
+	ID                  int64
+	Name                string
+	PersonID            int64
+	MonthlyCreditCents  int64
+	CreditDay           int64
+	InitialBalanceCents int64
+	StartMonth          string
+	Active              bool
+	CreatedBy           int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type AleloCredit struct {
+	ID          int64
+	AleloID     int64
+	Month       string
+	AmountCents int64
+	CreditedOn  string
+	CreatedBy   int64
+	CreatedAt   time.Time
+}
+
+type AleloPurchase struct {
+	ID          int64
+	AleloID     int64
+	PurchasedOn string
+	Description string
+	AmountCents int64
+	CategoryID  int64
+	CreatedBy   int64
+	CreatedAt   time.Time
+}
+
 type Bill struct {
 	ID            int64
 	Name          string
@@ -67,6 +102,7 @@ type Category struct {
 	CreatedBy sql.NullInt64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	SystemKey sql.NullString
 }
 
 type Entry struct {

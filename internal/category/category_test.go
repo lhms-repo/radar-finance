@@ -354,6 +354,7 @@ func TestDelete(t *testing.T) {
 	}
 	unused := f.find(t, "Educação", "Cursos")
 	educacao := f.find(t, "", "Educação")
+	groceries := f.find(t, "Alimentação", "Compras para casa")
 
 	tests := []struct {
 		name    string
@@ -363,6 +364,7 @@ func TestDelete(t *testing.T) {
 		{name: "unused subcategory", id: unused.ID},
 		{name: "subcategory with entries", id: used.ID, wantErr: ErrInUse},
 		{name: "category with subcategories", id: educacao.ID, wantErr: ErrHasChildren},
+		{name: "system subcategory used by Alelo purchases (RN-15)", id: groceries.ID, wantErr: ErrSystemCategory},
 		{name: "missing category", id: 9999, wantErr: ErrNotFound},
 	}
 	for _, tt := range tests {

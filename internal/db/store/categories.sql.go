@@ -27,7 +27,7 @@ func (q *Queries) CountCategoryChildren(ctx context.Context, parentID sql.NullIn
 const createCategory = `-- name: CreateCategory :one
 INSERT INTO categories (parent_id, name, icon, sort_order, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, parent_id, name, icon, active, sort_order, created_by, created_at, updated_at
+RETURNING id, parent_id, name, icon, active, sort_order, created_by, created_at, updated_at, system_key
 `
 
 type CreateCategoryParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SystemKey,
 	)
 	return i, err
 }
@@ -76,7 +77,7 @@ func (q *Queries) DeleteCategory(ctx context.Context, id int64) error {
 }
 
 const getCategory = `-- name: GetCategory :one
-SELECT id, parent_id, name, icon, active, sort_order, created_by, created_at, updated_at
+SELECT id, parent_id, name, icon, active, sort_order, created_by, created_at, updated_at, system_key
 FROM categories
 WHERE id = ?
 `
@@ -94,6 +95,7 @@ func (q *Queries) GetCategory(ctx context.Context, id int64) (Category, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SystemKey,
 	)
 	return i, err
 }
@@ -119,7 +121,7 @@ func (q *Queries) GetSelectableCategory(ctx context.Context, id int64) (GetSelec
 }
 
 const listCategories = `-- name: ListCategories :many
-SELECT id, parent_id, name, icon, active, sort_order, created_by, created_at, updated_at
+SELECT id, parent_id, name, icon, active, sort_order, created_by, created_at, updated_at, system_key
 FROM categories
 ORDER BY parent_id IS NOT NULL, sort_order, id
 `
@@ -143,6 +145,7 @@ func (q *Queries) ListCategories(ctx context.Context) ([]Category, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SystemKey,
 		); err != nil {
 			return nil, err
 		}

@@ -37,6 +37,7 @@ var (
 	ErrParentInactive    = problem.Conflict("category_parent_inactive", "A categoria principal escolhida está desativada.")
 	ErrDuplicateName     = problem.Conflict("category_duplicate_name", "Já existe uma categoria com esse nome no mesmo lugar.")
 	ErrHasChildren       = problem.Conflict("category_has_children", "Esta categoria tem subcategorias. Mova ou exclua as subcategorias antes.")
+	ErrSystemCategory    = problem.Conflict("category_system", "Esta subcategoria é usada pelo Radar nas compras do Alelo e do mercado e não pode ser excluída. Você pode renomeá-la ou movê-la.")
 	ErrInUse             = problem.Conflict("category_in_use", "Esta categoria já tem lançamentos e não pode ser excluída. Desative-a para tirá-la das opções.")
 )
 
@@ -238,10 +239,16 @@ func (s *Service) Move(ctx context.Context, id int64, m Move) (Category, error) 
 // Delete removes an unused category; one with entries or subcategories stays (RN-18).
 func (s *Service) Delete(ctx context.Context, id int64) error {
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetCategory(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		c, err := q.GetCategory(ctx, id)
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
-		} else if err != nil {
+		}
+		if err != nil {
 			return err
+		}
+		// System categories back fixed rules, like Alelo purchases as groceries (RN-15).
+		if c.SystemKey.Valid {
+			return ErrSystemCategory
 		}
 		children, err := q.CountCategoryChildren(ctx, sql.NullInt64{Int64: id, Valid: true})
 		if err != nil {
