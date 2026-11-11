@@ -50,6 +50,7 @@ type Item struct {
 	Count              int
 	AmountCents        int64
 	PurchaseTotalCents int64
+	BuyerPersonID      *int64
 	BuyerName          string
 	CreatedByName      string
 }
@@ -129,7 +130,7 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 			Kind: kind, PurchaseID: &pid, Date: &on, Merchant: r.Merchant, Description: r.Description, CategoryID: idPtr(r.CategoryID),
 			CategoryName: r.CategoryName, ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon,
 			Number: int(r.Number), Count: int(r.InstallmentCount), AmountCents: r.AmountCents, PurchaseTotalCents: r.TotalCents,
-			BuyerName: r.BuyerName, CreatedByName: r.CreatedByName,
+			BuyerPersonID: idPtr(r.BuyerPersonID), BuyerName: r.BuyerName, CreatedByName: r.CreatedByName,
 		})
 		inv.TotalCents += r.AmountCents
 	}
@@ -157,20 +158,21 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 		inv.Payment = &p
 		inv.PaymentOutdated = p.AmountCents != inv.TotalCents
 	}
-	inv.Status = s.status(c, m, inv.Payment != nil)
+	inv.Status = s.status(c, m, inv.Payment != nil, inv.TotalCents)
 	inv.NetCents = inv.TotalCents - inv.ThirdPartyCents
 	return inv, nil
 }
 
 // status tells the state of invoice m today; the invoice closes on its closing day (RN-02).
-func (s *Service) status(c Card, m civil.Month, paid bool) Status {
+// An invoice with nothing to pay is never overdue.
+func (s *Service) status(c Card, m civil.Month, paid bool, total int64) Status {
 	today := s.today()
 	switch {
 	case paid:
 		return StatusPaid
 	case today.Before(c.Cycle().Closing(m)):
 		return StatusOpen
-	case !c.Cycle().Due(m).Before(today):
+	case total <= 0 || !c.Cycle().Due(m).Before(today):
 		return StatusClosed
 	default:
 		return StatusOverdue
@@ -241,7 +243,7 @@ func (s *Service) Forecast(ctx context.Context, cardID int64, n int) ([]Summary,
 	for i := range n {
 		m := start.Add(i)
 		_, paid := payments[m]
-		out = append(out, Summary{Month: m, DueOn: c.Cycle().Due(m), Status: s.status(c, m, paid), TotalCents: totals[m]})
+		out = append(out, Summary{Month: m, DueOn: c.Cycle().Due(m), Status: s.status(c, m, paid, totals[m]), TotalCents: totals[m]})
 	}
 	return out, nil
 }

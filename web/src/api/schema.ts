@@ -1043,6 +1043,8 @@ export interface components {
              */
             amountCents: number;
             purchaseTotalCents?: components["schemas"]["Cents"];
+            /** Format: int64 */
+            buyerPersonId?: number;
             buyerName?: string;
             createdByName?: string;
         };

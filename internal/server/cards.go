@@ -274,7 +274,7 @@ func toInvoice(inv card.Invoice) gen.Invoice {
 			Kind: gen.InvoiceItemKind(it.Kind), PurchaseId: it.PurchaseID, RecurrenceId: it.RecurrenceID, Date: apiDatePtr(it.Date),
 			Merchant: it.Merchant, Description: it.Description, CategoryId: it.CategoryID, CategoryName: optional(it.CategoryName),
 			ParentCategoryName: optional(it.ParentCategoryName), CategoryIcon: optional(it.CategoryIcon), Number: it.Number,
-			Count: it.Count, AmountCents: it.AmountCents, BuyerName: optional(it.BuyerName), CreatedByName: optional(it.CreatedByName),
+			Count: it.Count, AmountCents: it.AmountCents, BuyerPersonId: it.BuyerPersonID, BuyerName: optional(it.BuyerName), CreatedByName: optional(it.CreatedByName),
 		}
 		if it.PurchaseTotalCents != 0 {
 			total := it.PurchaseTotalCents

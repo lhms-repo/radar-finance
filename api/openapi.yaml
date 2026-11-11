@@ -1833,6 +1833,9 @@ components:
           format: int64
         purchaseTotalCents:
           $ref: "#/components/schemas/Cents"
+        buyerPersonId:
+          type: integer
+          format: int64
         buyerName:
           type: string
         createdByName:

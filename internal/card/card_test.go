@@ -251,6 +251,7 @@ func TestInvoiceView(t *testing.T) {
 		{name: "due day", today: d(2026, time.November, 10), month: time.November, want: StatusClosed},
 		{name: "after due date", today: d(2026, time.November, 11), month: time.November, want: StatusOverdue},
 		{name: "next invoice still open", today: d(2026, time.November, 11), month: time.December, want: StatusOpen},
+		{name: "empty invoice past due is not overdue", today: d(2026, time.November, 11), month: time.October, want: StatusClosed},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

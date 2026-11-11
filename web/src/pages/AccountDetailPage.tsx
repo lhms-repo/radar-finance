@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "motion/react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronLeft, Eye, EyeOff, MinusCircle, MoreHorizontal, Pencil, Scale, Trash2 } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronLeft, CreditCard, Eye, EyeOff, MinusCircle, MoreHorizontal, Pencil, Scale, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate, useParams } from "react-router";
@@ -29,7 +29,7 @@ import {
   type Account,
   type Entry,
 } from "@/features/accounts/api";
-import { useCategories } from "@/features/categories/api";
+import { CategorySelect } from "@/features/categories/CategorySelect";
 import { CategoryIcon } from "@/features/categories/icons";
 import { formatDate, formatDayMonth, monthName, monthParam, todayISO } from "@/lib/format";
 import { fade, spring } from "@/lib/motion";
@@ -201,6 +201,8 @@ function entryTitle(e: Entry) {
       return e.description || "Renda";
     case "adjustment":
       return "Ajuste de saldo";
+    case "invoice_payment":
+      return "Pagamento de fatura";
     case "transfer":
       return e.amountCents < 0 ? `Transferência para ${e.counterpartAccountName ?? "outra conta"}` : `Transferência de ${e.counterpartAccountName ?? "outra conta"}`;
   }
@@ -251,6 +253,7 @@ function EntryIcon({ entry: e }: { entry: Entry }) {
   if (e.kind === "expense") return <CategoryIcon name={e.categoryIcon} className={cls} />;
   if (e.kind === "transfer") return <ArrowLeftRight className={cls} />;
   if (e.kind === "adjustment") return <Scale className={cls} />;
+  if (e.kind === "invoice_payment") return <CreditCard className={cls} />;
   return e.amountCents > 0 ? <ArrowDownLeft className="size-4 text-success" /> : <ArrowUpRight className={cls} />;
 }
 
@@ -372,7 +375,6 @@ const expenseSchema = z.object({
 
 /** One off expense paid from this account, until the quick entry of step 2.5 arrives. */
 function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Account; onClose: () => void }) {
-  const categories = useCategories();
   const add = useAddExpense();
   const form = useForm<z.infer<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
@@ -394,18 +396,7 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
           <Controller control={form.control} name="amountCents" render={({ field }) => <MoneyInput id="expense-amount" value={field.value} onChange={field.onChange} invalid={!!errors.amountCents} autoFocus />} />
         </Field>
         <Field label="Categoria" htmlFor="expense-category" error={errors.categoryId?.message}>
-          <NativeSelect id="expense-category" aria-invalid={!!errors.categoryId} {...form.register("categoryId", { valueAsNumber: true })}>
-            <option value={0}>Escolha a categoria</option>
-            {(categories.data ?? []).map((c) => (
-              <optgroup key={c.id} label={c.name}>
-                {(c.children ?? []).map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </NativeSelect>
+          <CategorySelect id="expense-category" aria-invalid={!!errors.categoryId} {...form.register("categoryId", { valueAsNumber: true })} />
         </Field>
         <Field label="Data" htmlFor="expense-date" error={errors.date?.message}>
           <Input id="expense-date" type="date" {...form.register("date")} />

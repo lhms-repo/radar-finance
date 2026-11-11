@@ -10,6 +10,8 @@ type MonthState = {
   next: () => void;
   previous: () => void;
   goToCurrent: () => void;
+  /** Jumps to a given month, sliding in the right direction. */
+  goTo: (year: number, month: number) => void;
 };
 
 const MonthContext = createContext<MonthState | null>(null);
@@ -36,6 +38,15 @@ export function MonthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const goTo = useCallback(
+    (year: number, month: number) =>
+      setState((s) => {
+        const cmp = year * 12 + month - (s.year * 12 + s.month);
+        return { year, month, direction: cmp > 0 ? 1 : cmp < 0 ? -1 : 0 };
+      }),
+    [],
+  );
+
   const value = useMemo(() => {
     const now = currentMonth();
     return {
@@ -44,8 +55,9 @@ export function MonthProvider({ children }: { children: ReactNode }) {
       next,
       previous,
       goToCurrent,
+      goTo,
     };
-  }, [state, next, previous, goToCurrent]);
+  }, [state, next, previous, goToCurrent, goTo]);
   return <MonthContext.Provider value={value}>{children}</MonthContext.Provider>;
 }
 

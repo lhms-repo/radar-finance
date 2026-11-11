@@ -156,3 +156,14 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Smaller cents in rolling money values, as in the dashboard reference (section 5). */
+.money-flow::part(fraction),
+.money-flow::part(decimal) {
+  font-size: 0.6em;
+  opacity: 0.7;
+}
+.money-flow::part(symbol) {
+  font-size: 0.75em;
+  opacity: 0.8;
+}

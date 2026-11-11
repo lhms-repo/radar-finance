@@ -597,11 +597,12 @@ type Invoice struct {
 // InvoiceItem defines model for InvoiceItem.
 type InvoiceItem struct {
 	// AmountCents Signed cents; credits are negative.
-	AmountCents  int64   `json:"amountCents"`
-	BuyerName    *string `json:"buyerName,omitempty"`
-	CategoryIcon *string `json:"categoryIcon,omitempty"`
-	CategoryId   *int64  `json:"categoryId,omitempty"`
-	CategoryName *string `json:"categoryName,omitempty"`
+	AmountCents   int64   `json:"amountCents"`
+	BuyerName     *string `json:"buyerName,omitempty"`
+	BuyerPersonId *int64  `json:"buyerPersonId,omitempty"`
+	CategoryIcon  *string `json:"categoryIcon,omitempty"`
+	CategoryId    *int64  `json:"categoryId,omitempty"`
+	CategoryName  *string `json:"categoryName,omitempty"`
 
 	// Count Number of installments, zero for recurrences.
 	Count         int     `json:"count"`

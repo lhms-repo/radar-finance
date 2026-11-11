@@ -56,7 +56,7 @@ WHERE purchase_id = ?;
 
 -- name: ListInvoiceInstallments :many
 SELECT i.id, i.purchase_id, i.number, i.amount_cents, p.kind, p.purchased_on, p.merchant, p.description,
-       p.category_id, p.installment_count, p.total_cents,
+       p.category_id, p.installment_count, p.total_cents, p.buyer_person_id,
        coalesce(c.name, '') AS category_name,
        coalesce(pc.name, '') AS parent_category_name,
        coalesce(pc.icon, '') AS category_icon,

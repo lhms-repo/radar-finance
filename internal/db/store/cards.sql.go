@@ -525,7 +525,7 @@ func (q *Queries) ListCards(ctx context.Context) ([]ListCardsRow, error) {
 
 const listInvoiceInstallments = `-- name: ListInvoiceInstallments :many
 SELECT i.id, i.purchase_id, i.number, i.amount_cents, p.kind, p.purchased_on, p.merchant, p.description,
-       p.category_id, p.installment_count, p.total_cents,
+       p.category_id, p.installment_count, p.total_cents, p.buyer_person_id,
        coalesce(c.name, '') AS category_name,
        coalesce(pc.name, '') AS parent_category_name,
        coalesce(pc.icon, '') AS category_icon,
@@ -559,6 +559,7 @@ type ListInvoiceInstallmentsRow struct {
 	CategoryID         sql.NullInt64
 	InstallmentCount   int64
 	TotalCents         int64
+	BuyerPersonID      sql.NullInt64
 	CategoryName       string
 	ParentCategoryName string
 	CategoryIcon       string
@@ -587,6 +588,7 @@ func (q *Queries) ListInvoiceInstallments(ctx context.Context, arg ListInvoiceIn
 			&i.CategoryID,
 			&i.InstallmentCount,
 			&i.TotalCents,
+			&i.BuyerPersonID,
 			&i.CategoryName,
 			&i.ParentCategoryName,
 			&i.CategoryIcon,
