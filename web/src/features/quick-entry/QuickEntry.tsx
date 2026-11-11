@@ -1,7 +1,7 @@
 import NumberFlow from "@number-flow/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark, Minus, Plus, Repeat, Shuffle } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark, Minus, Plus, Repeat, Shuffle, Utensils } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Control, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Segmented } from "@/components/ui/segmented";
 import { useAccounts, useAddExpense, usePersons } from "@/features/accounts/api";
+import { useAddAleloPurchase, useAleloCards } from "@/features/alelo/api";
 import { useCreateBill } from "@/features/bills/api";
 import { useAddPurchase, useAddRecurrence, useCards } from "@/features/cards/api";
 import { useCategories, type Category } from "@/features/categories/api";
@@ -23,7 +24,7 @@ import { fade, spring } from "@/lib/motion";
 import { cn, readStorage, writeStorage } from "@/lib/utils";
 
 type Nature = "expense" | "income";
-type Method = "credit" | "cash";
+type Method = "credit" | "cash" | "alelo";
 type Kind = "variable" | "fixed";
 
 /** How the card opens, set by the shortcut that was tapped. */
@@ -32,6 +33,7 @@ export type QuickEntryPreset = { nature: Nature; method?: Method };
 /** Keys of the last card and account used, a per device convenience (RNF-13). */
 const LAST_CARD_KEY = "radar.quick.card";
 const LAST_ACCOUNT_KEY = "radar.quick.account";
+const LAST_ALELO_KEY = "radar.quick.alelo";
 
 /** Largest number of digits typed in the value, enough for billions in cents. */
 const MAX_DIGITS = 12;
@@ -76,12 +78,13 @@ export function useQuickEntry() {
 const schema = z
   .object({
     nature: z.enum(["expense", "income"]),
-    method: z.enum(["credit", "cash"]),
+    method: z.enum(["credit", "cash", "alelo"]),
     kind: z.enum(["variable", "fixed"]),
     amountCents: z.number().int(),
     categoryId: z.number().int(),
     cardId: z.number().int(),
     accountId: z.number().int(),
+    aleloId: z.number().int(),
     installments: z.number().int().min(1).max(48),
     merchant: z.string().trim().max(80, "Use no máximo 80 caracteres."),
     description: z.string().trim().max(80, "Use no máximo 80 caracteres."),
@@ -97,9 +100,12 @@ const schema = z
     if (v.amountCents <= 0) fail("amountCents", "Digite o valor.");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date)) fail("date", "Informe a data.");
     const combo = comboOf(v);
-    if (v.nature === "expense" && v.categoryId <= 0) fail("categoryId", "Escolha a categoria.");
+    if (v.nature === "expense" && combo !== "alelo" && v.categoryId <= 0) fail("categoryId", "Escolha a categoria.");
     if (combo === "purchase" || combo === "recurrence") {
       if (v.cardId <= 0) fail("cardId", "Escolha o cartão.");
+    } else if (combo === "alelo") {
+      if (v.aleloId <= 0) fail("aleloId", "Escolha o cartão Alelo.");
+      if (!v.description) fail("description", "Descreva a compra.");
     } else if (v.accountId <= 0) fail("accountId", "Escolha a conta.");
     if (combo === "purchase" && !v.merchant) fail("merchant", "Informe o estabelecimento.");
     if ((combo === "recurrence" || combo === "recurringIncome" || combo === "bill") && !v.description) fail("description", "Informe a descrição.");
@@ -112,11 +118,12 @@ const schema = z
 type Values = z.infer<typeof schema>;
 
 /** What the chosen combination becomes in the system (section 5.6). */
-type Combo = "purchase" | "recurrence" | "expense" | "bill" | "oneOffIncome" | "recurringIncome";
+type Combo = "purchase" | "recurrence" | "expense" | "bill" | "alelo" | "oneOffIncome" | "recurringIncome";
 
 /** Resolves the combination of nature, payment method and kind. */
 function comboOf(v: Pick<Values, "nature" | "method" | "kind">): Combo {
   if (v.nature === "income") return v.kind === "fixed" ? "recurringIncome" : "oneOffIncome";
+  if (v.method === "alelo") return "alelo";
   if (v.method === "credit") return v.kind === "fixed" ? "recurrence" : "purchase";
   return v.kind === "fixed" ? "bill" : "expense";
 }
@@ -125,12 +132,16 @@ function comboOf(v: Pick<Values, "nature" | "method" | "kind">): Combo {
 function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClose: () => void }) {
   const cards = useCards();
   const accounts = useAccounts();
+  const alelos = useAleloCards();
   const [open, setOpen] = useState(true);
   const [done, setDone] = useState(false);
   const activeCards = (cards.data ?? []).filter((c) => c.active);
   const activeAccounts = (accounts.data ?? []).filter((a) => a.active);
   const lastCard = Number(readStorage(LAST_CARD_KEY));
   const lastAccount = Number(readStorage(LAST_ACCOUNT_KEY));
+  const activeAlelos = (alelos.data ?? []).filter((a) => a.active);
+  const lastAlelo = Number(readStorage(LAST_ALELO_KEY));
+  const aleloId = activeAlelos.some((a) => a.id === lastAlelo) ? lastAlelo : (activeAlelos[0]?.id ?? 0);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -142,6 +153,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
       categoryId: 0,
       cardId: 0,
       accountId: 0,
+      aleloId: 0,
       installments: 1,
       merchant: "",
       description: "",
@@ -161,7 +173,8 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
   useEffect(() => {
     if (cardId && form.getValues("cardId") === 0) form.setValue("cardId", cardId);
     if (accountId && form.getValues("accountId") === 0) form.setValue("accountId", accountId);
-  }, [cardId, accountId, form]);
+    if (aleloId && form.getValues("aleloId") === 0) form.setValue("aleloId", aleloId);
+  }, [cardId, accountId, aleloId, form]);
   const combo = comboOf({ nature: values.nature ?? "expense", method: values.method ?? "credit", kind: values.kind ?? "variable" });
 
   const purchase = useAddPurchase();
@@ -170,7 +183,8 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
   const oneOff = useAddOneOffIncome();
   const recurring = useCreateIncome();
   const bill = useCreateBill();
-  const mutation = { purchase, recurrence, expense, bill, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
+  const aleloPurchase = useAddAleloPurchase();
+  const mutation = { purchase, recurrence, expense, bill, alelo: aleloPurchase, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
 
   /** Moves the focus to the next text field after the subcategory, saving a tap (RNF-13). */
   const focusNextField = () => {
@@ -189,8 +203,9 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
 
   /** Validates and sends the entry as the system object of its combination. */
   const submit = form.handleSubmit((raw) => {
-    const v = { ...raw, cardId: raw.cardId || cardId, accountId: raw.accountId || accountId };
+    const v = { ...raw, cardId: raw.cardId || cardId, accountId: raw.accountId || accountId, aleloId: raw.aleloId || aleloId };
     if (combo === "purchase" || combo === "recurrence") writeStorage(LAST_CARD_KEY, String(v.cardId));
+    else if (combo === "alelo") writeStorage(LAST_ALELO_KEY, String(v.aleloId));
     else writeStorage(LAST_ACCOUNT_KEY, String(v.accountId));
     const done = { onSuccess: finish };
     switch (combo) {
@@ -208,6 +223,9 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         break;
       case "expense":
         expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description } }, done);
+        break;
+      case "alelo":
+        aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents } }, done);
         break;
       case "bill":
         bill.mutate(
@@ -279,6 +297,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
                   options={[
                     { value: "credit", label: "Crédito", icon: <CreditCard className="size-4" /> },
                     { value: "cash", label: "Dinheiro", icon: <Landmark className="size-4" /> },
+                    { value: "alelo", label: "Alelo", icon: <Utensils className="size-4" /> },
                   ]}
                   onChange={(v) => {
                     haptic();
@@ -288,21 +307,23 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
                 />
               </Reveal>
             )}
-            <Reveal key="kind">
-              <Segmented<Kind>
-                ariaLabel="Tipo"
-                value={values.kind ?? "variable"}
-                options={[
-                  { value: "variable", label: "Variável", icon: <Shuffle className="size-4" /> },
-                  { value: "fixed", label: "Fixo", icon: <Repeat className="size-4" /> },
-                ]}
-                onChange={(v) => {
-                  haptic();
-                  form.setValue("kind", v);
-                }}
-                className="w-full"
-              />
-            </Reveal>
+            {!(isExpense && values.method === "alelo") && (
+              <Reveal key="kind">
+                <Segmented<Kind>
+                  ariaLabel="Tipo"
+                  value={values.kind ?? "variable"}
+                  options={[
+                    { value: "variable", label: "Variável", icon: <Shuffle className="size-4" /> },
+                    { value: "fixed", label: "Fixo", icon: <Repeat className="size-4" /> },
+                  ]}
+                  onChange={(v) => {
+                    haptic();
+                    form.setValue("kind", v);
+                  }}
+                  className="w-full"
+                />
+              </Reveal>
+            )}
           </AnimatePresence>
 
           <motion.div layout transition={spring}>
@@ -311,7 +332,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
           </motion.div>
 
           <AnimatePresence initial={false}>
-            {isExpense && (
+            {isExpense && values.method !== "alelo" && (
               <Reveal key="category">
                 <Controller
                   control={form.control}
@@ -485,6 +506,7 @@ function Details({ combo, form }: { combo: Combo; form: UseFormReturn<Values> })
   const cards = useCards();
   const accounts = useAccounts();
   const persons = usePersons();
+  const alelos = useAleloCards();
   const errors = form.formState.errors;
   const reg = form.register;
   const activeCards = (cards.data ?? []).filter((c) => c.active);
@@ -568,6 +590,29 @@ function Details({ combo, form }: { combo: Combo; form: UseFormReturn<Values> })
           </div>
           <Field label="Descrição" htmlFor="quick-desc" error={errors.description?.message}>
             <Input id="quick-desc" autoComplete="off" placeholder="Opcional" {...reg("description")} />
+          </Field>
+        </>
+      );
+    case "alelo":
+      return (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Cartão Alelo" htmlFor="quick-alelo" error={errors.aleloId?.message}>
+              <NativeSelect id="quick-alelo" {...reg("aleloId", { valueAsNumber: true })}>
+                {(alelos.data ?? []).filter((a) => a.active).length === 0 && <option value={0}>Nenhum cartão Alelo</option>}
+                {(alelos.data ?? [])
+                  .filter((a) => a.active)
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+              </NativeSelect>
+            </Field>
+            {dateField("Data")}
+          </div>
+          <Field label="Descrição" htmlFor="quick-desc" error={errors.description?.message}>
+            <Input id="quick-desc" autoComplete="off" placeholder="Mercado, padaria, feira..." {...reg("description")} />
           </Field>
         </>
       );

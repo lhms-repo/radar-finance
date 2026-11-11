@@ -14,7 +14,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "card", label: "Compra no cartão", icon: CreditCard, preset: { nature: "expense", method: "credit" } },
   { id: "expense", label: "Despesa", icon: ShoppingBag, preset: { nature: "expense", method: "cash" } },
   { id: "income", label: "Receita", icon: ArrowDownLeft, preset: { nature: "income" } },
-  { id: "alelo", label: "Compra no Alelo", icon: Utensils, phase: 3 },
+  { id: "alelo", label: "Compra no Alelo", icon: Utensils, preset: { nature: "expense", method: "alelo" } },
   { id: "csv", label: "Importar CSV", icon: FileUp, phase: 6 },
 ];
 
