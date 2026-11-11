@@ -116,3 +116,37 @@ func (a *API) SetListItemPicked(ctx context.Context, req gen.SetListItemPickedRe
 func toShoppingList(l market.ShoppingList) gen.ShoppingList {
 	return gen.ShoppingList{Id: l.ID, Name: l.Name, Done: l.Done, ItemCount: l.ItemCount, PickedCount: l.PickedCount}
 }
+
+// CompareList ranks the markets for a list and returns the best split (RF-72 to RF-75).
+func (a *API) CompareList(ctx context.Context, req gen.CompareListRequestObject) (gen.CompareListResponseObject, error) {
+	c, err := a.d.Market.Compare(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	out := gen.CompareList200JSONResponse{
+		Ranking:   make([]gen.RankedMarket, 0, len(c.Ranking)),
+		Uncovered: make([]string, 0, len(c.Uncovered)),
+		Settings:  gen.MarketSettings{MaxMarkets: c.Settings.MaxMarkets, MinSavingsCents: c.Settings.MinSavingsCents, StaleDays: c.Settings.StaleDays},
+	}
+	for _, r := range c.Ranking {
+		out.Ranking = append(out.Ranking, gen.RankedMarket{
+			MarketId: r.MarketID, Name: r.Name, Neighborhood: r.Neighborhood, TotalCents: r.TotalCents,
+			PricedCount: r.PricedCount, MissingCount: r.MissingCount, StaleCount: r.StaleCount, Missing: r.Missing,
+		})
+	}
+	for _, it := range c.Uncovered {
+		out.Uncovered = append(out.Uncovered, it.Product.Label())
+	}
+	if c.Split != nil {
+		sp := gen.Split{TotalCents: c.Split.TotalCents, SavingsCents: c.Split.SavingsCents, Markets: make([]gen.SplitMarket, 0, len(c.Split.Markets))}
+		for _, m := range c.Split.Markets {
+			sm := gen.SplitMarket{MarketId: m.MarketID, Name: m.Name, TotalCents: m.TotalCents, Items: make([]gen.SplitItem, 0, len(m.Items))}
+			for _, it := range m.Items {
+				sm.Items = append(sm.Items, gen.SplitItem{ItemId: it.ItemID, Label: it.Label, CostCents: it.CostCents})
+			}
+			sp.Markets = append(sp.Markets, sm)
+		}
+		out.Split = &sp
+	}
+	return out, nil
+}

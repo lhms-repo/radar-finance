@@ -2766,6 +2766,25 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /market/lists/{id}/comparison:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: compareList
+      tags: [market]
+      summary: Ranking of the markets for the list and the best split among them (RF-72 to RF-75, RN-22 to RN-25).
+      responses:
+        "200":
+          description: Comparison.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comparison"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   parameters:
     Id:
@@ -5303,6 +5322,92 @@ components:
       properties:
         picked:
           type: boolean
+
+    RankedMarket:
+      type: object
+      required: [marketId, name, neighborhood, totalCents, pricedCount, missingCount, staleCount, missing]
+      properties:
+        marketId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        neighborhood:
+          type: string
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        pricedCount:
+          type: integer
+        missingCount:
+          type: integer
+        staleCount:
+          type: integer
+          description: Prices used here older than the configured days (RN-25).
+        missing:
+          type: array
+          description: Products of the list without price in this market.
+          items:
+            type: string
+
+    SplitItem:
+      type: object
+      required: [itemId, label, costCents]
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        label:
+          type: string
+        costCents:
+          $ref: "#/components/schemas/Cents"
+
+    SplitMarket:
+      type: object
+      required: [marketId, name, totalCents, items]
+      properties:
+        marketId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SplitItem"
+
+    Split:
+      type: object
+      required: [markets, totalCents]
+      properties:
+        markets:
+          type: array
+          items:
+            $ref: "#/components/schemas/SplitMarket"
+        totalCents:
+          $ref: "#/components/schemas/Cents"
+        savingsCents:
+          $ref: "#/components/schemas/Cents"
+          description: Saving over the best single market with every covered item; absent when none has them all.
+
+    Comparison:
+      type: object
+      required: [ranking, uncovered, settings]
+      properties:
+        ranking:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankedMarket"
+        split:
+          $ref: "#/components/schemas/Split"
+        uncovered:
+          type: array
+          description: Items without price in any market, left out of the split (RN-24).
+          items:
+            type: string
+        settings:
+          $ref: "#/components/schemas/MarketSettings"
 
 security:
   - session: []

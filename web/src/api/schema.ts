@@ -1639,6 +1639,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/market/lists/{id}/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Ranking of the markets for the list and the best split among them (RF-72 to RF-75, RN-22 to RN-25). */
+        get: operations["compareList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2947,6 +2966,45 @@ export interface components {
         };
         ListItemPicked: {
             picked: boolean;
+        };
+        RankedMarket: {
+            /** Format: int64 */
+            marketId: number;
+            name: string;
+            neighborhood: string;
+            totalCents: components["schemas"]["Cents"];
+            pricedCount: number;
+            missingCount: number;
+            /** @description Prices used here older than the configured days (RN-25). */
+            staleCount: number;
+            /** @description Products of the list without price in this market. */
+            missing: string[];
+        };
+        SplitItem: {
+            /** Format: int64 */
+            itemId: number;
+            label: string;
+            costCents: components["schemas"]["Cents"];
+        };
+        SplitMarket: {
+            /** Format: int64 */
+            marketId: number;
+            name: string;
+            totalCents: components["schemas"]["Cents"];
+            items: components["schemas"]["SplitItem"][];
+        };
+        Split: {
+            markets: components["schemas"]["SplitMarket"][];
+            totalCents: components["schemas"]["Cents"];
+            /** @description Saving over the best single market with every covered item; absent when none has them all. */
+            savingsCents?: components["schemas"]["Cents"];
+        };
+        Comparison: {
+            ranking: components["schemas"]["RankedMarket"][];
+            split?: components["schemas"]["Split"];
+            /** @description Items without price in any market, left out of the split (RN-24). */
+            uncovered: string[];
+            settings: components["schemas"]["MarketSettings"];
         };
     };
     responses: {
@@ -6201,6 +6259,30 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    compareList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Comparison. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comparison"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

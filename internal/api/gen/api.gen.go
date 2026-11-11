@@ -1060,6 +1060,16 @@ type Commitment struct {
 	TotalCents Cents `json:"totalCents"`
 }
 
+// Comparison defines model for Comparison.
+type Comparison struct {
+	Ranking  []RankedMarket `json:"ranking"`
+	Settings MarketSettings `json:"settings"`
+	Split    *Split         `json:"split,omitempty"`
+
+	// Uncovered Items without price in any market, left out of the split (RN-24).
+	Uncovered []string `json:"uncovered"`
+}
+
 // CreditInput defines model for CreditInput.
 type CreditInput struct {
 	// AmountCents Amount in cents (RN-21).
@@ -1885,6 +1895,24 @@ type PurchaseInput struct {
 	Split *SplitInput `json:"split,omitempty"`
 }
 
+// RankedMarket defines model for RankedMarket.
+type RankedMarket struct {
+	MarketId int64 `json:"marketId"`
+
+	// Missing Products of the list without price in this market.
+	Missing      []string `json:"missing"`
+	MissingCount int      `json:"missingCount"`
+	Name         string   `json:"name"`
+	Neighborhood string   `json:"neighborhood"`
+	PricedCount  int      `json:"pricedCount"`
+
+	// StaleCount Prices used here older than the configured days (RN-25).
+	StaleCount int `json:"staleCount"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
 // ReceiptCommit defines model for ReceiptCommit.
 type ReceiptCommit struct {
 	Items     []ReceiptCommitItem `json:"items"`
@@ -2202,6 +2230,17 @@ type SpendSub struct {
 	Name  string `json:"name"`
 }
 
+// Split defines model for Split.
+type Split struct {
+	Markets []SplitMarket `json:"markets"`
+
+	// SavingsCents Amount in cents (RN-21).
+	SavingsCents *Cents `json:"savingsCents,omitempty"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
+
 // SplitInput Divides the purchase between the couple and other people (RF-24, RF-25).
 type SplitInput struct {
 	// CoupleParts Equal parts kept by the couple; the couple keeps the leftover cents.
@@ -2212,6 +2251,24 @@ type SplitInput struct {
 
 // SplitInputMode defines model for SplitInput.Mode.
 type SplitInputMode string
+
+// SplitItem defines model for SplitItem.
+type SplitItem struct {
+	// CostCents Amount in cents (RN-21).
+	CostCents Cents  `json:"costCents"`
+	ItemId    int64  `json:"itemId"`
+	Label     string `json:"label"`
+}
+
+// SplitMarket defines model for SplitMarket.
+type SplitMarket struct {
+	Items    []SplitItem `json:"items"`
+	MarketId int64       `json:"marketId"`
+	Name     string      `json:"name"`
+
+	// TotalCents Amount in cents (RN-21).
+	TotalCents Cents `json:"totalCents"`
+}
 
 // SplitShare defines model for SplitShare.
 type SplitShare struct {
@@ -2753,6 +2810,9 @@ type ServerInterface interface {
 	// RenameShoppingList Renames a list.
 	// (PUT /market/lists/{id})
 	RenameShoppingList(w http.ResponseWriter, r *http.Request, id Id)
+	// CompareList Ranking of the markets for the list and the best split among them (RF-72 to RF-75, RN-22 to RN-25).
+	// (GET /market/lists/{id}/comparison)
+	CompareList(w http.ResponseWriter, r *http.Request, id Id)
 	// AddListItem Puts a product on the list; the same product again adds to its quantity (RF-71).
 	// (POST /market/lists/{id}/items)
 	AddListItem(w http.ResponseWriter, r *http.Request, id Id)
@@ -4776,6 +4836,32 @@ func (siw *ServerInterfaceWrapper) RenameShoppingList(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// CompareList operation middleware
+func (siw *ServerInterfaceWrapper) CompareList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompareList(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // AddListItem operation middleware
 func (siw *ServerInterfaceWrapper) AddListItem(w http.ResponseWriter, r *http.Request) {
 
@@ -6122,6 +6208,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/list-items/{id}", wrapper.RemoveListItem)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/list-items/{id}", wrapper.UpdateListItem)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/list-items/{id}/picked", wrapper.SetListItemPicked)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/lists/{id}/comparison", wrapper.CompareList)
 
 	return m
 }
@@ -10732,6 +10819,56 @@ func (response RenameShoppingList404JSONResponse) VisitRenameShoppingListRespons
 	return err
 }
 
+type CompareListRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type CompareListResponseObject interface {
+	VisitCompareListResponse(w http.ResponseWriter) error
+}
+
+type CompareList200JSONResponse Comparison
+
+func (response CompareList200JSONResponse) VisitCompareListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompareList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CompareList401JSONResponse) VisitCompareListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CompareList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CompareList404JSONResponse) VisitCompareListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type AddListItemRequestObject struct {
 	Id   Id `json:"id"`
 	Body *AddListItemJSONRequestBody
@@ -13562,6 +13699,9 @@ type StrictServerInterface interface {
 	// RenameShoppingList Renames a list.
 	// (PUT /market/lists/{id})
 	RenameShoppingList(ctx context.Context, request RenameShoppingListRequestObject) (RenameShoppingListResponseObject, error)
+	// CompareList Ranking of the markets for the list and the best split among them (RF-72 to RF-75, RN-22 to RN-25).
+	// (GET /market/lists/{id}/comparison)
+	CompareList(ctx context.Context, request CompareListRequestObject) (CompareListResponseObject, error)
 	// AddListItem Puts a product on the list; the same product again adds to its quantity (RF-71).
 	// (POST /market/lists/{id}/items)
 	AddListItem(ctx context.Context, request AddListItemRequestObject) (AddListItemResponseObject, error)
@@ -15982,6 +16122,32 @@ func (sh *strictHandler) RenameShoppingList(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RenameShoppingListResponseObject); ok {
 		if err := validResponse.VisitRenameShoppingListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompareList operation middleware
+func (sh *strictHandler) CompareList(w http.ResponseWriter, r *http.Request, id Id) {
+	var request CompareListRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompareList(ctx, request.(CompareListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompareList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompareListResponseObject); ok {
+		if err := validResponse.VisitCompareListResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

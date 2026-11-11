@@ -128,3 +128,33 @@ func TestReceiptRoutes(t *testing.T) {
 		t.Fatalf("delete = %d", resp.StatusCode)
 	}
 }
+
+// TestCompareRoute ranks the markets of a list over HTTP (RF-72, RF-73).
+func TestCompareRoute(t *testing.T) {
+	srv, _ := testServer(t)
+	c := newClient(t)
+	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	var m, p, l struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.NewDecoder(postJSON(t, c, srv, "/api/market/markets", `{"name":"Mercado Ficticio","neighborhood":""}`).Body).Decode(&m)
+	_ = json.NewDecoder(postJSON(t, c, srv, "/api/market/products", `{"name":"Carne","brand":"Sem marca","byWeight":true,"sizeMilli":1000,"unit":"kg"}`).Body).Decode(&p)
+	_ = json.NewDecoder(postJSON(t, c, srv, "/api/market/lists", `{"name":"Compra"}`).Body).Decode(&l)
+	postJSON(t, c, srv, "/api/market/prices", fmt.Sprintf(`{"productId":%d,"marketId":%d,"priceCents":3990,"date":"2026-10-01"}`, p.ID, m.ID))
+	if resp := postJSON(t, c, srv, fmt.Sprintf("/api/market/lists/%d/items", l.ID), fmt.Sprintf(`{"productId":%d,"quantityMilli":535}`, p.ID)); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("add item = %d", resp.StatusCode)
+	}
+	var cmp struct {
+		Ranking []struct {
+			TotalCents int64 `json:"totalCents"`
+		} `json:"ranking"`
+		Split *struct {
+			TotalCents   int64  `json:"totalCents"`
+			SavingsCents *int64 `json:"savingsCents"`
+		} `json:"split"`
+	}
+	_ = json.NewDecoder(get(t, c, fmt.Sprintf("%s/api/market/lists/%d/comparison", srv.URL, l.ID)).Body).Decode(&cmp)
+	if len(cmp.Ranking) != 1 || cmp.Ranking[0].TotalCents != 2_134 || cmp.Split == nil || cmp.Split.TotalCents != 2_134 || cmp.Split.SavingsCents == nil {
+		t.Fatalf("comparison = %+v", cmp)
+	}
+}
