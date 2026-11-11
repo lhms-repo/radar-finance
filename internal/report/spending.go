@@ -21,6 +21,9 @@ import (
 // UncategorizedName labels credits on the card without a category.
 const UncategorizedName = "Sem categoria"
 
+// fullBP is 100% in basis points.
+const fullBP = 10_000
+
 // Sub is the spending of a subcategory.
 type Sub struct {
 	ID    int64
@@ -50,6 +53,7 @@ type Service struct {
 	cards      *card.Service
 	categories *category.Service
 	loc        *time.Location
+	now        func() time.Time
 	today      func() civil.Date
 }
 
@@ -59,7 +63,7 @@ func NewService(conn *sql.DB, cards *card.Service) *Service {
 	if err != nil {
 		loc = time.UTC
 	}
-	return &Service{conn: conn, cards: cards, categories: category.NewService(conn), loc: loc, today: func() civil.Date { return civil.Today(loc) }}
+	return &Service{conn: conn, cards: cards, categories: category.NewService(conn), loc: loc, now: time.Now, today: func() civil.Date { return civil.Today(loc) }}
 }
 
 // Spending returns the spending of each month from first to last, couple share only (RN-04).

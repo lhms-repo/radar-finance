@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"time"
 )
 
 const aleloSpendingByMonth = `-- name: AleloSpendingByMonth :many
@@ -98,6 +99,16 @@ func (q *Queries) CardSpendingByMonth(ctx context.Context, arg CardSpendingByMon
 	return items, nil
 }
 
+const deleteBudget = `-- name: DeleteBudget :exec
+DELETE FROM budgets
+WHERE category_id = ?
+`
+
+func (q *Queries) DeleteBudget(ctx context.Context, categoryID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteBudget, categoryID)
+	return err
+}
+
 const entrySpendingByMonth = `-- name: EntrySpendingByMonth :many
 SELECT substr(occurred_on, 1, 7) AS month, coalesce(category_id, 0) AS category_id, CAST(-sum(amount_cents) AS INTEGER) AS cents
 FROM entries
@@ -138,4 +149,60 @@ func (q *Queries) EntrySpendingByMonth(ctx context.Context, arg EntrySpendingByM
 		return nil, err
 	}
 	return items, nil
+}
+
+const listBudgets = `-- name: ListBudgets :many
+SELECT category_id, amount_cents
+FROM budgets
+`
+
+type ListBudgetsRow struct {
+	CategoryID  int64
+	AmountCents int64
+}
+
+func (q *Queries) ListBudgets(ctx context.Context) ([]ListBudgetsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBudgets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBudgetsRow{}
+	for rows.Next() {
+		var i ListBudgetsRow
+		if err := rows.Scan(&i.CategoryID, &i.AmountCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertBudget = `-- name: UpsertBudget :exec
+INSERT INTO budgets (category_id, amount_cents, created_by, updated_at)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (category_id) DO UPDATE SET amount_cents = excluded.amount_cents, updated_at = excluded.updated_at
+`
+
+type UpsertBudgetParams struct {
+	CategoryID  int64
+	AmountCents int64
+	CreatedBy   int64
+	UpdatedAt   time.Time
+}
+
+func (q *Queries) UpsertBudget(ctx context.Context, arg UpsertBudgetParams) error {
+	_, err := q.db.ExecContext(ctx, upsertBudget,
+		arg.CategoryID,
+		arg.AmountCents,
+		arg.CreatedBy,
+		arg.UpdatedAt,
+	)
+	return err
 }

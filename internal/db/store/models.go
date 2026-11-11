@@ -76,6 +76,14 @@ type BillAmount struct {
 	ActualCents int64
 }
 
+type Budget struct {
+	ID          int64
+	CategoryID  int64
+	AmountCents int64
+	CreatedBy   int64
+	UpdatedAt   time.Time
+}
+
 type Card struct {
 	ID         int64
 	Name       string

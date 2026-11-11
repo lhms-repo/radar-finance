@@ -23,3 +23,16 @@ SELECT substr(purchased_on, 1, 7) AS month, category_id, CAST(sum(amount_cents) 
 FROM alelo_purchases
 WHERE purchased_on >= sqlc.arg(first_day) AND purchased_on <= sqlc.arg(last_day)
 GROUP BY substr(purchased_on, 1, 7), category_id;
+
+-- name: ListBudgets :many
+SELECT category_id, amount_cents
+FROM budgets;
+
+-- name: UpsertBudget :exec
+INSERT INTO budgets (category_id, amount_cents, created_by, updated_at)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (category_id) DO UPDATE SET amount_cents = excluded.amount_cents, updated_at = excluded.updated_at;
+
+-- name: DeleteBudget :exec
+DELETE FROM budgets
+WHERE category_id = ?;
