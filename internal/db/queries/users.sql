@@ -1,0 +1,37 @@
+-- name: CreatePerson :one
+INSERT INTO persons (name, created_at)
+VALUES (?, ?)
+RETURNING *;
+
+-- name: CreateUser :one
+INSERT INTO users (login, password_hash, person_id, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: GetUserByLogin :one
+SELECT u.id, u.login, u.password_hash, u.theme, u.haptics, p.name AS person_name
+FROM users u
+JOIN persons p ON p.id = u.person_id
+WHERE u.login = ?;
+
+-- name: GetUserByID :one
+SELECT u.id, u.login, u.theme, u.haptics, p.name AS person_name
+FROM users u
+JOIN persons p ON p.id = u.person_id
+WHERE u.id = ?;
+
+-- name: ListUsers :many
+SELECT u.id, u.login, p.name AS person_name, u.created_at
+FROM users u
+JOIN persons p ON p.id = u.person_id
+ORDER BY u.id;
+
+-- name: UpdateUserPreferences :exec
+UPDATE users
+SET theme = ?, haptics = ?, updated_at = ?
+WHERE id = ?;
+
+-- name: UpdateUserPassword :execrows
+UPDATE users
+SET password_hash = ?, updated_at = ?
+WHERE login = ?;
