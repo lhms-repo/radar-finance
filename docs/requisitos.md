@@ -130,7 +130,7 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 | RF-54 | Manter regras de apelido que trocam o nome original do estabelecimento por um nome amigável. |
 | RF-55 | Aplicar automaticamente as regras de apelido e de categoria nas importações seguintes. |
 | RF-56 | Detectar lançamentos possivelmente duplicados e pedir confirmação antes de gravar. |
-| RF-57 | Reconhecer parcelas no CSV e vinculá-las à compra parcelada correspondente. |
+| RF-57 | Reconhecer parcelas no CSV e vinculá-las à compra parcelada correspondente. Quando a compra não existe no Radar, ela é criada só da parcela do CSV em diante, sem alterar faturas passadas. |
 
 ### 2.12 Relatórios e indicadores
 
