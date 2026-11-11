@@ -13,6 +13,7 @@ tags:
   - name: system
   - name: categories
   - name: accounts
+  - name: incomes
 paths:
   /ping:
     get:
@@ -567,6 +568,172 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
 
+  /incomes:
+    get:
+      operationId: listIncomes
+      tags: [incomes]
+      summary: Lists the registered incomes (RF-09, RF-11, RF-12).
+      responses:
+        "200":
+          description: Registered incomes, recurring first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Income"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createIncome
+      tags: [incomes]
+      summary: Registers a recurring or eventual income (RF-09, RF-11).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeInput"
+      responses:
+        "201":
+          description: Created income.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Income"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /incomes/month:
+    get:
+      operationId: getIncomeMonth
+      tags: [incomes]
+      summary: Expected and received incomes of the month (RF-10, RF-13, RN-13).
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: Incomes of the month.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncomeMonth"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /incomes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateIncome
+      tags: [incomes]
+      summary: Replaces the fields of an income; confirmed months keep what was received (RF-12).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeInput"
+      responses:
+        "200":
+          description: Updated income.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Income"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteIncome
+      tags: [incomes]
+      summary: Deletes an income without confirmed receipts.
+      responses:
+        "204":
+          description: Deleted.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /incomes/{id}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: confirmIncome
+      tags: [incomes]
+      summary: Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IncomeConfirm"
+      responses:
+        "201":
+          description: Income entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /accounts/{id}/incomes:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: addAccountIncome
+      tags: [incomes]
+      summary: Records a one off income received in the account (RF-13).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OneOffIncomeCreate"
+      responses:
+        "201":
+          description: Income entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Entry"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+
 components:
   parameters:
     Id:
@@ -994,6 +1161,180 @@ components:
           $ref: "#/components/schemas/Cents"
         expenseCents:
           $ref: "#/components/schemas/Cents"
+
+    IncomeKind:
+      type: string
+      enum: [recurring, eventual]
+
+    Income:
+      type: object
+      required: [id, kind, name, personId, personName, accountId, accountName, amountCents, endingSoon, ended]
+      properties:
+        id:
+          type: integer
+          format: int64
+        kind:
+          $ref: "#/components/schemas/IncomeKind"
+        name:
+          type: string
+        personId:
+          type: integer
+          format: int64
+        personName:
+          type: string
+        accountId:
+          type: integer
+          format: int64
+        accountName:
+          type: string
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        day:
+          type: integer
+          description: Day of receipt of a recurring income.
+        startMonth:
+          $ref: "#/components/schemas/Month"
+        endOn:
+          type: string
+          format: date
+        expectedOn:
+          type: string
+          format: date
+          description: Estimated date of an eventual income.
+        endingSoon:
+          type: boolean
+          description: The end date is within 30 days (RF-12).
+        ended:
+          type: boolean
+
+    IncomeInput:
+      type: object
+      required: [kind, name, personId, accountId, amountCents]
+      properties:
+        kind:
+          $ref: "#/components/schemas/IncomeKind"
+        name:
+          type: string
+          maxLength: 60
+        personId:
+          type: integer
+          format: int64
+        accountId:
+          type: integer
+          format: int64
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        day:
+          type: integer
+        startMonth:
+          $ref: "#/components/schemas/Month"
+        endOn:
+          type: string
+          format: date
+        expectedOn:
+          type: string
+          format: date
+
+    IncomeOccurrence:
+      type: object
+      required: [incomeId, kind, name, personName, accountId, accountName, expectedOn, expectedCents, confirmed]
+      properties:
+        incomeId:
+          type: integer
+          format: int64
+        kind:
+          $ref: "#/components/schemas/IncomeKind"
+        name:
+          type: string
+        personName:
+          type: string
+        accountId:
+          type: integer
+          format: int64
+        accountName:
+          type: string
+        expectedOn:
+          type: string
+          format: date
+        expectedCents:
+          $ref: "#/components/schemas/Cents"
+        confirmed:
+          type: boolean
+        entryId:
+          type: integer
+          format: int64
+        receivedCents:
+          $ref: "#/components/schemas/Cents"
+        receivedOn:
+          type: string
+          format: date
+        receivedIn:
+          type: string
+          description: Name of the account that received it.
+
+    OneOffIncome:
+      type: object
+      required: [entryId, amountCents, date, description, accountName]
+      properties:
+        entryId:
+          type: integer
+          format: int64
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+        accountName:
+          type: string
+
+    IncomeMonth:
+      type: object
+      required: [month, occurrences, oneOffs, pendingCents, receivedCents]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        occurrences:
+          type: array
+          items:
+            $ref: "#/components/schemas/IncomeOccurrence"
+        oneOffs:
+          type: array
+          items:
+            $ref: "#/components/schemas/OneOffIncome"
+        pendingCents:
+          $ref: "#/components/schemas/Cents"
+        receivedCents:
+          $ref: "#/components/schemas/Cents"
+
+    IncomeConfirm:
+      type: object
+      required: [month]
+      properties:
+        month:
+          $ref: "#/components/schemas/Month"
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        accountId:
+          type: integer
+          format: int64
+
+    OneOffIncomeCreate:
+      type: object
+      required: [amountCents, date]
+      properties:
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+          maxLength: 120
 
 security:
   - session: []

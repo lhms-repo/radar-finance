@@ -478,3 +478,37 @@ func TestDeleteEntry(t *testing.T) {
 		t.Fatalf("second delete: err = %v", err)
 	}
 }
+
+// TestAddIncome records one off incomes that raise the balance and count as income (RF-13, RN-08).
+func TestAddIncome(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	a := f.newAccount(t, "Nubank Ana", 1_000)
+	tests := []struct {
+		name    string
+		in      NewIncome
+		wantErr error
+	}{
+		{name: "freelance", in: NewIncome{AccountID: a.ID, AmountCents: 35_000, Date: day(t, "2026-11-11"), Description: "Freela de design"}},
+		{name: "zero amount", in: NewIncome{AccountID: a.ID, Date: day(t, "2026-11-11")}, wantErr: ErrAmountRequired},
+		{name: "missing date", in: NewIncome{AccountID: a.ID, AmountCents: 100}, wantErr: ErrDateRequired},
+		{name: "missing account", in: NewIncome{AccountID: 999, AmountCents: 100, Date: day(t, "2026-11-11")}, wantErr: ErrAccountNotFound},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, err := f.s.AddIncome(ctx, f.userID, tt.in)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if err == nil && (e.Kind != KindIncome || e.AmountCents != tt.in.AmountCents || !e.Confirmed) {
+				t.Fatalf("entry = %+v", e)
+			}
+		})
+	}
+	if got := f.balance(t, a.ID); got != 36_000 {
+		t.Fatalf("balance = %d, want 36000", got)
+	}
+	if flow, _ := f.s.MonthFlow(ctx, civil.Month{Year: 2026, Month: time.November}); flow.IncomeCents != 35_000 {
+		t.Fatalf("flow = %+v", flow)
+	}
+}

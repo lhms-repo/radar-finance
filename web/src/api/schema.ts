@@ -381,6 +381,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the registered incomes (RF-09, RF-11, RF-12). */
+        get: operations["listIncomes"];
+        put?: never;
+        /** Registers a recurring or eventual income (RF-09, RF-11). */
+        post: operations["createIncome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incomes/month": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Expected and received incomes of the month (RF-10, RF-13, RN-13). */
+        get: operations["getIncomeMonth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incomes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replaces the fields of an income; confirmed months keep what was received (RF-12). */
+        put: operations["updateIncome"];
+        post?: never;
+        /** Deletes an income without confirmed receipts. */
+        delete: operations["deleteIncome"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incomes/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13). */
+        post: operations["confirmIncome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/accounts/{id}/incomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Records a one off income received in the account (RF-13). */
+        post: operations["addAccountIncome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -588,6 +681,100 @@ export interface components {
             month: components["schemas"]["Month"];
             incomeCents: components["schemas"]["Cents"];
             expenseCents: components["schemas"]["Cents"];
+        };
+        /** @enum {string} */
+        IncomeKind: "recurring" | "eventual";
+        Income: {
+            /** Format: int64 */
+            id: number;
+            kind: components["schemas"]["IncomeKind"];
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            /** Format: int64 */
+            accountId: number;
+            accountName: string;
+            amountCents: components["schemas"]["Cents"];
+            /** @description Day of receipt of a recurring income. */
+            day?: number;
+            startMonth?: components["schemas"]["Month"];
+            /** Format: date */
+            endOn?: string;
+            /**
+             * Format: date
+             * @description Estimated date of an eventual income.
+             */
+            expectedOn?: string;
+            /** @description The end date is within 30 days (RF-12). */
+            endingSoon: boolean;
+            ended: boolean;
+        };
+        IncomeInput: {
+            kind: components["schemas"]["IncomeKind"];
+            name: string;
+            /** Format: int64 */
+            personId: number;
+            /** Format: int64 */
+            accountId: number;
+            amountCents: components["schemas"]["Cents"];
+            day?: number;
+            startMonth?: components["schemas"]["Month"];
+            /** Format: date */
+            endOn?: string;
+            /** Format: date */
+            expectedOn?: string;
+        };
+        IncomeOccurrence: {
+            /** Format: int64 */
+            incomeId: number;
+            kind: components["schemas"]["IncomeKind"];
+            name: string;
+            personName: string;
+            /** Format: int64 */
+            accountId: number;
+            accountName: string;
+            /** Format: date */
+            expectedOn: string;
+            expectedCents: components["schemas"]["Cents"];
+            confirmed: boolean;
+            /** Format: int64 */
+            entryId?: number;
+            receivedCents?: components["schemas"]["Cents"];
+            /** Format: date */
+            receivedOn?: string;
+            /** @description Name of the account that received it. */
+            receivedIn?: string;
+        };
+        OneOffIncome: {
+            /** Format: int64 */
+            entryId: number;
+            amountCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+            description: string;
+            accountName: string;
+        };
+        IncomeMonth: {
+            month: components["schemas"]["Month"];
+            occurrences: components["schemas"]["IncomeOccurrence"][];
+            oneOffs: components["schemas"]["OneOffIncome"][];
+            pendingCents: components["schemas"]["Cents"];
+            receivedCents: components["schemas"]["Cents"];
+        };
+        IncomeConfirm: {
+            month: components["schemas"]["Month"];
+            amountCents?: components["schemas"]["Cents"];
+            /** Format: date */
+            date?: string;
+            /** Format: int64 */
+            accountId?: number;
+        };
+        OneOffIncomeCreate: {
+            amountCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+            description?: string;
         };
     };
     responses: {
@@ -1304,6 +1491,192 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listIncomes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered incomes, recurring first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Income"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createIncome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncomeInput"];
+            };
+        };
+        responses: {
+            /** @description Created income. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Income"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getIncomeMonth: {
+        parameters: {
+            query: {
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Incomes of the month. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncomeMonth"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateIncome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncomeInput"];
+            };
+        };
+        responses: {
+            /** @description Updated income. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Income"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteIncome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    confirmIncome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncomeConfirm"];
+            };
+        };
+        responses: {
+            /** @description Income entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    addAccountIncome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OneOffIncomeCreate"];
+            };
+        };
+        responses: {
+            /** @description Income entry. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

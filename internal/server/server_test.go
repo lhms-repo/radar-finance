@@ -22,6 +22,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
+	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 )
 
@@ -52,6 +53,7 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Accounts:   accounts,
 		Categories: category.NewService(conn),
 		Ledger:     ledger.NewService(conn),
+		Incomes:    income.NewService(conn),
 		Sessions:   auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour}),
 		Backups:    backup.New(conn, backup.Options{Dir: cfg.BackupDir, Keep: 30, Hour: 3, Loc: loc}, log),
 		Version:    "test",

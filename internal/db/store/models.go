@@ -45,6 +45,24 @@ type Entry struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	IncomeID    sql.NullInt64
+	IncomeMonth sql.NullString
+}
+
+type Income struct {
+	ID          int64
+	Kind        string
+	Name        string
+	PersonID    int64
+	AccountID   int64
+	AmountCents int64
+	Day         sql.NullInt64
+	StartMonth  sql.NullString
+	EndOn       sql.NullString
+	ExpectedOn  sql.NullString
+	CreatedBy   int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Person struct {

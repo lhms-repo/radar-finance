@@ -200,7 +200,7 @@ func (s *Service) CreateAccount(ctx context.Context, userID int64, in NewAccount
 	}
 	var id int64
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if err := checkPerson(ctx, q, in.PersonID); err != nil {
+		if err := CheckPerson(ctx, q, in.PersonID); err != nil {
 			return err
 		}
 		if err := checkUniqueAccount(ctx, q, name, 0); err != nil {
@@ -243,7 +243,7 @@ func (s *Service) UpdateAccount(ctx context.Context, id int64, c AccountChanges)
 			}
 		}
 		if c.PersonID != nil {
-			if err := checkPerson(ctx, q, *c.PersonID); err != nil {
+			if err := CheckPerson(ctx, q, *c.PersonID); err != nil {
 				return err
 			}
 			next.PersonID = *c.PersonID
@@ -283,10 +283,10 @@ func (s *Service) DeleteAccount(ctx context.Context, id int64) error {
 
 // AddExpense records a confirmed one off expense from an account, classified by a subcategory.
 func (s *Service) AddExpense(ctx context.Context, userID int64, in NewExpense) (Entry, error) {
-	if err := checkPositive(in.AmountCents); err != nil {
+	if err := CheckPositive(in.AmountCents); err != nil {
 		return Entry{}, err
 	}
-	desc, err := cleanDescription(in.Description)
+	desc, err := CleanDescription(in.Description)
 	if err != nil {
 		return Entry{}, err
 	}
@@ -295,7 +295,7 @@ func (s *Service) AddExpense(ctx context.Context, userID int64, in NewExpense) (
 	}
 	var id int64
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if err := checkActiveAccount(ctx, q, in.AccountID); err != nil {
+		if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
 			return err
 		}
 		if err := category.CheckSelectable(ctx, q, in.CategoryID); err != nil {
@@ -312,15 +312,23 @@ func (s *Service) AddExpense(ctx context.Context, userID int64, in NewExpense) (
 	if err != nil {
 		return Entry{}, err
 	}
-	return s.entry(ctx, id)
+	return s.Entry(ctx, id)
 }
 
-// AdjustBalance records the difference between the informed and the recorded balance (RF-06).
-func (s *Service) AdjustBalance(ctx context.Context, userID int64, in Adjustment) (Entry, error) {
-	if err := checkAmount(in.BalanceCents); err != nil {
+// NewIncome is a one off income received in an account, outside the registered incomes (RF-13).
+type NewIncome struct {
+	AccountID   int64
+	AmountCents int64
+	Date        civil.Date
+	Description string
+}
+
+// AddIncome records a confirmed one off income in an account (RF-13).
+func (s *Service) AddIncome(ctx context.Context, userID int64, in NewIncome) (Entry, error) {
+	if err := CheckPositive(in.AmountCents); err != nil {
 		return Entry{}, err
 	}
-	desc, err := cleanDescription(in.Description)
+	desc, err := CleanDescription(in.Description)
 	if err != nil {
 		return Entry{}, err
 	}
@@ -329,7 +337,37 @@ func (s *Service) AdjustBalance(ctx context.Context, userID int64, in Adjustment
 	}
 	var id int64
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if err := checkActiveAccount(ctx, q, in.AccountID); err != nil {
+		if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
+			return err
+		}
+		e, err := s.insert(ctx, q, userID, store.CreateEntryParams{
+			AccountID: in.AccountID, Kind: string(KindIncome), AmountCents: in.AmountCents,
+			OccurredOn: in.Date.String(), Confirmed: true, Description: desc,
+		})
+		id = e.ID
+		return err
+	})
+	if err != nil {
+		return Entry{}, err
+	}
+	return s.Entry(ctx, id)
+}
+
+// AdjustBalance records the difference between the informed and the recorded balance (RF-06).
+func (s *Service) AdjustBalance(ctx context.Context, userID int64, in Adjustment) (Entry, error) {
+	if err := checkAmount(in.BalanceCents); err != nil {
+		return Entry{}, err
+	}
+	desc, err := CleanDescription(in.Description)
+	if err != nil {
+		return Entry{}, err
+	}
+	if in.Date.IsZero() {
+		return Entry{}, ErrDateRequired
+	}
+	var id int64
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
 			return err
 		}
 		current, err := q.AccountBalance(ctx, in.AccountID)
@@ -350,7 +388,7 @@ func (s *Service) AdjustBalance(ctx context.Context, userID int64, in Adjustment
 	if err != nil {
 		return Entry{}, err
 	}
-	return s.entry(ctx, id)
+	return s.Entry(ctx, id)
 }
 
 // Transfer moves money between two active accounts as a pair of linked entries (RF-07, RN-08).
@@ -358,10 +396,10 @@ func (s *Service) Transfer(ctx context.Context, userID int64, in NewTransfer) (T
 	if in.FromAccountID == in.ToAccountID {
 		return TransferResult{}, ErrSameAccount
 	}
-	if err := checkPositive(in.AmountCents); err != nil {
+	if err := CheckPositive(in.AmountCents); err != nil {
 		return TransferResult{}, err
 	}
-	desc, err := cleanDescription(in.Description)
+	desc, err := CleanDescription(in.Description)
 	if err != nil {
 		return TransferResult{}, err
 	}
@@ -371,7 +409,7 @@ func (s *Service) Transfer(ctx context.Context, userID int64, in NewTransfer) (T
 	var res TransferResult
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		for _, id := range []int64{in.FromAccountID, in.ToAccountID} {
-			if err := checkActiveAccount(ctx, q, id); err != nil {
+			if err := CheckActiveAccount(ctx, q, id); err != nil {
 				return err
 			}
 		}
@@ -466,8 +504,8 @@ func (s *Service) insert(ctx context.Context, q *store.Queries, userID int64, p 
 	return e, nil
 }
 
-// entry reads one entry with the display names.
-func (s *Service) entry(ctx context.Context, id int64) (Entry, error) {
+// Entry reads one entry with the display names.
+func (s *Service) Entry(ctx context.Context, id int64) (Entry, error) {
 	q := store.New(s.conn)
 	e, err := q.GetEntry(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -529,8 +567,8 @@ func getAccount(ctx context.Context, q *store.Queries, id int64) (store.Account,
 	return a, nil
 }
 
-// checkActiveAccount ensures the account exists and accepts new entries.
-func checkActiveAccount(ctx context.Context, q *store.Queries, id int64) error {
+// CheckActiveAccount ensures the account exists and accepts new entries.
+func CheckActiveAccount(ctx context.Context, q *store.Queries, id int64) error {
 	a, err := getAccount(ctx, q, id)
 	if err != nil {
 		return err
@@ -541,8 +579,8 @@ func checkActiveAccount(ctx context.Context, q *store.Queries, id int64) error {
 	return nil
 }
 
-// checkPerson ensures the holder is one of the couple.
-func checkPerson(ctx context.Context, q *store.Queries, id int64) error {
+// CheckPerson ensures the holder is one of the couple.
+func CheckPerson(ctx context.Context, q *store.Queries, id int64) error {
 	if _, err := q.GetPerson(ctx, id); errors.Is(err, sql.ErrNoRows) {
 		return ErrPersonNotFound
 	} else if err != nil {
@@ -577,8 +615,8 @@ func cleanAccountName(raw string) (string, error) {
 	return name, nil
 }
 
-// cleanDescription trims and validates a free description.
-func cleanDescription(raw string) (string, error) {
+// CleanDescription trims and validates a free description.
+func CleanDescription(raw string) (string, error) {
 	d := strings.TrimSpace(raw)
 	if utf8.RuneCountInString(d) > maxDescription {
 		return "", ErrDescriptionTooLong
@@ -594,8 +632,8 @@ func checkAmount(cents int64) error {
 	return nil
 }
 
-// checkPositive requires an amount above zero and within the bound.
-func checkPositive(cents int64) error {
+// CheckPositive requires an amount above zero and within the bound.
+func CheckPositive(cents int64) error {
 	if cents <= 0 {
 		return ErrAmountRequired
 	}

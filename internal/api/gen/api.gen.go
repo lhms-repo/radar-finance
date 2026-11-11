@@ -64,6 +64,24 @@ func (e EntryKind) Valid() bool {
 	}
 }
 
+// Defines values for IncomeKind.
+const (
+	Eventual  IncomeKind = "eventual"
+	Recurring IncomeKind = "recurring"
+)
+
+// Valid indicates whether the value is a known member of the IncomeKind enum.
+func (e IncomeKind) Valid() bool {
+	switch e {
+	case Eventual:
+		return true
+	case Recurring:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PingStatus.
 const (
 	Ok PingStatus = "ok"
@@ -253,6 +271,103 @@ type Health struct {
 	Version       string     `json:"version"`
 }
 
+// Income defines model for Income.
+type Income struct {
+	AccountId   int64  `json:"accountId"`
+	AccountName string `json:"accountName"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents `json:"amountCents"`
+
+	// Day Day of receipt of a recurring income.
+	Day   *int                `json:"day,omitempty"`
+	EndOn *openapi_types.Date `json:"endOn,omitempty"`
+	Ended bool                `json:"ended"`
+
+	// EndingSoon The end date is within 30 days (RF-12).
+	EndingSoon bool `json:"endingSoon"`
+
+	// ExpectedOn Estimated date of an eventual income.
+	ExpectedOn *openapi_types.Date `json:"expectedOn,omitempty"`
+	Id         int64               `json:"id"`
+	Kind       IncomeKind          `json:"kind"`
+	Name       string              `json:"name"`
+	PersonId   int64               `json:"personId"`
+	PersonName string              `json:"personName"`
+
+	// StartMonth Example: 2026-11
+	StartMonth *Month `json:"startMonth,omitempty"`
+}
+
+// IncomeConfirm defines model for IncomeConfirm.
+type IncomeConfirm struct {
+	AccountId *int64 `json:"accountId,omitempty"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents *Cents              `json:"amountCents,omitempty"`
+	Date        *openapi_types.Date `json:"date,omitempty"`
+
+	// Month Example: 2026-11
+	Month Month `json:"month"`
+}
+
+// IncomeInput defines model for IncomeInput.
+type IncomeInput struct {
+	AccountId int64 `json:"accountId"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents               `json:"amountCents"`
+	Day         *int                `json:"day,omitempty"`
+	EndOn       *openapi_types.Date `json:"endOn,omitempty"`
+	ExpectedOn  *openapi_types.Date `json:"expectedOn,omitempty"`
+	Kind        IncomeKind          `json:"kind"`
+	Name        string              `json:"name"`
+	PersonId    int64               `json:"personId"`
+
+	// StartMonth Example: 2026-11
+	StartMonth *Month `json:"startMonth,omitempty"`
+}
+
+// IncomeKind defines model for IncomeKind.
+type IncomeKind string
+
+// IncomeMonth defines model for IncomeMonth.
+type IncomeMonth struct {
+	// Month Example: 2026-11
+	Month       Month              `json:"month"`
+	Occurrences []IncomeOccurrence `json:"occurrences"`
+	OneOffs     []OneOffIncome     `json:"oneOffs"`
+
+	// PendingCents Amount in cents (RN-21).
+	PendingCents Cents `json:"pendingCents"`
+
+	// ReceivedCents Amount in cents (RN-21).
+	ReceivedCents Cents `json:"receivedCents"`
+}
+
+// IncomeOccurrence defines model for IncomeOccurrence.
+type IncomeOccurrence struct {
+	AccountId   int64  `json:"accountId"`
+	AccountName string `json:"accountName"`
+	Confirmed   bool   `json:"confirmed"`
+	EntryId     *int64 `json:"entryId,omitempty"`
+
+	// ExpectedCents Amount in cents (RN-21).
+	ExpectedCents Cents              `json:"expectedCents"`
+	ExpectedOn    openapi_types.Date `json:"expectedOn"`
+	IncomeId      int64              `json:"incomeId"`
+	Kind          IncomeKind         `json:"kind"`
+	Name          string             `json:"name"`
+	PersonName    string             `json:"personName"`
+
+	// ReceivedCents Amount in cents (RN-21).
+	ReceivedCents *Cents `json:"receivedCents,omitempty"`
+
+	// ReceivedIn Name of the account that received it.
+	ReceivedIn *string             `json:"receivedIn,omitempty"`
+	ReceivedOn *openapi_types.Date `json:"receivedOn,omitempty"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Login string `json:"login"`
@@ -286,6 +401,25 @@ type MonthFlow struct {
 
 	// Month Example: 2026-11
 	Month Month `json:"month"`
+}
+
+// OneOffIncome defines model for OneOffIncome.
+type OneOffIncome struct {
+	AccountName string `json:"accountName"`
+
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	Date        openapi_types.Date `json:"date"`
+	Description string             `json:"description"`
+	EntryId     int64              `json:"entryId"`
+}
+
+// OneOffIncomeCreate defines model for OneOffIncomeCreate.
+type OneOffIncomeCreate struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	Date        openapi_types.Date `json:"date"`
+	Description *string            `json:"description,omitempty"`
 }
 
 // Person defines model for Person.
@@ -371,6 +505,11 @@ type ListCategoriesParams struct {
 	IncludeInactive *bool `form:"includeInactive,omitempty" json:"includeInactive,omitempty"`
 }
 
+// GetIncomeMonthParams defines parameters for GetIncomeMonth.
+type GetIncomeMonthParams struct {
+	Month Month `form:"month" json:"month"`
+}
+
 // GetMonthFlowParams defines parameters for GetMonthFlow.
 type GetMonthFlowParams struct {
 	// Month Month as YYYY-MM.
@@ -389,6 +528,9 @@ type AdjustAccountBalanceJSONRequestBody = AdjustmentCreate
 // AddAccountExpenseJSONRequestBody defines body for AddAccountExpense for application/json ContentType.
 type AddAccountExpenseJSONRequestBody = ExpenseCreate
 
+// AddAccountIncomeJSONRequestBody defines body for AddAccountIncome for application/json ContentType.
+type AddAccountIncomeJSONRequestBody = OneOffIncomeCreate
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -400,6 +542,15 @@ type UpdateCategoryJSONRequestBody = CategoryUpdate
 
 // MoveCategoryJSONRequestBody defines body for MoveCategory for application/json ContentType.
 type MoveCategoryJSONRequestBody = CategoryMove
+
+// CreateIncomeJSONRequestBody defines body for CreateIncome for application/json ContentType.
+type CreateIncomeJSONRequestBody = IncomeInput
+
+// UpdateIncomeJSONRequestBody defines body for UpdateIncome for application/json ContentType.
+type UpdateIncomeJSONRequestBody = IncomeInput
+
+// ConfirmIncomeJSONRequestBody defines body for ConfirmIncome for application/json ContentType.
+type ConfirmIncomeJSONRequestBody = IncomeConfirm
 
 // UpdatePreferencesJSONRequestBody defines body for UpdatePreferences for application/json ContentType.
 type UpdatePreferencesJSONRequestBody = PreferencesUpdate
@@ -430,6 +581,9 @@ type ServerInterface interface {
 	// AddAccountExpense Records a one off expense paid from the account (section 5.6).
 	// (POST /accounts/{id}/expenses)
 	AddAccountExpense(w http.ResponseWriter, r *http.Request, id Id)
+	// AddAccountIncome Records a one off income received in the account (RF-13).
+	// (POST /accounts/{id}/incomes)
+	AddAccountIncome(w http.ResponseWriter, r *http.Request, id Id)
 	// GetAccountStatement Entries of the account in the month, with opening and closing balances (RF-05).
 	// (GET /accounts/{id}/statement)
 	GetAccountStatement(w http.ResponseWriter, r *http.Request, id Id, params GetAccountStatementParams)
@@ -460,6 +614,24 @@ type ServerInterface interface {
 	// DeleteEntry Deletes an entry; either side of a transfer deletes the whole transfer.
 	// (DELETE /entries/{id})
 	DeleteEntry(w http.ResponseWriter, r *http.Request, id Id)
+	// ListIncomes Lists the registered incomes (RF-09, RF-11, RF-12).
+	// (GET /incomes)
+	ListIncomes(w http.ResponseWriter, r *http.Request)
+	// CreateIncome Registers a recurring or eventual income (RF-09, RF-11).
+	// (POST /incomes)
+	CreateIncome(w http.ResponseWriter, r *http.Request)
+	// GetIncomeMonth Expected and received incomes of the month (RF-10, RF-13, RN-13).
+	// (GET /incomes/month)
+	GetIncomeMonth(w http.ResponseWriter, r *http.Request, params GetIncomeMonthParams)
+	// DeleteIncome Deletes an income without confirmed receipts.
+	// (DELETE /incomes/{id})
+	DeleteIncome(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateIncome Replaces the fields of an income; confirmed months keep what was received (RF-12).
+	// (PUT /incomes/{id})
+	UpdateIncome(w http.ResponseWriter, r *http.Request, id Id)
+	// ConfirmIncome Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13).
+	// (POST /incomes/{id}/confirm)
+	ConfirmIncome(w http.ResponseWriter, r *http.Request, id Id)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -650,6 +822,32 @@ func (siw *ServerInterfaceWrapper) AddAccountExpense(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AddAccountExpense(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddAccountIncome operation middleware
+func (siw *ServerInterfaceWrapper) AddAccountIncome(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddAccountIncome(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -885,6 +1083,145 @@ func (siw *ServerInterfaceWrapper) DeleteEntry(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteEntry(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListIncomes operation middleware
+func (siw *ServerInterfaceWrapper) ListIncomes(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListIncomes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateIncome operation middleware
+func (siw *ServerInterfaceWrapper) CreateIncome(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateIncome(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetIncomeMonth operation middleware
+func (siw *ServerInterfaceWrapper) GetIncomeMonth(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetIncomeMonthParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetIncomeMonth(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteIncome operation middleware
+func (siw *ServerInterfaceWrapper) DeleteIncome(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteIncome(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateIncome operation middleware
+func (siw *ServerInterfaceWrapper) UpdateIncome(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateIncome(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmIncome operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmIncome(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmIncome(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1200,6 +1537,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/transfers", wrapper.CreateTransfer)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/entries/{id}", wrapper.DeleteEntry)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/month-flow", wrapper.GetMonthFlow)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/incomes", wrapper.ListIncomes)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/incomes", wrapper.CreateIncome)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/incomes/month", wrapper.GetIncomeMonth)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/incomes/{id}", wrapper.DeleteIncome)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/incomes/{id}", wrapper.UpdateIncome)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/incomes/{id}/confirm", wrapper.ConfirmIncome)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/accounts/{id}/incomes", wrapper.AddAccountIncome)
 
 	return m
 }
@@ -1647,6 +1991,85 @@ func (response AddAccountExpense404JSONResponse) VisitAddAccountExpenseResponse(
 type AddAccountExpense409JSONResponse struct{ ConflictJSONResponse }
 
 func (response AddAccountExpense409JSONResponse) VisitAddAccountExpenseResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountIncomeRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddAccountIncomeJSONRequestBody
+}
+
+type AddAccountIncomeResponseObject interface {
+	VisitAddAccountIncomeResponse(w http.ResponseWriter) error
+}
+
+type AddAccountIncome201JSONResponse Entry
+
+func (response AddAccountIncome201JSONResponse) VisitAddAccountIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountIncome400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddAccountIncome400JSONResponse) VisitAddAccountIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountIncome401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddAccountIncome401JSONResponse) VisitAddAccountIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountIncome404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddAccountIncome404JSONResponse) VisitAddAccountIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddAccountIncome409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddAccountIncome409JSONResponse) VisitAddAccountIncomeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2169,6 +2592,385 @@ func (response DeleteEntry404JSONResponse) VisitDeleteEntryResponse(w http.Respo
 	return err
 }
 
+type ListIncomesRequestObject struct {
+}
+
+type ListIncomesResponseObject interface {
+	VisitListIncomesResponse(w http.ResponseWriter) error
+}
+
+type ListIncomes200JSONResponse []Income
+
+func (response ListIncomes200JSONResponse) VisitListIncomesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListIncomes401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListIncomes401JSONResponse) VisitListIncomesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateIncomeRequestObject struct {
+	Body *CreateIncomeJSONRequestBody
+}
+
+type CreateIncomeResponseObject interface {
+	VisitCreateIncomeResponse(w http.ResponseWriter) error
+}
+
+type CreateIncome201JSONResponse Income
+
+func (response CreateIncome201JSONResponse) VisitCreateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateIncome400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateIncome400JSONResponse) VisitCreateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateIncome401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateIncome401JSONResponse) VisitCreateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateIncome404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateIncome404JSONResponse) VisitCreateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateIncome409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateIncome409JSONResponse) VisitCreateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetIncomeMonthRequestObject struct {
+	Params GetIncomeMonthParams
+}
+
+type GetIncomeMonthResponseObject interface {
+	VisitGetIncomeMonthResponse(w http.ResponseWriter) error
+}
+
+type GetIncomeMonth200JSONResponse IncomeMonth
+
+func (response GetIncomeMonth200JSONResponse) VisitGetIncomeMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetIncomeMonth400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetIncomeMonth400JSONResponse) VisitGetIncomeMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetIncomeMonth401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetIncomeMonth401JSONResponse) VisitGetIncomeMonthResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteIncomeRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteIncomeResponseObject interface {
+	VisitDeleteIncomeResponse(w http.ResponseWriter) error
+}
+
+type DeleteIncome204Response struct {
+}
+
+func (response DeleteIncome204Response) VisitDeleteIncomeResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteIncome401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteIncome401JSONResponse) VisitDeleteIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteIncome404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteIncome404JSONResponse) VisitDeleteIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteIncome409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteIncome409JSONResponse) VisitDeleteIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateIncomeRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateIncomeJSONRequestBody
+}
+
+type UpdateIncomeResponseObject interface {
+	VisitUpdateIncomeResponse(w http.ResponseWriter) error
+}
+
+type UpdateIncome200JSONResponse Income
+
+func (response UpdateIncome200JSONResponse) VisitUpdateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateIncome400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateIncome400JSONResponse) VisitUpdateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateIncome401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateIncome401JSONResponse) VisitUpdateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateIncome404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateIncome404JSONResponse) VisitUpdateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateIncome409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateIncome409JSONResponse) VisitUpdateIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmIncomeRequestObject struct {
+	Id   Id `json:"id"`
+	Body *ConfirmIncomeJSONRequestBody
+}
+
+type ConfirmIncomeResponseObject interface {
+	VisitConfirmIncomeResponse(w http.ResponseWriter) error
+}
+
+type ConfirmIncome201JSONResponse Entry
+
+func (response ConfirmIncome201JSONResponse) VisitConfirmIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmIncome400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ConfirmIncome400JSONResponse) VisitConfirmIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmIncome401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfirmIncome401JSONResponse) VisitConfirmIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmIncome404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ConfirmIncome404JSONResponse) VisitConfirmIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ConfirmIncome409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConfirmIncome409JSONResponse) VisitConfirmIncomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMeRequestObject struct {
 }
 
@@ -2629,6 +3431,9 @@ type StrictServerInterface interface {
 	// AddAccountExpense Records a one off expense paid from the account (section 5.6).
 	// (POST /accounts/{id}/expenses)
 	AddAccountExpense(ctx context.Context, request AddAccountExpenseRequestObject) (AddAccountExpenseResponseObject, error)
+	// AddAccountIncome Records a one off income received in the account (RF-13).
+	// (POST /accounts/{id}/incomes)
+	AddAccountIncome(ctx context.Context, request AddAccountIncomeRequestObject) (AddAccountIncomeResponseObject, error)
 	// GetAccountStatement Entries of the account in the month, with opening and closing balances (RF-05).
 	// (GET /accounts/{id}/statement)
 	GetAccountStatement(ctx context.Context, request GetAccountStatementRequestObject) (GetAccountStatementResponseObject, error)
@@ -2659,6 +3464,24 @@ type StrictServerInterface interface {
 	// DeleteEntry Deletes an entry; either side of a transfer deletes the whole transfer.
 	// (DELETE /entries/{id})
 	DeleteEntry(ctx context.Context, request DeleteEntryRequestObject) (DeleteEntryResponseObject, error)
+	// ListIncomes Lists the registered incomes (RF-09, RF-11, RF-12).
+	// (GET /incomes)
+	ListIncomes(ctx context.Context, request ListIncomesRequestObject) (ListIncomesResponseObject, error)
+	// CreateIncome Registers a recurring or eventual income (RF-09, RF-11).
+	// (POST /incomes)
+	CreateIncome(ctx context.Context, request CreateIncomeRequestObject) (CreateIncomeResponseObject, error)
+	// GetIncomeMonth Expected and received incomes of the month (RF-10, RF-13, RN-13).
+	// (GET /incomes/month)
+	GetIncomeMonth(ctx context.Context, request GetIncomeMonthRequestObject) (GetIncomeMonthResponseObject, error)
+	// DeleteIncome Deletes an income without confirmed receipts.
+	// (DELETE /incomes/{id})
+	DeleteIncome(ctx context.Context, request DeleteIncomeRequestObject) (DeleteIncomeResponseObject, error)
+	// UpdateIncome Replaces the fields of an income; confirmed months keep what was received (RF-12).
+	// (PUT /incomes/{id})
+	UpdateIncome(ctx context.Context, request UpdateIncomeRequestObject) (UpdateIncomeResponseObject, error)
+	// ConfirmIncome Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13).
+	// (POST /incomes/{id}/confirm)
+	ConfirmIncome(ctx context.Context, request ConfirmIncomeRequestObject) (ConfirmIncomeResponseObject, error)
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -2929,6 +3752,39 @@ func (sh *strictHandler) AddAccountExpense(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AddAccountExpenseResponseObject); ok {
 		if err := validResponse.VisitAddAccountExpenseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddAccountIncome operation middleware
+func (sh *strictHandler) AddAccountIncome(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddAccountIncomeRequestObject
+
+	request.Id = id
+
+	var body AddAccountIncomeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddAccountIncome(ctx, request.(AddAccountIncomeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddAccountIncome")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddAccountIncomeResponseObject); ok {
+		if err := validResponse.VisitAddAccountIncomeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3210,6 +4066,179 @@ func (sh *strictHandler) DeleteEntry(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteEntryResponseObject); ok {
 		if err := validResponse.VisitDeleteEntryResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListIncomes operation middleware
+func (sh *strictHandler) ListIncomes(w http.ResponseWriter, r *http.Request) {
+	var request ListIncomesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListIncomes(ctx, request.(ListIncomesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListIncomes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListIncomesResponseObject); ok {
+		if err := validResponse.VisitListIncomesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateIncome operation middleware
+func (sh *strictHandler) CreateIncome(w http.ResponseWriter, r *http.Request) {
+	var request CreateIncomeRequestObject
+
+	var body CreateIncomeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateIncome(ctx, request.(CreateIncomeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateIncome")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateIncomeResponseObject); ok {
+		if err := validResponse.VisitCreateIncomeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetIncomeMonth operation middleware
+func (sh *strictHandler) GetIncomeMonth(w http.ResponseWriter, r *http.Request, params GetIncomeMonthParams) {
+	var request GetIncomeMonthRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetIncomeMonth(ctx, request.(GetIncomeMonthRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetIncomeMonth")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetIncomeMonthResponseObject); ok {
+		if err := validResponse.VisitGetIncomeMonthResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteIncome operation middleware
+func (sh *strictHandler) DeleteIncome(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteIncomeRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteIncome(ctx, request.(DeleteIncomeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteIncome")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteIncomeResponseObject); ok {
+		if err := validResponse.VisitDeleteIncomeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateIncome operation middleware
+func (sh *strictHandler) UpdateIncome(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateIncomeRequestObject
+
+	request.Id = id
+
+	var body UpdateIncomeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateIncome(ctx, request.(UpdateIncomeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateIncome")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateIncomeResponseObject); ok {
+		if err := validResponse.VisitUpdateIncomeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmIncome operation middleware
+func (sh *strictHandler) ConfirmIncome(w http.ResponseWriter, r *http.Request, id Id) {
+	var request ConfirmIncomeRequestObject
+
+	request.Id = id
+
+	var body ConfirmIncomeJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmIncome(ctx, request.(ConfirmIncomeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmIncome")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmIncomeResponseObject); ok {
+		if err := validResponse.VisitConfirmIncomeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
