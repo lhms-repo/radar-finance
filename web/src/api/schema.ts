@@ -1246,6 +1246,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/alias-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the alias rules, newest first for each original text (RF-54). */
+        get: operations["listAliasRules"];
+        put?: never;
+        /** Creates an alias rule; the newest wins for the same text (RF-54, RN-19). */
+        post: operations["createAliasRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/alias-rules/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** Replaces an alias rule. */
+        put: operations["updateAliasRule"];
+        post?: never;
+        /** Deletes an alias rule. */
+        delete: operations["deleteAliasRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reads the Nubank invoice CSV and returns each line with rules and duplicates, without saving (RF-53, RF-56, RN-20). */
+        post: operations["previewImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Import history, newest first. */
+        get: operations["listImports"];
+        put?: never;
+        /** Records the confirmed lines on the chosen invoice and saves the rules asked for (RF-53, RF-55, RF-57). */
+        post: operations["commitImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/imports/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes every purchase of an import. */
+        delete: operations["undoImport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2242,6 +2334,105 @@ export interface components {
         };
         NotificationRead: {
             keys?: string[];
+        };
+        AliasRule: {
+            /** Format: int64 */
+            id: number;
+            original: string;
+            friendlyName: string;
+            /** Format: int64 */
+            categoryId?: number;
+            categoryName: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AliasRuleInput: {
+            original: string;
+            friendlyName: string;
+            /** Format: int64 */
+            categoryId?: number;
+        };
+        ImportPreviewRequest: {
+            /** Format: int64 */
+            cardId: number;
+            invoiceMonth: components["schemas"]["Month"];
+            /** @description Text of the CSV file. */
+            content: string;
+        };
+        ImportDuplicate: {
+            description: string;
+            /** Format: date */
+            date?: string;
+            /**
+             * Format: int64
+             * @description Signed cents of the existing line.
+             */
+            amountCents: number;
+        };
+        ImportPreviewLine: {
+            index: number;
+            /** Format: date */
+            date: string;
+            title: string;
+            /** @description Original merchant without the installment suffix, the key of alias rules. */
+            merchant: string;
+            amountCents: components["schemas"]["Cents"];
+            /** @enum {string} */
+            kind: "purchase" | "credit" | "payment";
+            installment?: number;
+            installments?: number;
+            friendlyName: string;
+            /** Format: int64 */
+            categoryId?: number;
+            /** Format: int64 */
+            ruleId?: number;
+            duplicate?: components["schemas"]["ImportDuplicate"];
+            skip: boolean;
+        };
+        ImportCommitLine: {
+            /** Format: date */
+            date: string;
+            title: string;
+            /** @description Original merchant without the installment suffix, the key of alias rules. */
+            merchant: string;
+            amountCents: components["schemas"]["Cents"];
+            /** @enum {string} */
+            kind: "purchase" | "credit" | "payment";
+            installment?: number;
+            installments?: number;
+            friendlyName: string;
+            /** Format: int64 */
+            categoryId?: number;
+            skip: boolean;
+            remember: boolean;
+        };
+        ImportCommitRequest: {
+            /** Format: int64 */
+            cardId: number;
+            invoiceMonth: components["schemas"]["Month"];
+            fileName?: string;
+            lines: components["schemas"]["ImportCommitLine"][];
+        };
+        ImportResult: {
+            /** Format: int64 */
+            importId: number;
+            created: number;
+            skipped: number;
+            rulesSaved: number;
+        };
+        ImportRecord: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            cardId: number;
+            cardName: string;
+            invoiceMonth: components["schemas"]["Month"];
+            fileName: string;
+            lineCount: number;
+            purchaseCount: number;
+            createdByName: string;
+            /** Format: date-time */
+            createdAt: string;
         };
     };
     responses: {
@@ -4629,6 +4820,203 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listAliasRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rules. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasRule"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createAliasRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Created rule. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasRule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateAliasRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AliasRuleInput"];
+            };
+        };
+        responses: {
+            /** @description Updated rule. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AliasRule"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteAliasRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    previewImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Lines of the file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreviewLine"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Imports. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportRecord"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    commitImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description What the import did. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    undoImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
 }

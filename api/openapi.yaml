@@ -22,6 +22,7 @@ tags:
   - name: receivables
   - name: savings
   - name: reports
+  - name: imports
 paths:
   /ping:
     get:
@@ -2073,6 +2074,168 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /alias-rules:
+    get:
+      operationId: listAliasRules
+      tags: [imports]
+      summary: Lists the alias rules, newest first for each original text (RF-54).
+      responses:
+        "200":
+          description: Rules.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AliasRule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createAliasRule
+      tags: [imports]
+      summary: Creates an alias rule; the newest wins for the same text (RF-54, RN-19).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AliasRuleInput"
+      responses:
+        "201":
+          description: Created rule.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AliasRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /alias-rules/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateAliasRule
+      tags: [imports]
+      summary: Replaces an alias rule.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AliasRuleInput"
+      responses:
+        "200":
+          description: Updated rule.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AliasRule"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteAliasRule
+      tags: [imports]
+      summary: Deletes an alias rule.
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /imports/preview:
+    post:
+      operationId: previewImport
+      tags: [imports]
+      summary: Reads the Nubank invoice CSV and returns each line with rules and duplicates, without saving (RF-53, RF-56, RN-20).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportPreviewRequest"
+      responses:
+        "200":
+          description: Lines of the file.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportPreviewLine"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /imports:
+    get:
+      operationId: listImports
+      tags: [imports]
+      summary: Import history, newest first.
+      responses:
+        "200":
+          description: Imports.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImportRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: commitImport
+      tags: [imports]
+      summary: Records the confirmed lines on the chosen invoice and saves the rules asked for (RF-53, RF-55, RF-57).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportCommitRequest"
+      responses:
+        "201":
+          description: What the import did.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /imports/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: undoImport
+      tags: [imports]
+      summary: Removes every purchase of an import.
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
 components:
   parameters:
     Id:
@@ -4032,6 +4195,191 @@ components:
           type: array
           items:
             type: string
+
+    AliasRule:
+      type: object
+      required: [id, original, friendlyName, categoryName, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        original:
+          type: string
+        friendlyName:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        categoryName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    AliasRuleInput:
+      type: object
+      required: [original, friendlyName]
+      properties:
+        original:
+          type: string
+          maxLength: 120
+        friendlyName:
+          type: string
+          maxLength: 80
+        categoryId:
+          type: integer
+          format: int64
+
+    ImportPreviewRequest:
+      type: object
+      required: [cardId, invoiceMonth, content]
+      properties:
+        cardId:
+          type: integer
+          format: int64
+        invoiceMonth:
+          $ref: "#/components/schemas/Month"
+        content:
+          type: string
+          description: Text of the CSV file.
+
+    ImportDuplicate:
+      type: object
+      required: [description, amountCents]
+      properties:
+        description:
+          type: string
+        date:
+          type: string
+          format: date
+        amountCents:
+          description: Signed cents of the existing line.
+          type: integer
+          format: int64
+
+    ImportPreviewLine:
+      type: object
+      required: [index, date, title, merchant, amountCents, kind, friendlyName, skip]
+      properties:
+        index:
+          type: integer
+        date:
+          type: string
+          format: date
+        title:
+          type: string
+        merchant:
+          type: string
+          description: Original merchant without the installment suffix, the key of alias rules.
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        kind:
+          type: string
+          enum: [purchase, credit, payment]
+        installment:
+          type: integer
+        installments:
+          type: integer
+        friendlyName:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        ruleId:
+          type: integer
+          format: int64
+        duplicate:
+          $ref: "#/components/schemas/ImportDuplicate"
+        skip:
+          type: boolean
+
+    ImportCommitLine:
+      type: object
+      required: [date, title, merchant, amountCents, kind, friendlyName, skip, remember]
+      properties:
+        date:
+          type: string
+          format: date
+        title:
+          type: string
+        merchant:
+          type: string
+          description: Original merchant without the installment suffix, the key of alias rules.
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        kind:
+          type: string
+          enum: [purchase, credit, payment]
+        installment:
+          type: integer
+        installments:
+          type: integer
+        friendlyName:
+          type: string
+        categoryId:
+          type: integer
+          format: int64
+        skip:
+          type: boolean
+        remember:
+          type: boolean
+
+    ImportCommitRequest:
+      type: object
+      required: [cardId, invoiceMonth, lines]
+      properties:
+        cardId:
+          type: integer
+          format: int64
+        invoiceMonth:
+          $ref: "#/components/schemas/Month"
+        fileName:
+          type: string
+          maxLength: 200
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportCommitLine"
+
+    ImportResult:
+      type: object
+      required: [importId, created, skipped, rulesSaved]
+      properties:
+        importId:
+          type: integer
+          format: int64
+        created:
+          type: integer
+        skipped:
+          type: integer
+        rulesSaved:
+          type: integer
+
+    ImportRecord:
+      type: object
+      required: [id, cardId, cardName, invoiceMonth, fileName, lineCount, purchaseCount, createdByName, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        cardId:
+          type: integer
+          format: int64
+        cardName:
+          type: string
+        invoiceMonth:
+          $ref: "#/components/schemas/Month"
+        fileName:
+          type: string
+        lineCount:
+          type: integer
+        purchaseCount:
+          type: integer
+        createdByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
 
 security:
   - session: []

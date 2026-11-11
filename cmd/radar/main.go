@@ -28,6 +28,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/financing"
+	"github.com/italogfx/radar-finance/internal/importer"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/notify"
@@ -134,6 +135,7 @@ func serve(log *slog.Logger) error {
 		Receivables:   receivable.NewService(conn),
 		Savings:       sav,
 		Reports:       reports,
+		Imports:       importer.NewService(conn, cards),
 		Notifications: notify.NewService(conn, agenda.NewService(bills, financings, cards), reports, sav, income.NewService(conn)),
 		Sessions:      sessions,
 		Backups:       backups,

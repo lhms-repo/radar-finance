@@ -199,6 +199,48 @@ func (e ForecastGroupKey) Valid() bool {
 	}
 }
 
+// Defines values for ImportCommitLineKind.
+const (
+	ImportCommitLineKindCredit   ImportCommitLineKind = "credit"
+	ImportCommitLineKindPayment  ImportCommitLineKind = "payment"
+	ImportCommitLineKindPurchase ImportCommitLineKind = "purchase"
+)
+
+// Valid indicates whether the value is a known member of the ImportCommitLineKind enum.
+func (e ImportCommitLineKind) Valid() bool {
+	switch e {
+	case ImportCommitLineKindCredit:
+		return true
+	case ImportCommitLineKindPayment:
+		return true
+	case ImportCommitLineKindPurchase:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ImportPreviewLineKind.
+const (
+	ImportPreviewLineKindCredit   ImportPreviewLineKind = "credit"
+	ImportPreviewLineKindPayment  ImportPreviewLineKind = "payment"
+	ImportPreviewLineKindPurchase ImportPreviewLineKind = "purchase"
+)
+
+// Valid indicates whether the value is a known member of the ImportPreviewLineKind enum.
+func (e ImportPreviewLineKind) Valid() bool {
+	switch e {
+	case ImportPreviewLineKindCredit:
+		return true
+	case ImportPreviewLineKindPayment:
+		return true
+	case ImportPreviewLineKindPurchase:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for IncomeKind.
 const (
 	Eventual  IncomeKind = "eventual"
@@ -617,6 +659,23 @@ type AleloUpdate struct {
 	MonthlyCreditCents Cents  `json:"monthlyCreditCents"`
 	Name               string `json:"name"`
 	PersonId           int64  `json:"personId"`
+}
+
+// AliasRule defines model for AliasRule.
+type AliasRule struct {
+	CategoryId   *int64    `json:"categoryId,omitempty"`
+	CategoryName string    `json:"categoryName"`
+	CreatedAt    time.Time `json:"createdAt"`
+	FriendlyName string    `json:"friendlyName"`
+	Id           int64     `json:"id"`
+	Original     string    `json:"original"`
+}
+
+// AliasRuleInput defines model for AliasRuleInput.
+type AliasRuleInput struct {
+	CategoryId   *int64 `json:"categoryId,omitempty"`
+	FriendlyName string `json:"friendlyName"`
+	Original     string `json:"original"`
 }
 
 // Backup defines model for Backup.
@@ -1106,6 +1165,102 @@ type Housing struct {
 	// PersonIncomeCents Amount in cents (RN-21).
 	PersonIncomeCents Cents `json:"personIncomeCents"`
 	ReferenceBp       int   `json:"referenceBp"`
+}
+
+// ImportCommitLine defines model for ImportCommitLine.
+type ImportCommitLine struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents  Cents                `json:"amountCents"`
+	CategoryId   *int64               `json:"categoryId,omitempty"`
+	Date         openapi_types.Date   `json:"date"`
+	FriendlyName string               `json:"friendlyName"`
+	Installment  *int                 `json:"installment,omitempty"`
+	Installments *int                 `json:"installments,omitempty"`
+	Kind         ImportCommitLineKind `json:"kind"`
+
+	// Merchant Original merchant without the installment suffix, the key of alias rules.
+	Merchant string `json:"merchant"`
+	Remember bool   `json:"remember"`
+	Skip     bool   `json:"skip"`
+	Title    string `json:"title"`
+}
+
+// ImportCommitLineKind defines model for ImportCommitLine.Kind.
+type ImportCommitLineKind string
+
+// ImportCommitRequest defines model for ImportCommitRequest.
+type ImportCommitRequest struct {
+	CardId   int64   `json:"cardId"`
+	FileName *string `json:"fileName,omitempty"`
+
+	// InvoiceMonth Example: 2026-11
+	InvoiceMonth Month              `json:"invoiceMonth"`
+	Lines        []ImportCommitLine `json:"lines"`
+}
+
+// ImportDuplicate defines model for ImportDuplicate.
+type ImportDuplicate struct {
+	// AmountCents Signed cents of the existing line.
+	AmountCents int64               `json:"amountCents"`
+	Date        *openapi_types.Date `json:"date,omitempty"`
+	Description string              `json:"description"`
+}
+
+// ImportPreviewLine defines model for ImportPreviewLine.
+type ImportPreviewLine struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents  Cents                 `json:"amountCents"`
+	CategoryId   *int64                `json:"categoryId,omitempty"`
+	Date         openapi_types.Date    `json:"date"`
+	Duplicate    *ImportDuplicate      `json:"duplicate,omitempty"`
+	FriendlyName string                `json:"friendlyName"`
+	Index        int                   `json:"index"`
+	Installment  *int                  `json:"installment,omitempty"`
+	Installments *int                  `json:"installments,omitempty"`
+	Kind         ImportPreviewLineKind `json:"kind"`
+
+	// Merchant Original merchant without the installment suffix, the key of alias rules.
+	Merchant string `json:"merchant"`
+	RuleId   *int64 `json:"ruleId,omitempty"`
+	Skip     bool   `json:"skip"`
+	Title    string `json:"title"`
+}
+
+// ImportPreviewLineKind defines model for ImportPreviewLine.Kind.
+type ImportPreviewLineKind string
+
+// ImportPreviewRequest defines model for ImportPreviewRequest.
+type ImportPreviewRequest struct {
+	CardId int64 `json:"cardId"`
+
+	// Content Text of the CSV file.
+	Content string `json:"content"`
+
+	// InvoiceMonth Example: 2026-11
+	InvoiceMonth Month `json:"invoiceMonth"`
+}
+
+// ImportRecord defines model for ImportRecord.
+type ImportRecord struct {
+	CardId        int64     `json:"cardId"`
+	CardName      string    `json:"cardName"`
+	CreatedAt     time.Time `json:"createdAt"`
+	CreatedByName string    `json:"createdByName"`
+	FileName      string    `json:"fileName"`
+	Id            int64     `json:"id"`
+
+	// InvoiceMonth Example: 2026-11
+	InvoiceMonth  Month `json:"invoiceMonth"`
+	LineCount     int   `json:"lineCount"`
+	PurchaseCount int   `json:"purchaseCount"`
+}
+
+// ImportResult defines model for ImportResult.
+type ImportResult struct {
+	Created    int   `json:"created"`
+	ImportId   int64 `json:"importId"`
+	RulesSaved int   `json:"rulesSaved"`
+	Skipped    int   `json:"skipped"`
 }
 
 // Income defines model for Income.
@@ -1894,6 +2049,12 @@ type ConfirmAleloCreditJSONRequestBody = AleloCreditCreate
 // AddAleloPurchaseJSONRequestBody defines body for AddAleloPurchase for application/json ContentType.
 type AddAleloPurchaseJSONRequestBody = AleloPurchaseCreate
 
+// CreateAliasRuleJSONRequestBody defines body for CreateAliasRule for application/json ContentType.
+type CreateAliasRuleJSONRequestBody = AliasRuleInput
+
+// UpdateAliasRuleJSONRequestBody defines body for UpdateAliasRule for application/json ContentType.
+type UpdateAliasRuleJSONRequestBody = AliasRuleInput
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
@@ -1950,6 +2111,12 @@ type CorrectFinancingJSONRequestBody = FinancingCorrection
 
 // PayFinancingJSONRequestBody defines body for PayFinancing for application/json ContentType.
 type PayFinancingJSONRequestBody = FinancingPaymentCreate
+
+// CommitImportJSONRequestBody defines body for CommitImport for application/json ContentType.
+type CommitImportJSONRequestBody = ImportCommitRequest
+
+// PreviewImportJSONRequestBody defines body for PreviewImport for application/json ContentType.
+type PreviewImportJSONRequestBody = ImportPreviewRequest
 
 // CreateIncomeJSONRequestBody defines body for CreateIncome for application/json ContentType.
 type CreateIncomeJSONRequestBody = IncomeInput
@@ -2049,6 +2216,18 @@ type ServerInterface interface {
 	// AddAleloPurchase Records a purchase with a free description, filed as groceries (RF-33, RN-15).
 	// (POST /alelo/{id}/purchases)
 	AddAleloPurchase(w http.ResponseWriter, r *http.Request, id Id)
+	// ListAliasRules Lists the alias rules, newest first for each original text (RF-54).
+	// (GET /alias-rules)
+	ListAliasRules(w http.ResponseWriter, r *http.Request)
+	// CreateAliasRule Creates an alias rule; the newest wins for the same text (RF-54, RN-19).
+	// (POST /alias-rules)
+	CreateAliasRule(w http.ResponseWriter, r *http.Request)
+	// DeleteAliasRule Deletes an alias rule.
+	// (DELETE /alias-rules/{id})
+	DeleteAliasRule(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateAliasRule Replaces an alias rule.
+	// (PUT /alias-rules/{id})
+	UpdateAliasRule(w http.ResponseWriter, r *http.Request, id Id)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -2157,6 +2336,18 @@ type ServerInterface interface {
 	// PayFinancing Pays the installment of the month and sets the balance after it (RF-41, RN-16).
 	// (POST /financings/{id}/months/{month}/payment)
 	PayFinancing(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// ListImports Import history, newest first.
+	// (GET /imports)
+	ListImports(w http.ResponseWriter, r *http.Request)
+	// CommitImport Records the confirmed lines on the chosen invoice and saves the rules asked for (RF-53, RF-55, RF-57).
+	// (POST /imports)
+	CommitImport(w http.ResponseWriter, r *http.Request)
+	// PreviewImport Reads the Nubank invoice CSV and returns each line with rules and duplicates, without saving (RF-53, RF-56, RN-20).
+	// (POST /imports/preview)
+	PreviewImport(w http.ResponseWriter, r *http.Request)
+	// UndoImport Removes every purchase of an import.
+	// (DELETE /imports/{id})
+	UndoImport(w http.ResponseWriter, r *http.Request, id Id)
 	// ListIncomes Lists the registered incomes (RF-09, RF-11, RF-12).
 	// (GET /incomes)
 	ListIncomes(w http.ResponseWriter, r *http.Request)
@@ -2763,6 +2954,86 @@ func (siw *ServerInterfaceWrapper) AddAleloPurchase(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AddAleloPurchase(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAliasRules operation middleware
+func (siw *ServerInterfaceWrapper) ListAliasRules(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAliasRules(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAliasRule operation middleware
+func (siw *ServerInterfaceWrapper) CreateAliasRule(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAliasRule(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteAliasRule operation middleware
+func (siw *ServerInterfaceWrapper) DeleteAliasRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteAliasRule(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateAliasRule operation middleware
+func (siw *ServerInterfaceWrapper) UpdateAliasRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateAliasRule(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3661,6 +3932,74 @@ func (siw *ServerInterfaceWrapper) PayFinancing(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PayFinancing(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListImports operation middleware
+func (siw *ServerInterfaceWrapper) ListImports(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListImports(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CommitImport operation middleware
+func (siw *ServerInterfaceWrapper) CommitImport(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CommitImport(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewImport operation middleware
+func (siw *ServerInterfaceWrapper) PreviewImport(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewImport(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UndoImport operation middleware
+func (siw *ServerInterfaceWrapper) UndoImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UndoImport(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4746,6 +5085,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/search", wrapper.SearchEntries)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/notifications", wrapper.ListNotifications)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/notifications/read", wrapper.MarkNotificationsRead)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/alias-rules", wrapper.ListAliasRules)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/alias-rules", wrapper.CreateAliasRule)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/alias-rules/{id}", wrapper.DeleteAliasRule)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/alias-rules/{id}", wrapper.UpdateAliasRule)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/imports/preview", wrapper.PreviewImport)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/imports", wrapper.ListImports)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/imports", wrapper.CommitImport)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/imports/{id}", wrapper.UndoImport)
 
 	return m
 }
@@ -5957,6 +6304,200 @@ func (response AddAleloPurchase409JSONResponse) VisitAddAleloPurchaseResponse(w 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAliasRulesRequestObject struct {
+}
+
+type ListAliasRulesResponseObject interface {
+	VisitListAliasRulesResponse(w http.ResponseWriter) error
+}
+
+type ListAliasRules200JSONResponse []AliasRule
+
+func (response ListAliasRules200JSONResponse) VisitListAliasRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAliasRules401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListAliasRules401JSONResponse) VisitListAliasRulesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAliasRuleRequestObject struct {
+	Body *CreateAliasRuleJSONRequestBody
+}
+
+type CreateAliasRuleResponseObject interface {
+	VisitCreateAliasRuleResponse(w http.ResponseWriter) error
+}
+
+type CreateAliasRule201JSONResponse AliasRule
+
+func (response CreateAliasRule201JSONResponse) VisitCreateAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAliasRule400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateAliasRule400JSONResponse) VisitCreateAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateAliasRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateAliasRule401JSONResponse) VisitCreateAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAliasRuleRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteAliasRuleResponseObject interface {
+	VisitDeleteAliasRuleResponse(w http.ResponseWriter) error
+}
+
+type DeleteAliasRule204Response struct {
+}
+
+func (response DeleteAliasRule204Response) VisitDeleteAliasRuleResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteAliasRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteAliasRule401JSONResponse) VisitDeleteAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteAliasRule404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteAliasRule404JSONResponse) VisitDeleteAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAliasRuleRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateAliasRuleJSONRequestBody
+}
+
+type UpdateAliasRuleResponseObject interface {
+	VisitUpdateAliasRuleResponse(w http.ResponseWriter) error
+}
+
+type UpdateAliasRule200JSONResponse AliasRule
+
+func (response UpdateAliasRule200JSONResponse) VisitUpdateAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAliasRule400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateAliasRule400JSONResponse) VisitUpdateAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAliasRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateAliasRule401JSONResponse) VisitUpdateAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateAliasRule404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateAliasRule404JSONResponse) VisitUpdateAliasRuleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -8106,6 +8647,241 @@ func (response PayFinancing409JSONResponse) VisitPayFinancingResponse(w http.Res
 	return err
 }
 
+type ListImportsRequestObject struct {
+}
+
+type ListImportsResponseObject interface {
+	VisitListImportsResponse(w http.ResponseWriter) error
+}
+
+type ListImports200JSONResponse []ImportRecord
+
+func (response ListImports200JSONResponse) VisitListImportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListImports401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListImports401JSONResponse) VisitListImportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitImportRequestObject struct {
+	Body *CommitImportJSONRequestBody
+}
+
+type CommitImportResponseObject interface {
+	VisitCommitImportResponse(w http.ResponseWriter) error
+}
+
+type CommitImport201JSONResponse ImportResult
+
+func (response CommitImport201JSONResponse) VisitCommitImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitImport400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CommitImport400JSONResponse) VisitCommitImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitImport401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CommitImport401JSONResponse) VisitCommitImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitImport404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CommitImport404JSONResponse) VisitCommitImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitImport409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CommitImport409JSONResponse) VisitCommitImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewImportRequestObject struct {
+	Body *PreviewImportJSONRequestBody
+}
+
+type PreviewImportResponseObject interface {
+	VisitPreviewImportResponse(w http.ResponseWriter) error
+}
+
+type PreviewImport200JSONResponse []ImportPreviewLine
+
+func (response PreviewImport200JSONResponse) VisitPreviewImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewImport400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PreviewImport400JSONResponse) VisitPreviewImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewImport401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PreviewImport401JSONResponse) VisitPreviewImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewImport404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PreviewImport404JSONResponse) VisitPreviewImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoImportRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type UndoImportResponseObject interface {
+	VisitUndoImportResponse(w http.ResponseWriter) error
+}
+
+type UndoImport204Response struct {
+}
+
+func (response UndoImport204Response) VisitUndoImportResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UndoImport401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UndoImport401JSONResponse) VisitUndoImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoImport404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UndoImport404JSONResponse) VisitUndoImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoImport409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UndoImport409JSONResponse) VisitUndoImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListIncomesRequestObject struct {
 }
 
@@ -10085,6 +10861,18 @@ type StrictServerInterface interface {
 	// AddAleloPurchase Records a purchase with a free description, filed as groceries (RF-33, RN-15).
 	// (POST /alelo/{id}/purchases)
 	AddAleloPurchase(ctx context.Context, request AddAleloPurchaseRequestObject) (AddAleloPurchaseResponseObject, error)
+	// ListAliasRules Lists the alias rules, newest first for each original text (RF-54).
+	// (GET /alias-rules)
+	ListAliasRules(ctx context.Context, request ListAliasRulesRequestObject) (ListAliasRulesResponseObject, error)
+	// CreateAliasRule Creates an alias rule; the newest wins for the same text (RF-54, RN-19).
+	// (POST /alias-rules)
+	CreateAliasRule(ctx context.Context, request CreateAliasRuleRequestObject) (CreateAliasRuleResponseObject, error)
+	// DeleteAliasRule Deletes an alias rule.
+	// (DELETE /alias-rules/{id})
+	DeleteAliasRule(ctx context.Context, request DeleteAliasRuleRequestObject) (DeleteAliasRuleResponseObject, error)
+	// UpdateAliasRule Replaces an alias rule.
+	// (PUT /alias-rules/{id})
+	UpdateAliasRule(ctx context.Context, request UpdateAliasRuleRequestObject) (UpdateAliasRuleResponseObject, error)
 	// Login Signs in as one of the users, without password (RF-01).
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -10193,6 +10981,18 @@ type StrictServerInterface interface {
 	// PayFinancing Pays the installment of the month and sets the balance after it (RF-41, RN-16).
 	// (POST /financings/{id}/months/{month}/payment)
 	PayFinancing(ctx context.Context, request PayFinancingRequestObject) (PayFinancingResponseObject, error)
+	// ListImports Import history, newest first.
+	// (GET /imports)
+	ListImports(ctx context.Context, request ListImportsRequestObject) (ListImportsResponseObject, error)
+	// CommitImport Records the confirmed lines on the chosen invoice and saves the rules asked for (RF-53, RF-55, RF-57).
+	// (POST /imports)
+	CommitImport(ctx context.Context, request CommitImportRequestObject) (CommitImportResponseObject, error)
+	// PreviewImport Reads the Nubank invoice CSV and returns each line with rules and duplicates, without saving (RF-53, RF-56, RN-20).
+	// (POST /imports/preview)
+	PreviewImport(ctx context.Context, request PreviewImportRequestObject) (PreviewImportResponseObject, error)
+	// UndoImport Removes every purchase of an import.
+	// (DELETE /imports/{id})
+	UndoImport(ctx context.Context, request UndoImportRequestObject) (UndoImportResponseObject, error)
 	// ListIncomes Lists the registered incomes (RF-09, RF-11, RF-12).
 	// (GET /incomes)
 	ListIncomes(ctx context.Context, request ListIncomesRequestObject) (ListIncomesResponseObject, error)
@@ -10888,6 +11688,120 @@ func (sh *strictHandler) AddAleloPurchase(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AddAleloPurchaseResponseObject); ok {
 		if err := validResponse.VisitAddAleloPurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAliasRules operation middleware
+func (sh *strictHandler) ListAliasRules(w http.ResponseWriter, r *http.Request) {
+	var request ListAliasRulesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAliasRules(ctx, request.(ListAliasRulesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAliasRules")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAliasRulesResponseObject); ok {
+		if err := validResponse.VisitListAliasRulesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAliasRule operation middleware
+func (sh *strictHandler) CreateAliasRule(w http.ResponseWriter, r *http.Request) {
+	var request CreateAliasRuleRequestObject
+
+	var body CreateAliasRuleJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAliasRule(ctx, request.(CreateAliasRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAliasRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAliasRuleResponseObject); ok {
+		if err := validResponse.VisitCreateAliasRuleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteAliasRule operation middleware
+func (sh *strictHandler) DeleteAliasRule(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteAliasRuleRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteAliasRule(ctx, request.(DeleteAliasRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteAliasRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteAliasRuleResponseObject); ok {
+		if err := validResponse.VisitDeleteAliasRuleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateAliasRule operation middleware
+func (sh *strictHandler) UpdateAliasRule(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateAliasRuleRequestObject
+
+	request.Id = id
+
+	var body UpdateAliasRuleJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateAliasRule(ctx, request.(UpdateAliasRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateAliasRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateAliasRuleResponseObject); ok {
+		if err := validResponse.VisitUpdateAliasRuleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -11943,6 +12857,118 @@ func (sh *strictHandler) PayFinancing(w http.ResponseWriter, r *http.Request, id
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PayFinancingResponseObject); ok {
 		if err := validResponse.VisitPayFinancingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListImports operation middleware
+func (sh *strictHandler) ListImports(w http.ResponseWriter, r *http.Request) {
+	var request ListImportsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListImports(ctx, request.(ListImportsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListImports")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListImportsResponseObject); ok {
+		if err := validResponse.VisitListImportsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CommitImport operation middleware
+func (sh *strictHandler) CommitImport(w http.ResponseWriter, r *http.Request) {
+	var request CommitImportRequestObject
+
+	var body CommitImportJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CommitImport(ctx, request.(CommitImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CommitImport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CommitImportResponseObject); ok {
+		if err := validResponse.VisitCommitImportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewImport operation middleware
+func (sh *strictHandler) PreviewImport(w http.ResponseWriter, r *http.Request) {
+	var request PreviewImportRequestObject
+
+	var body PreviewImportJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewImport(ctx, request.(PreviewImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewImport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewImportResponseObject); ok {
+		if err := validResponse.VisitPreviewImportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UndoImport operation middleware
+func (sh *strictHandler) UndoImport(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UndoImportRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UndoImport(ctx, request.(UndoImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UndoImport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UndoImportResponseObject); ok {
+		if err := validResponse.VisitUndoImportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
