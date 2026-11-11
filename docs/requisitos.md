@@ -68,7 +68,7 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 | ID | Requisito |
 | --- | --- |
 | RF-24 | Dividir uma compra, à vista ou parcelada, entre o casal e outras pessoas, registradas apenas pelo nome. |
-| RF-25 | Definir a cota de cada pessoa em partes iguais ou em valores personalizados. |
+| RF-25 | Definir a cota de cada pessoa em partes iguais ou em valores personalizados. Nas partes iguais, o usuário escolhe quantas partes o casal conta, começando em uma; a sobra de centavos fica com o casal. |
 | RF-26 | Marcar o pagamento de cada pessoa em cada parcela. |
 | RF-27 | Sugerir nomes já usados ao digitar, para evitar duplicidade. |
 | RF-28 | Listar todas as pendências agrupadas por pessoa, com o total devido. |
@@ -109,7 +109,7 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 | RF-43 | Criar caixinhas com nome, valor-alvo e percentual mensal sobre todas as entradas do mês. |
 | RF-44 | Editar valor-alvo e percentual a qualquer momento. |
 | RF-45 | Sugerir o aporte do mês de cada caixinha com base no percentual. |
-| RF-46 | Registrar o aporte somente após confirmação do usuário, com o valor efetivamente depositado. |
+| RF-46 | Registrar o aporte somente após confirmação do usuário, com o valor efetivamente depositado, que sai de uma conta bancária escolhida. A retirada volta para uma conta. Nenhum dos dois conta como gasto (RN-08). |
 | RF-47 | Permitir retiradas, registradas com valor e motivo. |
 | RF-48 | Exibir saldo, progresso e data estimada de conclusão de cada caixinha. |
 | RF-49 | Concluir a caixinha ao atingir o valor-alvo. |
@@ -183,7 +183,7 @@ As regras abaixo definem como o sistema calcula e classifica os valores. Elas vi
 | RN-06 | A cota de um terceiro sai de pendente quando marcada como paga, gerando entrada na conta escolhida. |
 | RN-07 | Pagamento de fatura não é gasto novo. Ele só reduz o saldo da conta, pois as compras já foram contadas. |
 | RN-08 | Transferências entre contas e aportes nas caixinhas não contam como gasto. |
-| RN-09 | A base de cálculo das caixinhas é a soma de todas as entradas efetivas do mês: salários, bolsa, 13º, férias e rendas avulsas. |
+| RN-09 | A base de cálculo das caixinhas é a soma de todas as entradas efetivas do mês: salários, bolsa, 13º, férias e rendas avulsas. Cada entrada conta no mês da data em que caiu na conta. Pagamentos de terceiros e crédito do Alelo não entram na base. |
 | RN-10 | Aporte sugerido = percentual da caixinha × base do mês, limitado ao que falta para o valor-alvo. |
 | RN-11 | Data estimada de conclusão usa a média dos aportes confirmados nos últimos três meses. |
 | RN-12 | Uma caixinha concluída para de receber sugestões de aporte, mas continua visível no histórico. |
