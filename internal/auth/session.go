@@ -156,3 +156,22 @@ func CleanupSessions(ctx context.Context, conn *sql.DB, interval time.Duration, 
 		}
 	}
 }
+
+// SessionUser reads the user of the session cookie directly, for long lived streams that cannot pass
+// through the buffering session middleware; zero when there is no valid session.
+func SessionUser(sm *scs.SessionManager, r *http.Request) int64 {
+	c, err := r.Cookie(sm.Cookie.Name)
+	if err != nil || c.Value == "" {
+		return 0
+	}
+	ctx, err := sm.Load(r.Context(), c.Value)
+	if err != nil {
+		return 0
+	}
+	return sm.GetInt64(ctx, sessionUserKey)
+}
+
+// CurrentUser returns the user of a session already loaded in the context, zero when signed out.
+func CurrentUser(ctx context.Context, sm *scs.SessionManager) int64 {
+	return sm.GetInt64(ctx, sessionUserKey)
+}

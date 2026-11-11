@@ -2591,6 +2591,181 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /market/lists:
+    get:
+      operationId: listShoppingLists
+      tags: [market]
+      summary: Shopping lists, open ones first (RF-71).
+      responses:
+        "200":
+          description: Lists.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShoppingList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createShoppingList
+      tags: [market]
+      summary: Starts an empty shopping list (RF-71).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShoppingListInput"
+      responses:
+        "201":
+          description: Created list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoppingList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /market/lists/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getShoppingList
+      tags: [market]
+      summary: A list with its items, not picked first (RF-71).
+      responses:
+        "200":
+          description: List.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShoppingListDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: renameShoppingList
+      tags: [market]
+      summary: Renames a list.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShoppingListInput"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteShoppingList
+      tags: [market]
+      summary: Deletes a list and its items.
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /market/lists/{id}/items:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: addListItem
+      tags: [market]
+      summary: Puts a product on the list; the same product again adds to its quantity (RF-71).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListItemInput"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /market/list-items/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: updateListItem
+      tags: [market]
+      summary: Changes the quantity of an item.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListItemQuantity"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: removeListItem
+      tags: [market]
+      summary: Takes an item off the list.
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /market/list-items/{id}/picked:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    put:
+      operationId: setListItemPicked
+      tags: [market]
+      summary: Marks or unmarks an item as picked (RF-71).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListItemPicked"
+      responses:
+        "204":
+          description: Saved.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
 components:
   parameters:
     Id:
@@ -5047,6 +5222,87 @@ components:
           format: int64
         createdByName:
           type: string
+
+    ShoppingListInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 60
+
+    ShoppingList:
+      type: object
+      required: [id, name, done, itemCount, pickedCount]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        done:
+          type: boolean
+        itemCount:
+          type: integer
+          format: int64
+        pickedCount:
+          type: integer
+          format: int64
+
+    ListItem:
+      type: object
+      required: [id, product, quantityMilli, picked]
+      properties:
+        id:
+          type: integer
+          format: int64
+        product:
+          $ref: "#/components/schemas/MarketProduct"
+        quantityMilli:
+          type: integer
+          format: int64
+          description: Whole units in thousandths, or kg with decimals for products by weight.
+        picked:
+          type: boolean
+        pickedByName:
+          type: string
+
+    ShoppingListDetail:
+      allOf:
+        - $ref: "#/components/schemas/ShoppingList"
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ListItem"
+
+    ListItemInput:
+      type: object
+      required: [productId, quantityMilli]
+      properties:
+        productId:
+          type: integer
+          format: int64
+        quantityMilli:
+          type: integer
+          format: int64
+
+    ListItemQuantity:
+      type: object
+      required: [quantityMilli]
+      properties:
+        quantityMilli:
+          type: integer
+          format: int64
+
+    ListItemPicked:
+      type: object
+      required: [picked]
+      properties:
+        picked:
+          type: boolean
 
 security:
   - session: []

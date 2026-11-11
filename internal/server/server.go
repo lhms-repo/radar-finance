@@ -25,6 +25,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
+	"github.com/italogfx/radar-finance/internal/events"
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/importer"
 	"github.com/italogfx/radar-finance/internal/income"
@@ -71,11 +72,13 @@ type Deps struct {
 	Notifications *notify.Service
 	Imports       *importer.Service
 	Market        *market.Service
-	Sessions      *scs.SessionManager
-	Backups       *backup.Service
-	Version       string
-	StartedAt     time.Time
-	Log           *slog.Logger
+	// Events carries the changes to the open screens; one is created when nil.
+	Events    *events.Hub
+	Sessions  *scs.SessionManager
+	Backups   *backup.Service
+	Version   string
+	StartedAt time.Time
+	Log       *slog.Logger
 	// Assets is the built frontend, or nil when Vite serves it in development.
 	Assets fs.FS
 }
@@ -108,9 +111,14 @@ func New(d Deps) http.Handler {
 		},
 	})
 
+	hub := d.Events
+	if hub == nil {
+		hub = events.NewHub()
+	}
 	protected := limitBody(auth.RequireUser(d.Sessions, publicRoutes, apiHandler))
 	root := http.NewServeMux()
-	root.Handle("/api/", http.NewCrossOriginProtection().Handler(d.Sessions.LoadAndSave(noStore(protected))))
+	root.Handle("/api/events", eventsHandler(hub, d.Sessions))
+	root.Handle("/api/", http.NewCrossOriginProtection().Handler(d.Sessions.LoadAndSave(noStore(publishChanges(hub, d.Sessions, protected)))))
 	root.Handle("/", staticHandler(d.Assets))
 	return securityHeaders(recoverer(d.Log, logRequests(d.Log, root)))
 }

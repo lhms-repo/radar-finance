@@ -215,6 +215,16 @@ type InvoicePayment struct {
 	CreatedAt    time.Time
 }
 
+type ListItem struct {
+	ID            int64
+	ListID        int64
+	ProductID     int64
+	QuantityMilli int64
+	Picked        bool
+	PickedBy      sql.NullInt64
+	CreatedAt     time.Time
+}
+
 type Market struct {
 	ID           int64
 	Name         string
@@ -357,6 +367,15 @@ type Session struct {
 	Token    string
 	Data     []byte
 	ExpiryMs int64
+}
+
+type ShoppingList struct {
+	ID         int64
+	Name       string
+	Status     string
+	CreatedBy  int64
+	CreatedAt  time.Time
+	FinishedAt sql.NullTime
 }
 
 type Split struct {

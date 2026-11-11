@@ -1564,6 +1564,33 @@ type LatestPrice struct {
 	Stale bool `json:"stale"`
 }
 
+// ListItem defines model for ListItem.
+type ListItem struct {
+	Id           int64         `json:"id"`
+	Picked       bool          `json:"picked"`
+	PickedByName *string       `json:"pickedByName,omitempty"`
+	Product      MarketProduct `json:"product"`
+
+	// QuantityMilli Whole units in thousandths, or kg with decimals for products by weight.
+	QuantityMilli int64 `json:"quantityMilli"`
+}
+
+// ListItemInput defines model for ListItemInput.
+type ListItemInput struct {
+	ProductId     int64 `json:"productId"`
+	QuantityMilli int64 `json:"quantityMilli"`
+}
+
+// ListItemPicked defines model for ListItemPicked.
+type ListItemPicked struct {
+	Picked bool `json:"picked"`
+}
+
+// ListItemQuantity defines model for ListItemQuantity.
+type ListItemQuantity struct {
+	QuantityMilli int64 `json:"quantityMilli"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Login string `json:"login"`
@@ -2143,6 +2170,30 @@ type SearchLine struct {
 // SearchLineSource defines model for SearchLine.Source.
 type SearchLineSource string
 
+// ShoppingList defines model for ShoppingList.
+type ShoppingList struct {
+	Done        bool   `json:"done"`
+	Id          int64  `json:"id"`
+	ItemCount   int64  `json:"itemCount"`
+	Name        string `json:"name"`
+	PickedCount int64  `json:"pickedCount"`
+}
+
+// ShoppingListDetail defines model for ShoppingListDetail.
+type ShoppingListDetail struct {
+	Done        bool       `json:"done"`
+	Id          int64      `json:"id"`
+	ItemCount   int64      `json:"itemCount"`
+	Items       []ListItem `json:"items"`
+	Name        string     `json:"name"`
+	PickedCount int64      `json:"pickedCount"`
+}
+
+// ShoppingListInput defines model for ShoppingListInput.
+type ShoppingListInput struct {
+	Name string `json:"name"`
+}
+
 // SpendSub defines model for SpendSub.
 type SpendSub struct {
 	// Cents Amount in cents (RN-21).
@@ -2396,6 +2447,21 @@ type UpdateIncomeJSONRequestBody = IncomeInput
 
 // ConfirmIncomeJSONRequestBody defines body for ConfirmIncome for application/json ContentType.
 type ConfirmIncomeJSONRequestBody = IncomeConfirm
+
+// UpdateListItemJSONRequestBody defines body for UpdateListItem for application/json ContentType.
+type UpdateListItemJSONRequestBody = ListItemQuantity
+
+// SetListItemPickedJSONRequestBody defines body for SetListItemPicked for application/json ContentType.
+type SetListItemPickedJSONRequestBody = ListItemPicked
+
+// CreateShoppingListJSONRequestBody defines body for CreateShoppingList for application/json ContentType.
+type CreateShoppingListJSONRequestBody = ShoppingListInput
+
+// RenameShoppingListJSONRequestBody defines body for RenameShoppingList for application/json ContentType.
+type RenameShoppingListJSONRequestBody = ShoppingListInput
+
+// AddListItemJSONRequestBody defines body for AddListItem for application/json ContentType.
+type AddListItemJSONRequestBody = ListItemInput
 
 // CreateMarketJSONRequestBody defines body for CreateMarket for application/json ContentType.
 type CreateMarketJSONRequestBody = MarketInput
@@ -2663,6 +2729,33 @@ type ServerInterface interface {
 	// ConfirmIncome Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13).
 	// (POST /incomes/{id}/confirm)
 	ConfirmIncome(w http.ResponseWriter, r *http.Request, id Id)
+	// RemoveListItem Takes an item off the list.
+	// (DELETE /market/list-items/{id})
+	RemoveListItem(w http.ResponseWriter, r *http.Request, id Id)
+	// UpdateListItem Changes the quantity of an item.
+	// (PUT /market/list-items/{id})
+	UpdateListItem(w http.ResponseWriter, r *http.Request, id Id)
+	// SetListItemPicked Marks or unmarks an item as picked (RF-71).
+	// (PUT /market/list-items/{id}/picked)
+	SetListItemPicked(w http.ResponseWriter, r *http.Request, id Id)
+	// ListShoppingLists Shopping lists, open ones first (RF-71).
+	// (GET /market/lists)
+	ListShoppingLists(w http.ResponseWriter, r *http.Request)
+	// CreateShoppingList Starts an empty shopping list (RF-71).
+	// (POST /market/lists)
+	CreateShoppingList(w http.ResponseWriter, r *http.Request)
+	// DeleteShoppingList Deletes a list and its items.
+	// (DELETE /market/lists/{id})
+	DeleteShoppingList(w http.ResponseWriter, r *http.Request, id Id)
+	// GetShoppingList A list with its items, not picked first (RF-71).
+	// (GET /market/lists/{id})
+	GetShoppingList(w http.ResponseWriter, r *http.Request, id Id)
+	// RenameShoppingList Renames a list.
+	// (PUT /market/lists/{id})
+	RenameShoppingList(w http.ResponseWriter, r *http.Request, id Id)
+	// AddListItem Puts a product on the list; the same product again adds to its quantity (RF-71).
+	// (POST /market/lists/{id}/items)
+	AddListItem(w http.ResponseWriter, r *http.Request, id Id)
 	// ListMarkets Lists the markets, active first (RF-65).
 	// (GET /market/markets)
 	ListMarkets(w http.ResponseWriter, r *http.Request)
@@ -4499,6 +4592,216 @@ func (siw *ServerInterfaceWrapper) ConfirmIncome(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// RemoveListItem operation middleware
+func (siw *ServerInterfaceWrapper) RemoveListItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveListItem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateListItem operation middleware
+func (siw *ServerInterfaceWrapper) UpdateListItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateListItem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetListItemPicked operation middleware
+func (siw *ServerInterfaceWrapper) SetListItemPicked(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetListItemPicked(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListShoppingLists operation middleware
+func (siw *ServerInterfaceWrapper) ListShoppingLists(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListShoppingLists(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateShoppingList operation middleware
+func (siw *ServerInterfaceWrapper) CreateShoppingList(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateShoppingList(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteShoppingList operation middleware
+func (siw *ServerInterfaceWrapper) DeleteShoppingList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteShoppingList(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetShoppingList operation middleware
+func (siw *ServerInterfaceWrapper) GetShoppingList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetShoppingList(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameShoppingList operation middleware
+func (siw *ServerInterfaceWrapper) RenameShoppingList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameShoppingList(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddListItem operation middleware
+func (siw *ServerInterfaceWrapper) AddListItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddListItem(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListMarkets operation middleware
 func (siw *ServerInterfaceWrapper) ListMarkets(w http.ResponseWriter, r *http.Request) {
 
@@ -5810,6 +6113,15 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/receipts", wrapper.ListReceipts)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/receipts", wrapper.CommitReceipt)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/receipts/{id}", wrapper.DeleteReceipt)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/lists", wrapper.ListShoppingLists)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/lists", wrapper.CreateShoppingList)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/lists/{id}", wrapper.DeleteShoppingList)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/lists/{id}", wrapper.GetShoppingList)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/lists/{id}", wrapper.RenameShoppingList)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/lists/{id}/items", wrapper.AddListItem)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/list-items/{id}", wrapper.RemoveListItem)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/list-items/{id}", wrapper.UpdateListItem)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/market/list-items/{id}/picked", wrapper.SetListItemPicked)
 
 	return m
 }
@@ -9978,6 +10290,521 @@ func (response ConfirmIncome409JSONResponse) VisitConfirmIncomeResponse(w http.R
 	return err
 }
 
+type RemoveListItemRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type RemoveListItemResponseObject interface {
+	VisitRemoveListItemResponse(w http.ResponseWriter) error
+}
+
+type RemoveListItem204Response struct {
+}
+
+func (response RemoveListItem204Response) VisitRemoveListItemResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveListItem401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RemoveListItem401JSONResponse) VisitRemoveListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveListItem404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RemoveListItem404JSONResponse) VisitRemoveListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveListItem409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RemoveListItem409JSONResponse) VisitRemoveListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateListItemRequestObject struct {
+	Id   Id `json:"id"`
+	Body *UpdateListItemJSONRequestBody
+}
+
+type UpdateListItemResponseObject interface {
+	VisitUpdateListItemResponse(w http.ResponseWriter) error
+}
+
+type UpdateListItem204Response struct {
+}
+
+func (response UpdateListItem204Response) VisitUpdateListItemResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UpdateListItem400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UpdateListItem400JSONResponse) VisitUpdateListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateListItem401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateListItem401JSONResponse) VisitUpdateListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateListItem404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateListItem404JSONResponse) VisitUpdateListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateListItem409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateListItem409JSONResponse) VisitUpdateListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetListItemPickedRequestObject struct {
+	Id   Id `json:"id"`
+	Body *SetListItemPickedJSONRequestBody
+}
+
+type SetListItemPickedResponseObject interface {
+	VisitSetListItemPickedResponse(w http.ResponseWriter) error
+}
+
+type SetListItemPicked204Response struct {
+}
+
+func (response SetListItemPicked204Response) VisitSetListItemPickedResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SetListItemPicked400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetListItemPicked400JSONResponse) VisitSetListItemPickedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetListItemPicked401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetListItemPicked401JSONResponse) VisitSetListItemPickedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetListItemPicked404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetListItemPicked404JSONResponse) VisitSetListItemPickedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetListItemPicked409JSONResponse struct{ ConflictJSONResponse }
+
+func (response SetListItemPicked409JSONResponse) VisitSetListItemPickedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListShoppingListsRequestObject struct {
+}
+
+type ListShoppingListsResponseObject interface {
+	VisitListShoppingListsResponse(w http.ResponseWriter) error
+}
+
+type ListShoppingLists200JSONResponse []ShoppingList
+
+func (response ListShoppingLists200JSONResponse) VisitListShoppingListsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListShoppingLists401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListShoppingLists401JSONResponse) VisitListShoppingListsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShoppingListRequestObject struct {
+	Body *CreateShoppingListJSONRequestBody
+}
+
+type CreateShoppingListResponseObject interface {
+	VisitCreateShoppingListResponse(w http.ResponseWriter) error
+}
+
+type CreateShoppingList201JSONResponse ShoppingList
+
+func (response CreateShoppingList201JSONResponse) VisitCreateShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShoppingList400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateShoppingList400JSONResponse) VisitCreateShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShoppingList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateShoppingList401JSONResponse) VisitCreateShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteShoppingListRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteShoppingListResponseObject interface {
+	VisitDeleteShoppingListResponse(w http.ResponseWriter) error
+}
+
+type DeleteShoppingList204Response struct {
+}
+
+func (response DeleteShoppingList204Response) VisitDeleteShoppingListResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteShoppingList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteShoppingList401JSONResponse) VisitDeleteShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteShoppingList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteShoppingList404JSONResponse) VisitDeleteShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetShoppingListRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type GetShoppingListResponseObject interface {
+	VisitGetShoppingListResponse(w http.ResponseWriter) error
+}
+
+type GetShoppingList200JSONResponse ShoppingListDetail
+
+func (response GetShoppingList200JSONResponse) VisitGetShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetShoppingList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetShoppingList401JSONResponse) VisitGetShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetShoppingList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetShoppingList404JSONResponse) VisitGetShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameShoppingListRequestObject struct {
+	Id   Id `json:"id"`
+	Body *RenameShoppingListJSONRequestBody
+}
+
+type RenameShoppingListResponseObject interface {
+	VisitRenameShoppingListResponse(w http.ResponseWriter) error
+}
+
+type RenameShoppingList204Response struct {
+}
+
+func (response RenameShoppingList204Response) VisitRenameShoppingListResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RenameShoppingList400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RenameShoppingList400JSONResponse) VisitRenameShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameShoppingList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RenameShoppingList401JSONResponse) VisitRenameShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameShoppingList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RenameShoppingList404JSONResponse) VisitRenameShoppingListResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddListItemRequestObject struct {
+	Id   Id `json:"id"`
+	Body *AddListItemJSONRequestBody
+}
+
+type AddListItemResponseObject interface {
+	VisitAddListItemResponse(w http.ResponseWriter) error
+}
+
+type AddListItem204Response struct {
+}
+
+func (response AddListItem204Response) VisitAddListItemResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type AddListItem400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddListItem400JSONResponse) VisitAddListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddListItem401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddListItem401JSONResponse) VisitAddListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddListItem404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddListItem404JSONResponse) VisitAddListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddListItem409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddListItem409JSONResponse) VisitAddListItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListMarketsRequestObject struct {
 }
 
@@ -12711,6 +13538,33 @@ type StrictServerInterface interface {
 	// ConfirmIncome Confirms the receipt of the income in a month, which then changes the balance (RF-10, RN-13).
 	// (POST /incomes/{id}/confirm)
 	ConfirmIncome(ctx context.Context, request ConfirmIncomeRequestObject) (ConfirmIncomeResponseObject, error)
+	// RemoveListItem Takes an item off the list.
+	// (DELETE /market/list-items/{id})
+	RemoveListItem(ctx context.Context, request RemoveListItemRequestObject) (RemoveListItemResponseObject, error)
+	// UpdateListItem Changes the quantity of an item.
+	// (PUT /market/list-items/{id})
+	UpdateListItem(ctx context.Context, request UpdateListItemRequestObject) (UpdateListItemResponseObject, error)
+	// SetListItemPicked Marks or unmarks an item as picked (RF-71).
+	// (PUT /market/list-items/{id}/picked)
+	SetListItemPicked(ctx context.Context, request SetListItemPickedRequestObject) (SetListItemPickedResponseObject, error)
+	// ListShoppingLists Shopping lists, open ones first (RF-71).
+	// (GET /market/lists)
+	ListShoppingLists(ctx context.Context, request ListShoppingListsRequestObject) (ListShoppingListsResponseObject, error)
+	// CreateShoppingList Starts an empty shopping list (RF-71).
+	// (POST /market/lists)
+	CreateShoppingList(ctx context.Context, request CreateShoppingListRequestObject) (CreateShoppingListResponseObject, error)
+	// DeleteShoppingList Deletes a list and its items.
+	// (DELETE /market/lists/{id})
+	DeleteShoppingList(ctx context.Context, request DeleteShoppingListRequestObject) (DeleteShoppingListResponseObject, error)
+	// GetShoppingList A list with its items, not picked first (RF-71).
+	// (GET /market/lists/{id})
+	GetShoppingList(ctx context.Context, request GetShoppingListRequestObject) (GetShoppingListResponseObject, error)
+	// RenameShoppingList Renames a list.
+	// (PUT /market/lists/{id})
+	RenameShoppingList(ctx context.Context, request RenameShoppingListRequestObject) (RenameShoppingListResponseObject, error)
+	// AddListItem Puts a product on the list; the same product again adds to its quantity (RF-71).
+	// (POST /market/lists/{id}/items)
+	AddListItem(ctx context.Context, request AddListItemRequestObject) (AddListItemResponseObject, error)
 	// ListMarkets Lists the markets, active first (RF-65).
 	// (GET /market/markets)
 	ListMarkets(ctx context.Context, request ListMarketsRequestObject) (ListMarketsResponseObject, error)
@@ -14896,6 +15750,271 @@ func (sh *strictHandler) ConfirmIncome(w http.ResponseWriter, r *http.Request, i
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ConfirmIncomeResponseObject); ok {
 		if err := validResponse.VisitConfirmIncomeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveListItem operation middleware
+func (sh *strictHandler) RemoveListItem(w http.ResponseWriter, r *http.Request, id Id) {
+	var request RemoveListItemRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveListItem(ctx, request.(RemoveListItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveListItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveListItemResponseObject); ok {
+		if err := validResponse.VisitRemoveListItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateListItem operation middleware
+func (sh *strictHandler) UpdateListItem(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UpdateListItemRequestObject
+
+	request.Id = id
+
+	var body UpdateListItemJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateListItem(ctx, request.(UpdateListItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateListItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateListItemResponseObject); ok {
+		if err := validResponse.VisitUpdateListItemResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetListItemPicked operation middleware
+func (sh *strictHandler) SetListItemPicked(w http.ResponseWriter, r *http.Request, id Id) {
+	var request SetListItemPickedRequestObject
+
+	request.Id = id
+
+	var body SetListItemPickedJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetListItemPicked(ctx, request.(SetListItemPickedRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetListItemPicked")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetListItemPickedResponseObject); ok {
+		if err := validResponse.VisitSetListItemPickedResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListShoppingLists operation middleware
+func (sh *strictHandler) ListShoppingLists(w http.ResponseWriter, r *http.Request) {
+	var request ListShoppingListsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListShoppingLists(ctx, request.(ListShoppingListsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListShoppingLists")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListShoppingListsResponseObject); ok {
+		if err := validResponse.VisitListShoppingListsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateShoppingList operation middleware
+func (sh *strictHandler) CreateShoppingList(w http.ResponseWriter, r *http.Request) {
+	var request CreateShoppingListRequestObject
+
+	var body CreateShoppingListJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateShoppingList(ctx, request.(CreateShoppingListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateShoppingList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateShoppingListResponseObject); ok {
+		if err := validResponse.VisitCreateShoppingListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteShoppingList operation middleware
+func (sh *strictHandler) DeleteShoppingList(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteShoppingListRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteShoppingList(ctx, request.(DeleteShoppingListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteShoppingList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteShoppingListResponseObject); ok {
+		if err := validResponse.VisitDeleteShoppingListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetShoppingList operation middleware
+func (sh *strictHandler) GetShoppingList(w http.ResponseWriter, r *http.Request, id Id) {
+	var request GetShoppingListRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetShoppingList(ctx, request.(GetShoppingListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetShoppingList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetShoppingListResponseObject); ok {
+		if err := validResponse.VisitGetShoppingListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenameShoppingList operation middleware
+func (sh *strictHandler) RenameShoppingList(w http.ResponseWriter, r *http.Request, id Id) {
+	var request RenameShoppingListRequestObject
+
+	request.Id = id
+
+	var body RenameShoppingListJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenameShoppingList(ctx, request.(RenameShoppingListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenameShoppingList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenameShoppingListResponseObject); ok {
+		if err := validResponse.VisitRenameShoppingListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddListItem operation middleware
+func (sh *strictHandler) AddListItem(w http.ResponseWriter, r *http.Request, id Id) {
+	var request AddListItemRequestObject
+
+	request.Id = id
+
+	var body AddListItemJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddListItem(ctx, request.(AddListItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddListItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddListItemResponseObject); ok {
+		if err := validResponse.VisitAddListItemResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
