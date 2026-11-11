@@ -236,6 +236,29 @@ type RecurrencePrice struct {
 	AmountCents  int64
 }
 
+type SavingsBox struct {
+	ID                  int64
+	Name                string
+	TargetCents         int64
+	PercentBp           int64
+	InitialBalanceCents int64
+	CreatedBy           int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type SavingsMove struct {
+	ID          int64
+	BoxID       int64
+	Kind        string
+	Month       string
+	AmountCents int64
+	Reason      string
+	EntryID     int64
+	CreatedBy   int64
+	CreatedAt   time.Time
+}
+
 type Session struct {
 	Token    string
 	Data     []byte
