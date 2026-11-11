@@ -8,17 +8,18 @@ import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Segmented } from "@/components/ui/segmented";
 import { MarketsTab, ProductsTab, ReceiptsTab } from "@/features/market/catalog";
+import { ListsTab } from "@/features/market/lists";
 import { useMarketSettings, useSaveMarketSettings, type MarketSettings } from "@/features/market/api";
 
 /** Tabs of the market screen. */
-type Tab = "products" | "markets" | "receipts";
+type Tab = "lists" | "products" | "markets" | "receipts";
 
 /** Market screen: products and prices, markets and the comparison settings (section 2.14). */
 export function MarketPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const raw = params.get("tab");
-  const tab: Tab = raw === "markets" || raw === "receipts" ? raw : "products";
+  const tab: Tab = raw === "products" || raw === "markets" || raw === "receipts" ? raw : "lists";
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <div className="flex flex-col gap-4">
@@ -38,13 +39,15 @@ export function MarketPage() {
         ariaLabel="Seção"
         value={tab}
         options={[
+          { value: "lists", label: "Listas" },
           { value: "products", label: "Produtos" },
           { value: "markets", label: "Mercados" },
           { value: "receipts", label: "Notas" },
         ]}
-        onChange={(v) => setParams(v === "products" ? {} : { tab: v }, { replace: true })}
+        onChange={(v) => setParams(v === "lists" ? {} : { tab: v }, { replace: true })}
         className="self-start"
       />
+      {tab === "lists" && <ListsTab />}
       {tab === "products" && <ProductsTab />}
       {tab === "markets" && <MarketsTab />}
       {tab === "receipts" && <ReceiptsTab />}

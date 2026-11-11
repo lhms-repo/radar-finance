@@ -111,3 +111,49 @@ test("market: read a receipt, link lines to products and recognize them on the n
   await page.getByLabel("Buscar produto").fill(`NF ${tag}`);
   await expect(page.getByRole("button", { name: `Preços de Café Marca NF ${tag} 500 g` })).toContainText("R$ 18,99");
 });
+
+test("market: a shopping list is shared live between the two users (RF-71)", async ({ page, browser }, testInfo) => {
+  test.slow();
+  const tag = testInfo.project.name;
+  const brand = `Marca L ${tag}`;
+  for (const p of [
+    { name: "Arroz", brand, byWeight: false, sizeMilli: 5000, unit: "kg" },
+    { name: "Banana", brand, byWeight: true, sizeMilli: 1000, unit: "kg" },
+  ]) {
+    expect((await page.request.post("/api/market/products", { data: p })).ok()).toBeTruthy();
+  }
+
+  await page.goto("/market");
+  await page.getByLabel("Nome da nova lista").fill(`Compra ${tag}`);
+  await page.getByRole("button", { name: "Criar" }).click();
+  await page.getByRole("link", { name: new RegExp(`Compra ${tag}`) }).click();
+  await expect(page.getByRole("heading", { name: `Compra ${tag}` })).toBeVisible();
+  const listURL = page.url();
+
+  // Bruno opens the same list on the other iPhone.
+  const other = await browser.newContext({ baseURL: testInfo.project.use.baseURL, viewport: page.viewportSize() });
+  const bruno = await other.newPage();
+  await login(bruno, "Bruno Ficticio");
+  await bruno.goto(listURL);
+  await expect(bruno.getByText("Adicione os produtos da compra.")).toBeVisible();
+
+  await page.getByLabel("Produto", { exact: true }).selectOption({ label: `Arroz ${brand} 5 kg` });
+  await page.getByLabel("Quantidade", { exact: true }).fill("2");
+  await page.getByRole("button", { name: "Pôr na lista" }).click();
+  await page.getByLabel("Produto", { exact: true }).selectOption({ label: `Banana ${brand}, por kg` });
+  await page.getByLabel("Kg", { exact: true }).fill("1,5");
+  await page.getByRole("button", { name: "Pôr na lista" }).click();
+  await expect(page.getByText("1,5 kg")).toBeVisible();
+
+  // Without reloading, Bruno sees the items and picks the rice; Ana sees who picked it.
+  await expect(bruno.getByText("2 un")).toBeVisible();
+  await expect(bruno.getByText("1,5 kg")).toBeVisible();
+  await bruno.getByRole("checkbox", { name: `Peguei Arroz ${brand} 5 kg` }).click();
+  await expect(page.getByRole("checkbox", { name: `Peguei Arroz ${brand} 5 kg` })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByText("pego por Bruno")).toBeVisible();
+  await expect(page.getByText("1 de 2 itens pegos")).toBeVisible();
+
+  await page.getByRole("button", { name: `Mais Arroz ${brand} 5 kg` }).click();
+  await expect(bruno.getByText("3 un")).toBeVisible();
+  await other.close();
+});

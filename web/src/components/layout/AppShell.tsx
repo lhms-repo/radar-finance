@@ -9,6 +9,7 @@ import { Logo } from "@/components/layout/Logo";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { QuickEntryProvider } from "@/features/quick-entry/QuickEntry";
+import { useLiveUpdates } from "@/lib/live";
 import { usePreferences } from "@/lib/preferences";
 import { fade } from "@/lib/motion";
 
@@ -40,6 +41,14 @@ export function AppShell() {
 
   if (me.isPending) return <Splash />;
   if (!me.data) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+
+  return <SignedInShell />;
+}
+
+/** Layout of a signed in user, listening to the changes made on the other iPhone. */
+function SignedInShell() {
+  const location = useLocation();
+  useLiveUpdates();
 
   return (
     <QuickEntryProvider>

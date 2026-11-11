@@ -167,3 +167,70 @@ export function useDeleteReceipt() {
 export function formatQuantity(milli: number, unit: string): string {
   return `${formatSizeMilli(milli)} ${unit.toLowerCase()}`;
 }
+
+export type ShoppingList = components["schemas"]["ShoppingList"];
+export type ShoppingListDetail = components["schemas"]["ShoppingListDetail"];
+export type ListItem = components["schemas"]["ListItem"];
+
+/** Loads the shopping lists (RF-71). */
+export function useShoppingLists() {
+  return useQuery({ queryKey: ["market", "lists"], queryFn: async () => unwrap(await api.GET("/market/lists")) });
+}
+
+/** Loads a list with its items (RF-71). */
+export function useShoppingList(id: number) {
+  return useQuery({ queryKey: ["market", "list", id], queryFn: async () => unwrap(await api.GET("/market/lists/{id}", { params: { path: { id } } })) });
+}
+
+/** Wraps a list write: refreshes the market queries without a toast, since lists change often. */
+function useListMutation<V>(fn: (vars: V) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      haptic();
+      for (const key of MARKET_KEYS) void qc.invalidateQueries({ queryKey: key });
+    },
+  });
+}
+
+/** Starts a list (RF-71). */
+export function useCreateList() {
+  return useMarketMutation(async (name: string) => unwrap(await api.POST("/market/lists", { body: { name } })), "Lista criada");
+}
+
+/** Renames a list. */
+export function useRenameList() {
+  return useListMutation(async ({ id, name }: { id: number; name: string }) => noContent(await api.PUT("/market/lists/{id}", { params: { path: { id } }, body: { name } })));
+}
+
+/** Deletes a list. */
+export function useDeleteList() {
+  return useMarketMutation(async (id: number) => noContent(await api.DELETE("/market/lists/{id}", { params: { path: { id } } })), "Lista excluída");
+}
+
+/** Puts a product on a list (RF-71). */
+export function useAddListItem() {
+  return useListMutation(async ({ listId, productId, quantityMilli }: { listId: number; productId: number; quantityMilli: number }) =>
+    noContent(await api.POST("/market/lists/{id}/items", { params: { path: { id: listId } }, body: { productId, quantityMilli } })),
+  );
+}
+
+/** Changes the quantity of an item. */
+export function useUpdateListItem() {
+  return useListMutation(async ({ id, quantityMilli }: { id: number; quantityMilli: number }) =>
+    noContent(await api.PUT("/market/list-items/{id}", { params: { path: { id } }, body: { quantityMilli } })),
+  );
+}
+
+/** Takes an item off a list. */
+export function useRemoveListItem() {
+  return useListMutation(async (id: number) => noContent(await api.DELETE("/market/list-items/{id}", { params: { path: { id } } })));
+}
+
+/** Marks or unmarks an item as picked (RF-71). */
+export function useSetPicked() {
+  return useListMutation(async ({ id, picked }: { id: number; picked: boolean }) =>
+    noContent(await api.PUT("/market/list-items/{id}/picked", { params: { path: { id } }, body: { picked } })),
+  );
+}
