@@ -34,11 +34,12 @@ func TestCardRoutes(t *testing.T) {
 
 	resp := postJSON(t, c, srv, "/api/cards", fmt.Sprintf(`{"name":"Nubank","personId":%d,"limitCents":500000,"closingDay":3,"dueDay":10,"lastDigits":"1234","color":"purple","finish":"matte"}`, persons[0].ID))
 	var card struct {
-		ID             int64  `json:"id"`
-		CurrentInvoice string `json:"currentInvoice"`
+		ID                  int64  `json:"id"`
+		CurrentInvoice      string `json:"currentInvoice"`
+		CurrentInvoiceDueOn string `json:"currentInvoiceDueOn"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&card)
-	if resp.StatusCode != http.StatusCreated || card.CurrentInvoice == "" {
+	if resp.StatusCode != http.StatusCreated || card.CurrentInvoice == "" || card.CurrentInvoiceDueOn == "" {
 		t.Fatalf("create card = %d %+v", resp.StatusCode, card)
 	}
 

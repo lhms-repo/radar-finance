@@ -2018,6 +2018,11 @@ export interface components {
             limitUsedCents: components["schemas"]["Cents"];
             limitFreeCents: components["schemas"]["Cents"];
             currentInvoice: components["schemas"]["Month"];
+            /**
+             * Format: date
+             * @description Due date of the current invoice (RN-01).
+             */
+            currentInvoiceDueOn: string;
         };
         /** @enum {string} */
         InvoiceStatus: "open" | "closed" | "overdue" | "paid";

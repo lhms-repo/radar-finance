@@ -920,11 +920,14 @@ type Card struct {
 	Color CardColor `json:"color"`
 
 	// CurrentInvoice Example: 2026-11
-	CurrentInvoice Month      `json:"currentInvoice"`
-	DueDay         int        `json:"dueDay"`
-	Finish         CardFinish `json:"finish"`
-	Id             int64      `json:"id"`
-	LastDigits     *string    `json:"lastDigits,omitempty"`
+	CurrentInvoice Month `json:"currentInvoice"`
+
+	// CurrentInvoiceDueOn Due date of the current invoice (RN-01).
+	CurrentInvoiceDueOn openapi_types.Date `json:"currentInvoiceDueOn"`
+	DueDay              int                `json:"dueDay"`
+	Finish              CardFinish         `json:"finish"`
+	Id                  int64              `json:"id"`
+	LastDigits          *string            `json:"lastDigits,omitempty"`
 
 	// LimitCents Amount in cents (RN-21).
 	LimitCents Cents `json:"limitCents"`
