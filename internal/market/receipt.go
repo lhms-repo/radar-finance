@@ -14,6 +14,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/nfce"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Errors of the receipt reading.
@@ -114,18 +115,22 @@ func (s *Service) PreviewReceipt(ctx context.Context, url string, marketID int64
 	if err != nil {
 		return ReceiptPreview{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ReceiptPreview{}, err
+	}
 	q := store.New(s.conn)
 	out := ReceiptPreview{
 		URL: url, AccessKey: rec.AccessKey, StoreName: rec.StoreName, StoreCNPJ: rec.StoreCNPJ, Neighborhood: rec.Neighborhood,
 		IssuedOn: rec.IssuedOn, TotalCents: rec.TotalCents, Items: make([]PreviewItem, 0, len(rec.Items)),
 	}
-	if id, err := q.ReceiptByKey(ctx, rec.AccessKey); err == nil {
+	if id, err := q.ReceiptByKey(ctx, store.ReceiptByKeyParams{GroupID: groupID, AccessKey: rec.AccessKey}); err == nil {
 		out.ImportedID = &id
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return ReceiptPreview{}, err
 	}
 	if marketID == 0 && rec.StoreCNPJ != "" {
-		if m, err := q.MarketByCNPJ(ctx, sql.NullString{String: rec.StoreCNPJ, Valid: true}); err == nil {
+		if m, err := q.MarketByCNPJ(ctx, store.MarketByCNPJParams{GroupID: groupID, Cnpj: sql.NullString{String: rec.StoreCNPJ, Valid: true}}); err == nil {
 			marketID = m.ID
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return ReceiptPreview{}, err
@@ -184,9 +189,13 @@ func (s *Service) CommitReceipt(ctx context.Context, userID int64, in ReceiptCom
 		}
 		seen[it.Index] = true
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ReceiptResult{}, err
+	}
 	var res ReceiptResult
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.ReceiptByKey(ctx, rec.AccessKey); err == nil {
+		if _, err := q.ReceiptByKey(ctx, store.ReceiptByKeyParams{GroupID: groupID, AccessKey: rec.AccessKey}); err == nil {
 			return ErrReceiptImported
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -251,9 +260,13 @@ func (s *Service) CommitReceipt(ctx context.Context, userID int64, in ReceiptCom
 
 // receiptMarket returns the chosen market, giving it the receipt CNPJ, or creates the new one with it.
 func (s *Service) receiptMarket(ctx context.Context, q *store.Queries, userID int64, in ReceiptCommit, cnpj string) (int64, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
 	if in.NewMarket != nil {
 		if cnpj != "" {
-			if _, err := q.MarketByCNPJ(ctx, sql.NullString{String: cnpj, Valid: true}); err == nil {
+			if _, err := q.MarketByCNPJ(ctx, store.MarketByCNPJParams{GroupID: groupID, Cnpj: sql.NullString{String: cnpj, Valid: true}}); err == nil {
 				cnpj = ""
 			}
 		}
@@ -267,8 +280,8 @@ func (s *Service) receiptMarket(ctx context.Context, q *store.Queries, userID in
 		return 0, err
 	}
 	if cnpj != "" {
-		if _, err := q.MarketByCNPJ(ctx, sql.NullString{String: cnpj, Valid: true}); errors.Is(err, sql.ErrNoRows) {
-			if err := q.SetMarketCNPJ(ctx, store.SetMarketCNPJParams{Cnpj: sql.NullString{String: cnpj, Valid: true}, ID: in.MarketID}); err != nil {
+		if _, err := q.MarketByCNPJ(ctx, store.MarketByCNPJParams{GroupID: groupID, Cnpj: sql.NullString{String: cnpj, Valid: true}}); errors.Is(err, sql.ErrNoRows) {
+			if err := q.SetMarketCNPJ(ctx, store.SetMarketCNPJParams{Cnpj: sql.NullString{String: cnpj, Valid: true}, ID: in.MarketID, GroupID: groupID}); err != nil {
 				return 0, fmt.Errorf("market cnpj: %w", err)
 			}
 		}
@@ -278,7 +291,11 @@ func (s *Service) receiptMarket(ctx context.Context, q *store.Queries, userID in
 
 // Receipts lists the receipts already read, newest first.
 func (s *Service) Receipts(ctx context.Context) ([]ReceiptRecord, error) {
-	rows, err := store.New(s.conn).ListReceipts(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListReceipts(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list receipts: %w", err)
 	}
@@ -295,13 +312,17 @@ func (s *Service) Receipts(ctx context.Context) ([]ReceiptRecord, error) {
 
 // DeleteReceipt removes a receipt and the prices it brought; the links stay learned.
 func (s *Service) DeleteReceipt(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetReceipt(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetReceipt(ctx, store.GetReceiptParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrReceiptNotFound
 		} else if err != nil {
 			return err
 		}
-		return q.DeleteReceipt(ctx, id)
+		return q.DeleteReceipt(ctx, store.DeleteReceiptParams{ID: id, GroupID: groupID})
 	})
 }
 

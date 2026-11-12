@@ -1,7 +1,6 @@
 package market
 
 import (
-	"context"
 	"errors"
 	"testing"
 )
@@ -9,7 +8,7 @@ import (
 // TestLists creates a list, adds products with whole units or kg, merges repeated products, marks picked and edits (RF-71).
 func TestLists(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	cafe := f.mustProduct(t, "Café", "Marca Ficticia", 500_000, UnitGram)
 	banana, _ := f.s.CreateProduct(ctx, f.userID, ProductInput{Name: "Banana prata", Brand: "Sem marca", ByWeight: true})
 
