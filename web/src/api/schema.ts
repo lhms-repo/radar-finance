@@ -21,15 +21,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/users": {
+    "/auth/groups": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Lists the users for the "who is using" screen (RF-01). */
-        get: operations["listLoginUsers"];
+        /** Lists the group names, the first step of entering (RF-01). */
+        get: operations["listLoginGroups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/groups/{id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lists the people of one group, the second step of entering (RF-01). */
+        get: operations["listLoginMembers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -47,7 +64,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Signs in as one of the users, without password (RF-01). */
+        /** Signs in as a member of a group with the PIN (RF-01, RN-27). */
         post: operations["login"];
         delete?: never;
         options?: never;
@@ -82,6 +99,23 @@ export interface paths {
         /** Returns the logged in user. */
         get: operations["getMe"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Makes another group of the user the active one, without entering again (RF-81). */
+        put: operations["switchGroup"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1692,11 +1726,35 @@ export interface components {
             status: "ok";
         };
         LoginRequest: {
-            login: string;
+            /** Format: int64 */
+            groupId: number;
+            /** Format: int64 */
+            userId: number;
+            pin: string;
         };
-        LoginUser: {
-            login: string;
+        LoginGroup: {
+            /** Format: int64 */
+            id: number;
             name: string;
+        };
+        LoginMember: {
+            /** Format: int64 */
+            userId: number;
+            name: string;
+            /** @description False until an administrator or the terminal sets the PIN. */
+            hasPin: boolean;
+        };
+        /** @enum {string} */
+        GroupRole: "admin" | "member";
+        GroupSummary: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            role: components["schemas"]["GroupRole"];
+        };
+        GroupSwitch: {
+            /** Format: int64 */
+            groupId: number;
         };
         /** @enum {string} */
         Theme: "system" | "light" | "dark";
@@ -1707,6 +1765,9 @@ export interface components {
             name: string;
             theme: components["schemas"]["Theme"];
             haptics: boolean;
+            group: components["schemas"]["GroupSummary"];
+            /** @description Every group of the user, for the selector (RF-81). */
+            groups: components["schemas"]["GroupSummary"][];
         };
         PreferencesUpdate: {
             theme?: components["schemas"]["Theme"];
@@ -3133,7 +3194,7 @@ export interface operations {
             };
         };
     };
-    listLoginUsers: {
+    listLoginGroups: {
         parameters: {
             query?: never;
             header?: never;
@@ -3142,15 +3203,38 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The users of the couple. */
+            /** @description Every group, by name. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginUser"][];
+                    "application/json": components["schemas"]["LoginGroup"][];
                 };
             };
+        };
+    };
+    listLoginMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The members of the group, by the order they joined. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginMember"][];
+                };
+            };
+            404: components["responses"]["NotFound"];
         };
     };
     login: {
@@ -3177,6 +3261,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
         };
     };
     logout: {
@@ -3215,6 +3300,32 @@ export interface operations {
                     "application/json": components["schemas"]["Me"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    switchGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupSwitch"];
+            };
+        };
+        responses: {
+            /** @description The user with the new active group. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
         };
     };

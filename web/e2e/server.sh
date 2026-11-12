@@ -17,5 +17,9 @@ export RADAR_NFCE_FIXTURES="$PWD/internal/nfce/testdata"
 (cd web && pnpm run build >/dev/null)
 CGO_ENABLED=0 go build -tags embedweb -o "$dir/radar" ./cmd/radar
 "$dir/radar" user add --login ana --name "Ana Ficticia"
-"$dir/radar" user add --login bruno --name "Bruno Ficticio"
+"$dir/radar" group create --name Casa --admin ana
+"$dir/radar" user add --login bruno --name "Bruno Ficticio" --group Casa
+# Fictional PINs, the same as e2e/helpers.ts.
+echo 4821 | "$dir/radar" user pin --login ana
+echo 7351 | "$dir/radar" user pin --login bruno
 exec "$dir/radar" serve

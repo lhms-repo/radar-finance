@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { toast } from "sonner";
 import { api, unwrap, type Backup, type Theme } from "@/api/client";
 import { useLogout, useMe, useUpdatePreferences } from "@/app/session";
+import { GroupSwitcher } from "@/components/layout/GroupSwitcher";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
@@ -229,8 +230,9 @@ function DataCard() {
     <Card className="flex flex-col gap-4">
       <div>
         <CardTitle>Dados e conta</CardTitle>
-        <CardDescription>Exporta todas as tabelas em CSV, com valores em centavos.</CardDescription>
+        <CardDescription>Exporta os dados do grupo ativo em CSV, com valores em centavos.</CardDescription>
       </div>
+      <GroupSwitcher />
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={() => window.location.assign("/api/system/export")}>
           <Download />

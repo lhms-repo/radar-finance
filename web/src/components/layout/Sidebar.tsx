@@ -3,6 +3,7 @@ import { LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import { NAV_ITEMS, activeItem, type NavItem } from "@/app/nav";
+import { GroupSwitcher } from "@/components/layout/GroupSwitcher";
 import { Logo } from "@/components/layout/Logo";
 import { useLogout, useMe } from "@/app/session";
 import { usePreferences } from "@/lib/preferences";
@@ -15,6 +16,7 @@ const COLLAPSED_KEY = "radar.sidebar.collapsed";
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(() => readStorage(COLLAPSED_KEY) === "1");
   const location = useLocation();
+  const me = useMe();
   const active = activeItem(location.pathname);
   const [hovered, setHovered] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<{ id: string; label: string; top: number } | null>(null);
@@ -57,7 +59,7 @@ export function Sidebar() {
           {!collapsed && (
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">Radar</p>
-              <p className="truncate text-xs text-muted-foreground">Finanças do casal</p>
+              <p className="truncate text-xs text-muted-foreground">{me?.group.name ?? "Finanças em grupo"}</p>
             </div>
           )}
         </div>
@@ -215,6 +217,8 @@ function SidebarFooter({ collapsed, onToggle }: { collapsed: boolean; onToggle: 
         {collapsed ? <PanelLeftOpen className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
         {!collapsed && <span>Recolher menu</span>}
       </button>
+
+      {!collapsed && <GroupSwitcher className="px-1" />}
 
       {me && (
         <div className={cn("flex items-center gap-3 rounded-xl bg-muted/60 p-2", collapsed && "flex-col p-1.5")}>

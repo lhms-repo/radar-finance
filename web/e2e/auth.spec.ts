@@ -10,7 +10,19 @@ test("redirects to the user picker without a session", async ({ page }) => {
   }
 });
 
-test("enters without password, keeps the session and switches user (RF-01)", async ({ page }) => {
+test("a wrong PIN is refused and the right one enters (RF-01, RN-27)", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: USERS[0]!.name }).click();
+  await page.getByLabel("PIN").fill("0000");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.getByRole("alert")).toHaveText("PIN incorreto.");
+  await expect(page.getByLabel("PIN")).toHaveValue("");
+  await page.getByLabel("PIN").fill(USERS[0]!.pin);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("enters with the PIN, keeps the session and switches user (RF-01)", async ({ page }) => {
   await login(page, USERS[1]!.name);
   await page.reload();
   await expect(page).toHaveURL(/\/$/);

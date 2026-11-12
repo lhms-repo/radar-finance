@@ -49,7 +49,7 @@ export function AppShell() {
 function SignedInShell() {
   const location = useLocation();
   const me = useMeQuery();
-  useLiveUpdates(me.data?.id);
+  useLiveUpdates(me.data?.id, me.data?.group.id);
 
   return (
     <QuickEntryProvider>

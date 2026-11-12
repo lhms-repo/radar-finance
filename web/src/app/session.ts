@@ -46,3 +46,17 @@ export function useUpdatePreferences() {
     onSuccess: (me) => qc.setQueryData(ME_KEY, me),
   });
 }
+
+/** Makes another group of the user the active one; cached data of the old group is dropped so it never shows (RF-81). */
+export function useSwitchGroup() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  return useMutation({
+    mutationFn: async (groupId: number) => unwrap(await api.PUT("/me/group", { body: { groupId } })),
+    onSuccess: (me) => {
+      qc.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
+      qc.setQueryData(ME_KEY, me);
+      navigate("/", { replace: true });
+    },
+  });
+}

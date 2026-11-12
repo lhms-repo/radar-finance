@@ -12,10 +12,11 @@ const RETRY_MIN_MS = 2_000;
 const RETRY_MAX_MS = 30_000;
 
 /** Listens to the server events and refreshes the screens when shared data changes in another tab or device (RF-71); this tab's own changes already refresh where they are made. */
-export function useLiveUpdates(meId: number | undefined) {
+export function useLiveUpdates(meId: number | undefined, groupId: number | undefined) {
   const qc = useQueryClient();
   useEffect(() => {
-    if (typeof EventSource === "undefined" || meId === undefined) return;
+    // The server sends only the events of the session group, so a new group opens a new stream.
+    if (typeof EventSource === "undefined" || meId === undefined || groupId === undefined) return;
     let source: EventSource | undefined;
     let settle: ReturnType<typeof setTimeout> | undefined;
     let retry: ReturnType<typeof setTimeout> | undefined;
@@ -62,5 +63,5 @@ export function useLiveUpdates(meId: number | undefined) {
       clearTimeout(retry);
       source?.close();
     };
-  }, [qc, meId]);
+  }, [qc, meId, groupId]);
 }
