@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MotionConfig } from "motion/react";
-import { StrictMode } from "react";
+import { MotionConfig, useReducedMotion } from "motion/react";
+import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { Toaster } from "sonner";
@@ -62,6 +62,16 @@ const router = createBrowserRouter([
   },
 ]);
 
+/** Turns every Motion animation off when the system asks for less motion: reducedMotion="user" alone only stops transforms and layout, while sizes and paths kept moving. */
+function Motion({ children }: { children: ReactNode }) {
+  const reduced = useReducedMotion() ?? false;
+  return (
+    <MotionConfig reducedMotion="user" skipAnimations={reduced}>
+      {children}
+    </MotionConfig>
+  );
+}
+
 /** Toasts that follow the app theme. */
 function ThemedToaster() {
   const { resolvedTheme } = usePreferences();
@@ -70,8 +80,7 @@ function ThemedToaster() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {/* reducedMotion="user" turns off transform and layout animations when the OS asks to. */}
-    <MotionConfig reducedMotion="user">
+    <Motion>
       <QueryClientProvider client={queryClient}>
         <PreferencesProvider>
           <MonthProvider>
@@ -80,6 +89,6 @@ createRoot(document.getElementById("root")!).render(
           </MonthProvider>
         </PreferencesProvider>
       </QueryClientProvider>
-    </MotionConfig>
+    </Motion>
   </StrictMode>,
 );

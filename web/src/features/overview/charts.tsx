@@ -1,4 +1,4 @@
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps } from "recharts";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
 import { Money } from "@/components/ui/money";
@@ -90,6 +90,8 @@ function MonthTooltip({ active, payload }: TooltipContentProps<ValueType, NameTy
 
 /** Spending of each month as single series bars; the selected month is highlighted (RF-59). */
 export function SpendingBars({ data, selected, title }: { data: { month: string; cents: number }[]; selected: string; title: string }) {
+  // Recharts animates from JavaScript, so the reduced motion setting is passed by hand.
+  const reduced = useReducedMotion() ?? false;
   return (
     <figure className="flex flex-col gap-2">
       <div className="h-44 w-full" aria-hidden>
@@ -99,7 +101,7 @@ export function SpendingBars({ data, selected, title }: { data: { month: string;
             <XAxis dataKey="month" tickFormatter={shortMonth} tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
             <YAxis tickFormatter={axisMoney} tickLine={false} axisLine={false} width={64} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
             <Tooltip content={MonthTooltip} cursor={{ fill: "var(--muted)", radius: 6 }} />
-            <Bar dataKey="cents" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive>
+            <Bar dataKey="cents" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={!reduced}>
               {data.map((d) => (
                 <Cell key={d.month} fill="var(--series-1)" fillOpacity={d.month === selected ? 1 : 0.45} />
               ))}
@@ -125,6 +127,7 @@ export function SpendingBars({ data, selected, title }: { data: { month: string;
 /** Share of the expected income already owed in each coming month, as bars labeled with the percentage (RF-60). */
 export function CommitmentBars({ data }: { data: { month: string; bp: number; totalCents: number }[] }) {
   const rows = data.map((d) => ({ month: d.month, cents: d.bp, label: `${percent(d.bp)} da renda, ${formatMoney(d.totalCents)}` }));
+  const reduced = useReducedMotion() ?? false;
   return (
     <figure className="flex flex-col gap-2">
       <div className="h-40 w-full" aria-hidden>
@@ -134,7 +137,7 @@ export function CommitmentBars({ data }: { data: { month: string; bp: number; to
             <XAxis dataKey="month" tickFormatter={shortMonth} tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
             <YAxis tickFormatter={(bp: number) => percent(bp)} tickLine={false} axisLine={false} width={44} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
             <Tooltip content={MonthTooltip} cursor={{ fill: "var(--muted)", radius: 6 }} />
-            <Bar dataKey="cents" fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+            <Bar dataKey="cents" fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={!reduced} />
           </BarChart>
         </ResponsiveContainer>
       </div>
