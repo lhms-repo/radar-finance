@@ -111,6 +111,48 @@ func TestGroups(t *testing.T) {
 	}
 }
 
+// TestCreateMember registers a person with login and PIN straight into a group, all or nothing (RF-80).
+func TestCreateMember(t *testing.T) {
+	s, _ := newGroupService(t)
+	ctx := context.Background()
+	ana, _ := s.Create(ctx, "ana", "Ana Ficticia")
+	home, _ := s.CreateGroup(ctx, "Casa", ana.ID)
+	tests := []struct {
+		name    string
+		login   string
+		person  string
+		pin     string
+		wantErr error
+	}{
+		{name: "new person", login: "Carla", person: "Carla Ficticia", pin: "9264"},
+		{name: "login taken", login: "ana", person: "Outra Ana", pin: "1234", wantErr: ErrLoginTaken},
+		{name: "short PIN", login: "davi", person: "Davi Ficticio", pin: "12", wantErr: ErrInvalidPIN},
+		{name: "no name", login: "eva", person: " ", pin: "1234", wantErr: ErrPersonRequired},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := s.CreateMember(ctx, home.ID, tt.login, tt.person, tt.pin, RoleMember)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if u.Login != "carla" {
+				t.Fatalf("login = %q, want lowercase", u.Login)
+			}
+			if _, err := s.Authenticate(ctx, home.ID, u.ID, tt.pin); err != nil {
+				t.Fatalf("the new member cannot enter: %v", err)
+			}
+		})
+	}
+	// A refused registration leaves nobody behind.
+	users, _ := s.List(ctx)
+	if len(users) != 2 {
+		t.Fatalf("users = %+v, want ana and carla only", users)
+	}
+}
+
 // TestAuthenticate checks the PIN of a member and locks the person out after five wrong ones (RF-01, RN-27).
 func TestAuthenticate(t *testing.T) {
 	s, now := newGroupService(t)

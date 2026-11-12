@@ -249,6 +249,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Returns the active group with its members (RF-79). */
+        get: operations["getGroup"];
+        /** Renames the active group; administrators only (RF-80). */
+        put: operations["renameGroup"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Creates another group with the caller as its administrator; administrators of the active group only (RF-78, RF-80). */
+        post: operations["createGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/group/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adds a person already registered, by login, to the active group; administrators only (RF-80). */
+        post: operations["addGroupMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/group/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80). */
+        post: operations["createGroupPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/group/members/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Changes the role of a member of the active group, keeping an administrator; administrators only (RF-80). */
+        put: operations["setGroupMemberRole"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/group/members/{id}/pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27). */
+        put: operations["resetGroupMemberPin"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/persons": {
         parameters: {
             query?: never;
@@ -256,7 +359,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Lists the people of the couple, holders of accounts and cards. */
+        /** Lists the people of the active group, holders of accounts and cards (RF-82). */
         get: operations["listPersons"];
         put?: never;
         post?: never;
@@ -1752,6 +1855,41 @@ export interface components {
             name: string;
             role: components["schemas"]["GroupRole"];
         };
+        GroupName: {
+            name: string;
+        };
+        GroupMember: {
+            /** Format: int64 */
+            userId: number;
+            login: string;
+            name: string;
+            role: components["schemas"]["GroupRole"];
+            /** @description Weight in the settlement between members, in basis points (RF-79). */
+            weightBp: number;
+            hasPin: boolean;
+        };
+        GroupDetail: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            members: components["schemas"]["GroupMember"][];
+        };
+        GroupMemberAdd: {
+            login: string;
+            role: components["schemas"]["GroupRole"];
+        };
+        GroupPersonCreate: {
+            login: string;
+            name: string;
+            pin: string;
+            role: components["schemas"]["GroupRole"];
+        };
+        GroupRoleChange: {
+            role: components["schemas"]["GroupRole"];
+        };
+        PinChange: {
+            pin: string;
+        };
         GroupSwitch: {
             /** Format: int64 */
             groupId: number;
@@ -3146,6 +3284,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The person may not take this action, like managing a group without being its administrator. */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description The current state does not allow the action. */
         Conflict: {
             headers: {
@@ -3575,6 +3722,191 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
+    getGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The active group. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    renameGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupName"];
+            };
+        };
+        responses: {
+            /** @description The renamed group. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupName"];
+            };
+        };
+        responses: {
+            /** @description The new group, which the caller can switch to. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    addGroupMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupMemberAdd"];
+            };
+        };
+        responses: {
+            /** @description The group with the new member. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createGroupPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupPersonCreate"];
+            };
+        };
+        responses: {
+            /** @description The group with the new member. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    setGroupMemberRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupRoleChange"];
+            };
+        };
+        responses: {
+            /** @description The group after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    resetGroupMemberPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PinChange"];
+            };
+        };
+        responses: {
+            /** @description PIN changed. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
     listPersons: {
         parameters: {
             query?: never;
@@ -3584,7 +3916,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description People of the couple. */
+            /** @description Members of the active group. */
             200: {
                 headers: {
                     [name: string]: unknown;

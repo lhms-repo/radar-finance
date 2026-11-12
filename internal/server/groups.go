@@ -1,0 +1,170 @@
+package server
+
+import (
+	"context"
+	"errors"
+
+	"github.com/italogfx/radar-finance/internal/account"
+	"github.com/italogfx/radar-finance/internal/api/gen"
+	"github.com/italogfx/radar-finance/internal/auth"
+	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
+)
+
+// errAdminOnly refuses group management to someone who is not an administrator of the active group (RF-80).
+var errAdminOnly = problem.Forbidden("group_admin_only", "Só um administrador do grupo pode fazer isso.")
+
+// GetGroup returns the active group with its members (RF-79).
+func (a *API) GetGroup(ctx context.Context, _ gen.GetGroupRequestObject) (gen.GetGroupResponseObject, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	g, err := a.groupDetail(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return gen.GetGroup200JSONResponse(g), nil
+}
+
+// RenameGroup renames the active group; administrators only (RF-80).
+func (a *API) RenameGroup(ctx context.Context, req gen.RenameGroupRequestObject) (gen.RenameGroupResponseObject, error) {
+	groupID, err := a.requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.d.Accounts.RenameGroup(ctx, groupID, req.Body.Name); err != nil {
+		return nil, err
+	}
+	g, err := a.groupDetail(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return gen.RenameGroup200JSONResponse(g), nil
+}
+
+// CreateGroup creates another group with the caller as its administrator (RF-78, RF-80).
+func (a *API) CreateGroup(ctx context.Context, req gen.CreateGroupRequestObject) (gen.CreateGroupResponseObject, error) {
+	if _, err := a.requireAdmin(ctx); err != nil {
+		return nil, err
+	}
+	g, err := a.d.Accounts.CreateGroup(ctx, req.Body.Name, auth.UserID(ctx))
+	if err != nil {
+		return nil, err
+	}
+	a.d.Log.Info("group created", "group", g.ID, "user", auth.UserID(ctx))
+	return gen.CreateGroup201JSONResponse{Id: g.ID, Name: g.Name, Role: gen.GroupRole(g.Role)}, nil
+}
+
+// AddGroupMember adds a person already registered, by login, to the active group (RF-80).
+func (a *API) AddGroupMember(ctx context.Context, req gen.AddGroupMemberRequestObject) (gen.AddGroupMemberResponseObject, error) {
+	groupID, err := a.requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	u, err := a.d.Accounts.GetByLogin(ctx, req.Body.Login)
+	if errors.Is(err, account.ErrNotFound) {
+		return nil, errPersonNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := a.d.Accounts.AddMember(ctx, groupID, u.ID, account.Role(req.Body.Role)); err != nil {
+		return nil, err
+	}
+	g, err := a.groupDetail(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return gen.AddGroupMember200JSONResponse(g), nil
+}
+
+// CreateGroupPerson registers a new person with login and PIN straight into the active group (RF-80, RN-27).
+func (a *API) CreateGroupPerson(ctx context.Context, req gen.CreateGroupPersonRequestObject) (gen.CreateGroupPersonResponseObject, error) {
+	groupID, err := a.requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	b := req.Body
+	if _, err := a.d.Accounts.CreateMember(ctx, groupID, b.Login, b.Name, b.Pin, account.Role(b.Role)); err != nil {
+		return nil, err
+	}
+	g, err := a.groupDetail(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return gen.CreateGroupPerson200JSONResponse(g), nil
+}
+
+// SetGroupMemberRole changes the role of a member of the active group (RF-80).
+func (a *API) SetGroupMemberRole(ctx context.Context, req gen.SetGroupMemberRoleRequestObject) (gen.SetGroupMemberRoleResponseObject, error) {
+	groupID, err := a.requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.d.Accounts.SetRole(ctx, groupID, req.Id, account.Role(req.Body.Role)); err != nil {
+		return nil, err
+	}
+	g, err := a.groupDetail(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return gen.SetGroupMemberRole200JSONResponse(g), nil
+}
+
+// ResetGroupMemberPin sets a new PIN for a member of the active group and lifts any lock (RF-80, RN-27).
+func (a *API) ResetGroupMemberPin(ctx context.Context, req gen.ResetGroupMemberPinRequestObject) (gen.ResetGroupMemberPinResponseObject, error) {
+	groupID, err := a.requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Only people of this group: an administrator never reaches the PIN of someone outside it.
+	if _, ok, err := a.d.Accounts.Membership(ctx, groupID, req.Id); err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, account.ErrNotMember
+	}
+	if err := a.d.Accounts.SetPIN(ctx, req.Id, req.Body.Pin); err != nil {
+		return nil, err
+	}
+	a.d.Log.Info("pin reset", "group", groupID, "user", req.Id, "by", auth.UserID(ctx))
+	return gen.ResetGroupMemberPin204Response{}, nil
+}
+
+// errPersonNotFound answers a login that nobody has.
+var errPersonNotFound = problem.NotFound("person_not_found", "Ninguém com esse login.")
+
+// requireAdmin returns the active group when the caller administers it, or errAdminOnly (RF-80).
+func (a *API) requireAdmin(ctx context.Context) (int64, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
+	role, ok, err := a.d.Accounts.Membership(ctx, groupID, auth.UserID(ctx))
+	if err != nil {
+		return 0, err
+	}
+	if !ok || role != account.RoleAdmin {
+		return 0, errAdminOnly
+	}
+	return groupID, nil
+}
+
+// groupDetail reads a group with its members for the API.
+func (a *API) groupDetail(ctx context.Context, groupID int64) (gen.GroupDetail, error) {
+	g, err := a.d.Accounts.GetGroup(ctx, groupID)
+	if err != nil {
+		return gen.GroupDetail{}, err
+	}
+	members, err := a.d.Accounts.Members(ctx, groupID)
+	if err != nil {
+		return gen.GroupDetail{}, err
+	}
+	out := gen.GroupDetail{Id: g.ID, Name: g.Name, Members: make([]gen.GroupMember, 0, len(members))}
+	for _, m := range members {
+		out.Members = append(out.Members, gen.GroupMember{
+			UserId: m.UserID, Login: m.Login, Name: m.Name, Role: gen.GroupRole(m.Role), WeightBp: int(m.WeightBP), HasPin: m.HasPIN,
+		})
+	}
+	return out, nil
+}

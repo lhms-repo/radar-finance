@@ -46,6 +46,8 @@ var (
 	ErrNoPIN             = problem.Conflict("pin_not_set", "Seu PIN ainda não foi definido. Peça a um administrador do grupo.")
 	ErrWrongPIN          = problem.Invalid("pin_wrong", "PIN incorreto.")
 	ErrLocked            = problem.Conflict("pin_locked", "Muitas tentativas erradas. Espere 15 minutos para tentar de novo.")
+	ErrLoginTaken        = problem.Conflict("login_taken", "Já existe alguém com esse login.")
+	ErrPersonRequired    = problem.Invalid("person_required", "Informe o nome e o login da pessoa.")
 )
 
 // Group is a group of people with the role of whoever reads it.
@@ -204,6 +206,54 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID int64, role Rol
 		}
 		return equalWeights(ctx, q, groupID)
 	})
+}
+
+// CreateMember registers a person with login and PIN and puts it in the group, all in one transaction (RF-80, RN-27).
+func (s *Service) CreateMember(ctx context.Context, groupID int64, login, name, pin string, role Role) (User, error) {
+	login = strings.ToLower(strings.TrimSpace(login))
+	name = strings.TrimSpace(name)
+	switch {
+	case login == "" || name == "":
+		return User{}, ErrPersonRequired
+	case !auth.ValidPIN(pin):
+		return User{}, ErrInvalidPIN
+	case role != RoleAdmin && role != RoleMember:
+		return User{}, ErrInvalidRole
+	}
+	hash, err := auth.HashPIN(pin)
+	if err != nil {
+		return User{}, err
+	}
+	var u store.User
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		if _, err := getGroup(ctx, q, groupID); err != nil {
+			return err
+		}
+		if _, err := q.GetUserByLogin(ctx, login); err == nil {
+			return ErrLoginTaken
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		now := s.now().UTC()
+		p, err := q.CreatePerson(ctx, store.CreatePersonParams{Name: name, CreatedAt: now})
+		if err != nil {
+			return fmt.Errorf("create person: %w", err)
+		}
+		if u, err = q.CreateUser(ctx, store.CreateUserParams{Login: login, PersonID: p.ID, CreatedAt: now, UpdatedAt: now}); err != nil {
+			return fmt.Errorf("create user: %w", err)
+		}
+		if err := q.SetUserPIN(ctx, store.SetUserPINParams{PinHash: sql.NullString{String: hash, Valid: true}, UpdatedAt: now, ID: u.ID}); err != nil {
+			return err
+		}
+		if err := q.AddGroupMember(ctx, store.AddGroupMemberParams{GroupID: groupID, PersonID: p.ID, Role: string(role), WeightBp: 1, JoinedAt: now}); err != nil {
+			return fmt.Errorf("add member: %w", err)
+		}
+		return equalWeights(ctx, q, groupID)
+	})
+	if err != nil {
+		return User{}, err
+	}
+	return User{ID: u.ID, PersonID: u.PersonID, Login: u.Login, Name: name, Theme: u.Theme, Haptics: u.Haptics}, nil
 }
 
 // SetRole changes the role of a member, keeping at least one administrator (RF-80).

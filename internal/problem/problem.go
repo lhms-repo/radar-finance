@@ -10,11 +10,12 @@ import (
 // Kind classifies a business error so the API can pick the status code.
 type Kind int
 
-// Error kinds, mapped to 400, 404 and 409 by the API.
+// Error kinds, mapped to 400, 404, 409 and 403 by the API.
 const (
 	KindInvalid Kind = iota + 1
 	KindNotFound
 	KindConflict
+	KindForbidden
 )
 
 // Error is a business error with a stable code and a message in Portuguese.
@@ -49,6 +50,11 @@ func NotFound(code, message string) *Error {
 // Conflict returns an error for an action the current state does not allow.
 func Conflict(code, message string) *Error {
 	return &Error{Kind: KindConflict, Code: code, Message: message}
+}
+
+// Forbidden returns an error for an action the person may not take, like managing a group without being its administrator.
+func Forbidden(code, message string) *Error {
+	return &Error{Kind: KindForbidden, Code: code, Message: message}
 }
 
 // As returns the *Error inside err, if any.

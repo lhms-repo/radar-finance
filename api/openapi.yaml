@@ -356,14 +356,177 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /group:
+    get:
+      operationId: getGroup
+      tags: [groups]
+      summary: Returns the active group with its members (RF-79).
+      responses:
+        "200":
+          description: The active group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: renameGroup
+      tags: [groups]
+      summary: Renames the active group; administrators only (RF-80).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupName"
+      responses:
+        "200":
+          description: The renamed group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /groups:
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Creates another group with the caller as its administrator; administrators of the active group only (RF-78, RF-80).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupName"
+      responses:
+        "201":
+          description: The new group, which the caller can switch to.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /group/members:
+    post:
+      operationId: addGroupMember
+      tags: [groups]
+      summary: Adds a person already registered, by login, to the active group; administrators only (RF-80).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMemberAdd"
+      responses:
+        "200":
+          description: The group with the new member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /group/people:
+    post:
+      operationId: createGroupPerson
+      tags: [groups]
+      summary: Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupPersonCreate"
+      responses:
+        "200":
+          description: The group with the new member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /group/members/{id}:
+    put:
+      operationId: setGroupMemberRole
+      tags: [groups]
+      summary: Changes the role of a member of the active group, keeping an administrator; administrators only (RF-80).
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupRoleChange"
+      responses:
+        "200":
+          description: The group after the change.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /group/members/{id}/pin:
+    put:
+      operationId: resetGroupMemberPin
+      tags: [groups]
+      summary: Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27).
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinChange"
+      responses:
+        "204":
+          description: PIN changed.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /persons:
     get:
       operationId: listPersons
       tags: [accounts]
-      summary: Lists the people of the couple, holders of accounts and cards.
+      summary: Lists the people of the active group, holders of accounts and cards (RF-82).
       responses:
         "200":
-          description: People of the couple.
+          description: Members of the active group.
           content:
             application/json:
               schema:
@@ -2892,6 +3055,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The person may not take this action, like managing a group without being its administrator.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     Conflict:
       description: The current state does not allow the action.
       content:
@@ -2978,6 +3147,94 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/GroupRole"
+
+    GroupName:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+
+    GroupMember:
+      type: object
+      required: [userId, login, name, role, weightBp, hasPin]
+      properties:
+        userId:
+          type: integer
+          format: int64
+        login:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/GroupRole"
+        weightBp:
+          type: integer
+          description: Weight in the settlement between members, in basis points (RF-79).
+        hasPin:
+          type: boolean
+
+    GroupDetail:
+      type: object
+      required: [id, name, members]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupMember"
+
+    GroupMemberAdd:
+      type: object
+      required: [login, role]
+      properties:
+        login:
+          type: string
+          minLength: 1
+          maxLength: 64
+        role:
+          $ref: "#/components/schemas/GroupRole"
+
+    GroupPersonCreate:
+      type: object
+      required: [login, name, pin, role]
+      properties:
+        login:
+          type: string
+          minLength: 1
+          maxLength: 64
+        name:
+          type: string
+          minLength: 1
+          maxLength: 60
+        pin:
+          type: string
+          minLength: 4
+          maxLength: 6
+        role:
+          $ref: "#/components/schemas/GroupRole"
+
+    GroupRoleChange:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/GroupRole"
+
+    PinChange:
+      type: object
+      required: [pin]
+      properties:
+        pin:
+          type: string
+          minLength: 4
+          maxLength: 6
 
     GroupSwitch:
       type: object

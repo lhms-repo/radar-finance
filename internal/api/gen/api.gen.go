@@ -1274,8 +1274,51 @@ type ForecastGroup struct {
 // ForecastGroupKey defines model for ForecastGroup.Key.
 type ForecastGroupKey string
 
+// GroupDetail defines model for GroupDetail.
+type GroupDetail struct {
+	Id      int64         `json:"id"`
+	Members []GroupMember `json:"members"`
+	Name    string        `json:"name"`
+}
+
+// GroupMember defines model for GroupMember.
+type GroupMember struct {
+	HasPin bool      `json:"hasPin"`
+	Login  string    `json:"login"`
+	Name   string    `json:"name"`
+	Role   GroupRole `json:"role"`
+	UserId int64     `json:"userId"`
+
+	// WeightBp Weight in the settlement between members, in basis points (RF-79).
+	WeightBp int `json:"weightBp"`
+}
+
+// GroupMemberAdd defines model for GroupMemberAdd.
+type GroupMemberAdd struct {
+	Login string    `json:"login"`
+	Role  GroupRole `json:"role"`
+}
+
+// GroupName defines model for GroupName.
+type GroupName struct {
+	Name string `json:"name"`
+}
+
+// GroupPersonCreate defines model for GroupPersonCreate.
+type GroupPersonCreate struct {
+	Login string    `json:"login"`
+	Name  string    `json:"name"`
+	Pin   string    `json:"pin"`
+	Role  GroupRole `json:"role"`
+}
+
 // GroupRole defines model for GroupRole.
 type GroupRole string
+
+// GroupRoleChange defines model for GroupRoleChange.
+type GroupRoleChange struct {
+	Role GroupRole `json:"role"`
+}
 
 // GroupSummary defines model for GroupSummary.
 type GroupSummary struct {
@@ -1904,6 +1947,11 @@ type Person struct {
 	Name string `json:"name"`
 }
 
+// PinChange defines model for PinChange.
+type PinChange struct {
+	Pin string `json:"pin"`
+}
+
 // Ping defines model for Ping.
 type Ping struct {
 	Status PingStatus `json:"status"`
@@ -2423,6 +2471,9 @@ type BadRequest = Error
 // Conflict defines model for Conflict.
 type Conflict = Error
 
+// Forbidden defines model for Forbidden.
+type Forbidden = Error
+
 // NotFound defines model for NotFound.
 type NotFound = Error
 
@@ -2591,6 +2642,24 @@ type CorrectFinancingJSONRequestBody = FinancingCorrection
 
 // PayFinancingJSONRequestBody defines body for PayFinancing for application/json ContentType.
 type PayFinancingJSONRequestBody = FinancingPaymentCreate
+
+// RenameGroupJSONRequestBody defines body for RenameGroup for application/json ContentType.
+type RenameGroupJSONRequestBody = GroupName
+
+// AddGroupMemberJSONRequestBody defines body for AddGroupMember for application/json ContentType.
+type AddGroupMemberJSONRequestBody = GroupMemberAdd
+
+// SetGroupMemberRoleJSONRequestBody defines body for SetGroupMemberRole for application/json ContentType.
+type SetGroupMemberRoleJSONRequestBody = GroupRoleChange
+
+// ResetGroupMemberPinJSONRequestBody defines body for ResetGroupMemberPin for application/json ContentType.
+type ResetGroupMemberPinJSONRequestBody = PinChange
+
+// CreateGroupPersonJSONRequestBody defines body for CreateGroupPerson for application/json ContentType.
+type CreateGroupPersonJSONRequestBody = GroupPersonCreate
+
+// CreateGroupJSONRequestBody defines body for CreateGroup for application/json ContentType.
+type CreateGroupJSONRequestBody = GroupName
 
 // CommitImportJSONRequestBody defines body for CommitImport for application/json ContentType.
 type CommitImportJSONRequestBody = ImportCommitRequest
@@ -2867,6 +2936,27 @@ type ServerInterface interface {
 	// PayFinancing Pays the installment of the month and sets the balance after it (RF-41, RN-16).
 	// (POST /financings/{id}/months/{month}/payment)
 	PayFinancing(w http.ResponseWriter, r *http.Request, id Id, month Month)
+	// GetGroup Returns the active group with its members (RF-79).
+	// (GET /group)
+	GetGroup(w http.ResponseWriter, r *http.Request)
+	// RenameGroup Renames the active group; administrators only (RF-80).
+	// (PUT /group)
+	RenameGroup(w http.ResponseWriter, r *http.Request)
+	// AddGroupMember Adds a person already registered, by login, to the active group; administrators only (RF-80).
+	// (POST /group/members)
+	AddGroupMember(w http.ResponseWriter, r *http.Request)
+	// SetGroupMemberRole Changes the role of a member of the active group, keeping an administrator; administrators only (RF-80).
+	// (PUT /group/members/{id})
+	SetGroupMemberRole(w http.ResponseWriter, r *http.Request, id Id)
+	// ResetGroupMemberPin Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27).
+	// (PUT /group/members/{id}/pin)
+	ResetGroupMemberPin(w http.ResponseWriter, r *http.Request, id Id)
+	// CreateGroupPerson Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80).
+	// (POST /group/people)
+	CreateGroupPerson(w http.ResponseWriter, r *http.Request)
+	// CreateGroup Creates another group with the caller as its administrator; administrators of the active group only (RF-78, RF-80).
+	// (POST /groups)
+	CreateGroup(w http.ResponseWriter, r *http.Request)
 	// ListImports Import history, newest first.
 	// (GET /imports)
 	ListImports(w http.ResponseWriter, r *http.Request)
@@ -3008,7 +3098,7 @@ type ServerInterface interface {
 	// ListParties Names of the people already used in splits, for suggestions (RF-27).
 	// (GET /parties)
 	ListParties(w http.ResponseWriter, r *http.Request)
-	// ListPersons Lists the people of the couple, holders of accounts and cards.
+	// ListPersons Lists the people of the active group, holders of accounts and cards (RF-82).
 	// (GET /persons)
 	ListPersons(w http.ResponseWriter, r *http.Request)
 	// Ping Liveness check used by the container health check.
@@ -4579,6 +4669,128 @@ func (siw *ServerInterfaceWrapper) PayFinancing(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PayFinancing(w, r, id, month)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGroup operation middleware
+func (siw *ServerInterfaceWrapper) GetGroup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGroup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameGroup operation middleware
+func (siw *ServerInterfaceWrapper) RenameGroup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameGroup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddGroupMember operation middleware
+func (siw *ServerInterfaceWrapper) AddGroupMember(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddGroupMember(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetGroupMemberRole operation middleware
+func (siw *ServerInterfaceWrapper) SetGroupMemberRole(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetGroupMemberRole(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResetGroupMemberPin operation middleware
+func (siw *ServerInterfaceWrapper) ResetGroupMemberPin(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResetGroupMemberPin(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateGroupPerson operation middleware
+func (siw *ServerInterfaceWrapper) CreateGroupPerson(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateGroupPerson(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateGroup operation middleware
+func (siw *ServerInterfaceWrapper) CreateGroup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateGroup(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6282,6 +6494,13 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/categories/{id}", wrapper.DeleteCategory)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/categories/{id}", wrapper.UpdateCategory)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/categories/{id}/move", wrapper.MoveCategory)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/group", wrapper.GetGroup)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/group", wrapper.RenameGroup)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups", wrapper.CreateGroup)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/group/members", wrapper.AddGroupMember)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/group/people", wrapper.CreateGroupPerson)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/group/members/{id}", wrapper.SetGroupMemberRole)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/group/members/{id}/pin", wrapper.ResetGroupMemberPin)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/persons", wrapper.ListPersons)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/accounts", wrapper.ListAccounts)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/accounts", wrapper.CreateAccount)
@@ -6402,6 +6621,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 type BadRequestJSONResponse Error
 
 type ConflictJSONResponse Error
+
+type ForbiddenJSONResponse Error
 
 type NotFoundJSONResponse Error
 
@@ -10002,6 +10223,421 @@ func (response PayFinancing404JSONResponse) VisitPayFinancingResponse(w http.Res
 type PayFinancing409JSONResponse struct{ ConflictJSONResponse }
 
 func (response PayFinancing409JSONResponse) VisitPayFinancingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGroupRequestObject struct {
+}
+
+type GetGroupResponseObject interface {
+	VisitGetGroupResponse(w http.ResponseWriter) error
+}
+
+type GetGroup200JSONResponse GroupDetail
+
+func (response GetGroup200JSONResponse) VisitGetGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetGroup401JSONResponse) VisitGetGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameGroupRequestObject struct {
+	Body *RenameGroupJSONRequestBody
+}
+
+type RenameGroupResponseObject interface {
+	VisitRenameGroupResponse(w http.ResponseWriter) error
+}
+
+type RenameGroup200JSONResponse GroupDetail
+
+func (response RenameGroup200JSONResponse) VisitRenameGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameGroup400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RenameGroup400JSONResponse) VisitRenameGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RenameGroup403JSONResponse) VisitRenameGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameGroup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RenameGroup409JSONResponse) VisitRenameGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddGroupMemberRequestObject struct {
+	Body *AddGroupMemberJSONRequestBody
+}
+
+type AddGroupMemberResponseObject interface {
+	VisitAddGroupMemberResponse(w http.ResponseWriter) error
+}
+
+type AddGroupMember200JSONResponse GroupDetail
+
+func (response AddGroupMember200JSONResponse) VisitAddGroupMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddGroupMember400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response AddGroupMember400JSONResponse) VisitAddGroupMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddGroupMember403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response AddGroupMember403JSONResponse) VisitAddGroupMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddGroupMember404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddGroupMember404JSONResponse) VisitAddGroupMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddGroupMember409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddGroupMember409JSONResponse) VisitAddGroupMemberResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupMemberRoleRequestObject struct {
+	Id   Id `json:"id"`
+	Body *SetGroupMemberRoleJSONRequestBody
+}
+
+type SetGroupMemberRoleResponseObject interface {
+	VisitSetGroupMemberRoleResponse(w http.ResponseWriter) error
+}
+
+type SetGroupMemberRole200JSONResponse GroupDetail
+
+func (response SetGroupMemberRole200JSONResponse) VisitSetGroupMemberRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupMemberRole400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetGroupMemberRole400JSONResponse) VisitSetGroupMemberRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupMemberRole403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetGroupMemberRole403JSONResponse) VisitSetGroupMemberRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupMemberRole409JSONResponse struct{ ConflictJSONResponse }
+
+func (response SetGroupMemberRole409JSONResponse) VisitSetGroupMemberRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetGroupMemberPinRequestObject struct {
+	Id   Id `json:"id"`
+	Body *ResetGroupMemberPinJSONRequestBody
+}
+
+type ResetGroupMemberPinResponseObject interface {
+	VisitResetGroupMemberPinResponse(w http.ResponseWriter) error
+}
+
+type ResetGroupMemberPin204Response struct {
+}
+
+func (response ResetGroupMemberPin204Response) VisitResetGroupMemberPinResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ResetGroupMemberPin400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ResetGroupMemberPin400JSONResponse) VisitResetGroupMemberPinResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResetGroupMemberPin403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ResetGroupMemberPin403JSONResponse) VisitResetGroupMemberPinResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroupPersonRequestObject struct {
+	Body *CreateGroupPersonJSONRequestBody
+}
+
+type CreateGroupPersonResponseObject interface {
+	VisitCreateGroupPersonResponse(w http.ResponseWriter) error
+}
+
+type CreateGroupPerson200JSONResponse GroupDetail
+
+func (response CreateGroupPerson200JSONResponse) VisitCreateGroupPersonResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroupPerson400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateGroupPerson400JSONResponse) VisitCreateGroupPersonResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroupPerson403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateGroupPerson403JSONResponse) VisitCreateGroupPersonResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroupPerson409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateGroupPerson409JSONResponse) VisitCreateGroupPersonResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroupRequestObject struct {
+	Body *CreateGroupJSONRequestBody
+}
+
+type CreateGroupResponseObject interface {
+	VisitCreateGroupResponse(w http.ResponseWriter) error
+}
+
+type CreateGroup201JSONResponse GroupSummary
+
+func (response CreateGroup201JSONResponse) VisitCreateGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroup400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateGroup400JSONResponse) VisitCreateGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateGroup403JSONResponse) VisitCreateGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateGroup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateGroup409JSONResponse) VisitCreateGroupResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -14021,6 +14657,27 @@ type StrictServerInterface interface {
 	// PayFinancing Pays the installment of the month and sets the balance after it (RF-41, RN-16).
 	// (POST /financings/{id}/months/{month}/payment)
 	PayFinancing(ctx context.Context, request PayFinancingRequestObject) (PayFinancingResponseObject, error)
+	// GetGroup Returns the active group with its members (RF-79).
+	// (GET /group)
+	GetGroup(ctx context.Context, request GetGroupRequestObject) (GetGroupResponseObject, error)
+	// RenameGroup Renames the active group; administrators only (RF-80).
+	// (PUT /group)
+	RenameGroup(ctx context.Context, request RenameGroupRequestObject) (RenameGroupResponseObject, error)
+	// AddGroupMember Adds a person already registered, by login, to the active group; administrators only (RF-80).
+	// (POST /group/members)
+	AddGroupMember(ctx context.Context, request AddGroupMemberRequestObject) (AddGroupMemberResponseObject, error)
+	// SetGroupMemberRole Changes the role of a member of the active group, keeping an administrator; administrators only (RF-80).
+	// (PUT /group/members/{id})
+	SetGroupMemberRole(ctx context.Context, request SetGroupMemberRoleRequestObject) (SetGroupMemberRoleResponseObject, error)
+	// ResetGroupMemberPin Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27).
+	// (PUT /group/members/{id}/pin)
+	ResetGroupMemberPin(ctx context.Context, request ResetGroupMemberPinRequestObject) (ResetGroupMemberPinResponseObject, error)
+	// CreateGroupPerson Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80).
+	// (POST /group/people)
+	CreateGroupPerson(ctx context.Context, request CreateGroupPersonRequestObject) (CreateGroupPersonResponseObject, error)
+	// CreateGroup Creates another group with the caller as its administrator; administrators of the active group only (RF-78, RF-80).
+	// (POST /groups)
+	CreateGroup(ctx context.Context, request CreateGroupRequestObject) (CreateGroupResponseObject, error)
 	// ListImports Import history, newest first.
 	// (GET /imports)
 	ListImports(ctx context.Context, request ListImportsRequestObject) (ListImportsResponseObject, error)
@@ -14162,7 +14819,7 @@ type StrictServerInterface interface {
 	// ListParties Names of the people already used in splits, for suggestions (RF-27).
 	// (GET /parties)
 	ListParties(ctx context.Context, request ListPartiesRequestObject) (ListPartiesResponseObject, error)
-	// ListPersons Lists the people of the couple, holders of accounts and cards.
+	// ListPersons Lists the people of the active group, holders of accounts and cards (RF-82).
 	// (GET /persons)
 	ListPersons(ctx context.Context, request ListPersonsRequestObject) (ListPersonsResponseObject, error)
 	// Ping Liveness check used by the container health check.
@@ -16013,6 +16670,220 @@ func (sh *strictHandler) PayFinancing(w http.ResponseWriter, r *http.Request, id
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PayFinancingResponseObject); ok {
 		if err := validResponse.VisitPayFinancingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetGroup operation middleware
+func (sh *strictHandler) GetGroup(w http.ResponseWriter, r *http.Request) {
+	var request GetGroupRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGroup(ctx, request.(GetGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetGroupResponseObject); ok {
+		if err := validResponse.VisitGetGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenameGroup operation middleware
+func (sh *strictHandler) RenameGroup(w http.ResponseWriter, r *http.Request) {
+	var request RenameGroupRequestObject
+
+	var body RenameGroupJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenameGroup(ctx, request.(RenameGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenameGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenameGroupResponseObject); ok {
+		if err := validResponse.VisitRenameGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddGroupMember operation middleware
+func (sh *strictHandler) AddGroupMember(w http.ResponseWriter, r *http.Request) {
+	var request AddGroupMemberRequestObject
+
+	var body AddGroupMemberJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddGroupMember(ctx, request.(AddGroupMemberRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddGroupMember")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddGroupMemberResponseObject); ok {
+		if err := validResponse.VisitAddGroupMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetGroupMemberRole operation middleware
+func (sh *strictHandler) SetGroupMemberRole(w http.ResponseWriter, r *http.Request, id Id) {
+	var request SetGroupMemberRoleRequestObject
+
+	request.Id = id
+
+	var body SetGroupMemberRoleJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetGroupMemberRole(ctx, request.(SetGroupMemberRoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetGroupMemberRole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetGroupMemberRoleResponseObject); ok {
+		if err := validResponse.VisitSetGroupMemberRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResetGroupMemberPin operation middleware
+func (sh *strictHandler) ResetGroupMemberPin(w http.ResponseWriter, r *http.Request, id Id) {
+	var request ResetGroupMemberPinRequestObject
+
+	request.Id = id
+
+	var body ResetGroupMemberPinJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResetGroupMemberPin(ctx, request.(ResetGroupMemberPinRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResetGroupMemberPin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResetGroupMemberPinResponseObject); ok {
+		if err := validResponse.VisitResetGroupMemberPinResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateGroupPerson operation middleware
+func (sh *strictHandler) CreateGroupPerson(w http.ResponseWriter, r *http.Request) {
+	var request CreateGroupPersonRequestObject
+
+	var body CreateGroupPersonJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateGroupPerson(ctx, request.(CreateGroupPersonRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateGroupPerson")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateGroupPersonResponseObject); ok {
+		if err := validResponse.VisitCreateGroupPersonResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateGroup operation middleware
+func (sh *strictHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
+	var request CreateGroupRequestObject
+
+	var body CreateGroupJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateGroup(ctx, request.(CreateGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateGroupResponseObject); ok {
+		if err := validResponse.VisitCreateGroupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
