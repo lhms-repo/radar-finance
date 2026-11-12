@@ -15,6 +15,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/db"
+	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 )
 
@@ -525,6 +526,78 @@ func TestUpdateAndDeletePurchase(t *testing.T) {
 	}
 	if err := f.s.DeletePurchase(ctx, p.ID); !errors.Is(err, ErrPurchaseNotFound) {
 		t.Fatalf("second delete: %v", err)
+	}
+}
+
+// TestUpdatePartialImport keeps the schedule of a purchase imported from a middle installment (RF-57).
+func TestUpdatePartialImport(t *testing.T) {
+	ctx := context.Background()
+	carla := &SplitInput{Mode: SplitCustom, Parties: []PartyShare{{Name: "Carla Ficticia", ShareCents: 40_000}}}
+	cases := []struct {
+		name      string
+		split     bool
+		edit      func(in *PurchaseInput)
+		wantErr   error
+	}{
+		{name: "only texts and category", edit: func(in *PurchaseInput) { in.Merchant, in.CategoryID = "Loja Renomeada", 0 }},
+		{name: "same split kept", split: true, edit: func(in *PurchaseInput) { in.Split = carla }},
+		{name: "amount changed", edit: func(in *PurchaseInput) { in.AmountCents = 90_000 }, wantErr: ErrPartialImport},
+		{name: "installments changed", edit: func(in *PurchaseInput) { in.Installments = 9 }, wantErr: ErrPartialImport},
+		{name: "date changed", edit: func(in *PurchaseInput) { in.Date = d(2026, time.November, 20) }, wantErr: ErrPartialImport},
+		{name: "per installment equal total", edit: func(in *PurchaseInput) { in.AmountCents, in.PerInstallment = 10_000, true }},
+		{name: "split added", edit: func(in *PurchaseInput) { in.Split = carla }, wantErr: ErrPartialImport},
+		{name: "split removed", split: true, edit: func(in *PurchaseInput) {}, wantErr: ErrPartialImport},
+		{name: "split share changed", split: true, edit: func(in *PurchaseInput) {
+			in.Split = &SplitInput{Mode: SplitCustom, Parties: []PartyShare{{Name: "Carla Ficticia", ShareCents: 30_000}}}
+		}, wantErr: ErrPartialImport},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			c := f.newCard(t)
+			line := ImportedLine{CardID: c.ID, Invoice: civil.Month{Year: 2026, Month: time.December}, Date: d(2026, time.November, 4),
+				Merchant: "Loja Ficticia", CategoryID: &f.delivery, AmountCents: 10_000, Installment: 3, Installments: 10}
+			if tc.split {
+				line.Split = &SplitInput{Mode: SplitEqual, CoupleParts: 1, Parties: []PartyShare{{Name: "Carla Ficticia"}}}
+			}
+			var id int64
+			if err := db.WithTx(ctx, f.conn, func(q *store.Queries) error {
+				var err error
+				id, err = f.s.ImportLine(ctx, q, f.userID, line)
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			in := PurchaseInput{CardID: c.ID, Date: d(2026, time.November, 4), Merchant: "Loja Ficticia", CategoryID: f.delivery, AmountCents: 100_000, Installments: 10}
+			tc.edit(&in)
+			if in.CategoryID == 0 {
+				in.CategoryID = f.streaming
+			}
+			got, err := f.s.UpdatePurchase(ctx, id, in)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			if err == nil && (got.Merchant != in.Merchant || *got.CategoryID != in.CategoryID) {
+				t.Fatalf("texts not updated: %+v", got)
+			}
+			for _, m := range []struct {
+				y    int
+				mo   time.Month
+				want int64
+			}{{2026, time.October, 0}, {2026, time.November, 0}, {2026, time.December, 10_000}, {2027, time.July, 10_000}, {2027, time.August, 0}, {2027, time.September, 0}} {
+				if inv := f.invoice(t, c.ID, m.y, m.mo); inv.TotalCents != m.want {
+					t.Fatalf("%d-%02d total = %d, want %d", m.y, m.mo, inv.TotalCents, m.want)
+				}
+			}
+			p, _ := f.s.GetPurchase(ctx, id)
+			var share int64
+			for _, sp := range p.Splits {
+				share += sp.ShareCents
+			}
+			if tc.split && share != 40_000 {
+				t.Fatalf("share = %d, want 40000", share)
+			}
+		})
 	}
 }
 

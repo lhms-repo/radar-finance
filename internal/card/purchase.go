@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/italogfx/radar-finance/internal/category"
@@ -119,6 +120,13 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 		if err != nil {
 			return err
 		}
+		first, err := q.FirstInstallmentNumber(ctx, id)
+		if err != nil {
+			return err
+		}
+		if first > 1 {
+			return updatePartialImport(ctx, q, cur, p, in.Split, s.now().UTC())
+		}
 		if err := q.UpdatePurchase(ctx, store.UpdatePurchaseParams{
 			PurchasedOn: p.Date.String(), Merchant: p.Merchant, Description: p.Description, CategoryID: nullID(p.CategoryID),
 			BuyerPersonID: nullID(p.BuyerPersonID), TotalCents: p.TotalCents, InstallmentCount: int64(p.Installments),
@@ -141,6 +149,45 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 		return Purchase{}, err
 	}
 	return s.getPurchase(ctx, store.New(s.conn), id)
+}
+
+// updatePartialImport changes only the texts, category and buyer of a purchase imported from a middle installment,
+// keeping its installments and shares, since the earlier installments are not in the Radar (RF-57).
+func updatePartialImport(ctx context.Context, q *store.Queries, cur, p Purchase, split *SplitInput, now time.Time) error {
+	if p.TotalCents != cur.TotalCents || p.Installments != cur.Installments || p.Date != cur.Date || !sameShares(cur.Splits, split) {
+		return ErrPartialImport
+	}
+	if err := q.UpdatePurchase(ctx, store.UpdatePurchaseParams{
+		PurchasedOn: cur.Date.String(), Merchant: p.Merchant, Description: p.Description, CategoryID: nullID(p.CategoryID),
+		BuyerPersonID: nullID(p.BuyerPersonID), TotalCents: cur.TotalCents, InstallmentCount: int64(cur.Installments),
+		FirstInvoice: cur.FirstInvoice.String(), UpdatedAt: now, ID: cur.ID,
+	}); err != nil {
+		return fmt.Errorf("update purchase: %w", err)
+	}
+	return nil
+}
+
+// sameShares tells whether a split input repeats the stored shares, as the edit form sends them back.
+func sameShares(cur []SplitShare, in *SplitInput) bool {
+	if in == nil {
+		return len(cur) == 0
+	}
+	if in.Mode != SplitCustom || len(in.Parties) != len(cur) {
+		return false
+	}
+	for _, p := range in.Parties {
+		found := false
+		for _, c := range cur {
+			if strings.EqualFold(strings.TrimSpace(p.Name), c.PartyName) && p.ShareCents == c.ShareCents {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 // AddCredit registers a refund or credit as a negative amount on the invoice of its date (RF-22).
