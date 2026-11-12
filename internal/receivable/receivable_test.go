@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,8 +11,9 @@ import (
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database with a card, an account and two purchases split with João and Maria.
@@ -29,22 +27,19 @@ type fixture struct {
 	cardID    int64
 }
 
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
 // newFixture registers an air conditioner in 3 installments split in equal parts with two people
 // and a dinner split with João only.
 func newFixture(t *testing.T) fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	l := ledger.NewService(conn)
 	acc, _ := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: persons[0].ID})
 	cards := card.NewService(conn)
@@ -70,7 +65,7 @@ func newFixture(t *testing.T) fixture {
 // TestList groups what other people owe by person, with the total and each installment (RF-28).
 func TestList(t *testing.T) {
 	f := newFixture(t)
-	got, err := f.s.List(context.Background())
+	got, err := f.s.List(groupCtx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +99,7 @@ func TestList(t *testing.T) {
 // TestMarkReceived records one entry for the shares paid together, without counting it as income (RF-26, RF-30, RN-06).
 func TestMarkReceived(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	people, _ := f.s.List(ctx)
 	joao, maria := people[0], people[1]
 	dec := civil.Date{Year: 2026, Month: time.December, Day: 12}
@@ -159,7 +154,7 @@ func TestMarkReceived(t *testing.T) {
 // TestMessage writes a ready to send charge with each pending installment and the total (RF-29).
 func TestMessage(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	people, _ := f.s.List(ctx)
 	if _, err := f.s.MarkReceived(ctx, f.userID, Receipt{ItemIDs: []int64{people[0].Items[1].ID}, AccountID: f.accountID, Date: civil.Date{Year: 2026, Month: time.December, Day: 1}}); err != nil {
 		t.Fatal(err)
@@ -203,5 +198,39 @@ func TestFormatBRL(t *testing.T) {
 		if got := FormatBRL(tt.cents); got != tt.want {
 			t.Errorf("FormatBRL(%d) = %q, want %q", tt.cents, got, tt.want)
 		}
+	}
+}
+
+// TestGroupIsolation shows that a second group sees none of the shares owed to the first (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	people, err := f.s.List(groupCtx)
+	if err != nil || len(people) == 0 {
+		t.Fatalf("people = %v, %v", people, err)
+	}
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "mark received", run: func() error {
+			_, err := f.s.MarkReceived(other, carla.ID, Receipt{ItemIDs: []int64{people[0].Items[0].ID}, AccountID: f.accountID, Date: civil.Date{Year: 2026, Month: time.December, Day: 1}})
+			return err
+		}, wantErr: ErrItemNotFound},
+		{name: "message", run: func() error { _, err := f.s.Message(other, people[0].PartyID); return err }, wantErr: ErrPartyNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.List(context.Background()); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	if got, err := f.s.List(other); err != nil || len(got) != 0 {
+		t.Fatalf("people of the other group = %v, %v", got, err)
 	}
 }
