@@ -46,14 +46,14 @@ export function useStatement(id: number, month: string) {
 }
 
 /** Wraps an account write with haptics, a toast and a refresh of balances and statements. */
-function useAccountMutation<V, R>(fn: (vars: V) => Promise<R>, success: string) {
+function useAccountMutation<V, R>(fn: (vars: V) => Promise<R>, success: string, extraKeys: readonly (readonly string[])[] = []) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
     onSuccess: () => {
       haptic();
       toast.success(success);
-      for (const key of ACCOUNT_KEYS) void qc.invalidateQueries({ queryKey: key });
+      for (const key of [...ACCOUNT_KEYS, ...extraKeys]) void qc.invalidateQueries({ queryKey: key });
     },
   });
 }
@@ -117,5 +117,7 @@ export function useDeleteEntry() {
   return useAccountMutation(
     (id: number) => noContent(api.DELETE("/entries/{id}", { params: { path: { id } } })),
     "Lançamento excluído",
+    // The entry may be an invoice, bill or financing payment or a share paid back, so those screens refresh too.
+    [["cards"], ["receivables"], ["bills"], ["financings"], ["search"]],
   );
 }
