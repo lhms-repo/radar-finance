@@ -53,3 +53,8 @@ INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, cat
                      created_by, created_at, updated_at)
 VALUES (?, 'expense', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
 RETURNING id;
+
+-- name: ListBillPaidMonths :many
+SELECT coalesce(bill_month, '') AS month
+FROM entries
+WHERE bill_id = ?;
