@@ -8,6 +8,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
+  // Three browser engines share the CPU and one server, so 5 s waits sometimes ran out on a healthy run.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: `http://localhost:${PORT}`,
     locale: "pt-BR",

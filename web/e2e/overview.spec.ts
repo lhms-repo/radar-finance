@@ -18,6 +18,8 @@ test("overview shows the cards of section 5.3 and the bell opens the notificatio
 });
 
 test("cash flow shows closing, net worth and the search filters the entries (RF-61 to RF-63)", async ({ page }, testInfo) => {
+  // A long flow: under three parallel browser engines it gets near the default 30 s.
+  test.slow();
   const account = `Conta F ${testInfo.project.name}`;
   await page.goto("/settings/accounts");
   await page.getByRole("button", { name: "Nova conta" }).first().click();

@@ -6,6 +6,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("manages categories and subcategories from Settings (RF-50, RN-18)", async ({ page }, testInfo) => {
+  // A long flow: under three parallel browser engines it gets near the default 30 s.
+  test.slow();
   // Projects share one database, so names carry the project to stay unique.
   const name = `Doações ${testInfo.project.name}`;
   const sub = `Igreja ${testInfo.project.name}`;
