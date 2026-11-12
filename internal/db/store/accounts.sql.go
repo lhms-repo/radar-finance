@@ -56,6 +56,26 @@ func (q *Queries) AccountBalanceBefore(ctx context.Context, arg AccountBalanceBe
 	return balance_cents, err
 }
 
+const accountUsedElsewhere = `-- name: AccountUsedElsewhere :one
+SELECT CAST(EXISTS (SELECT 1 FROM entries e WHERE e.account_id = ?1 AND coalesce(e.group_id, 0) <> CAST(?2 AS INTEGER))
+    OR EXISTS (SELECT 1 FROM incomes i WHERE i.account_id = ?1 AND coalesce(i.group_id, 0) <> CAST(?2 AS INTEGER))
+    OR EXISTS (SELECT 1 FROM bills b WHERE b.account_id = ?1 AND coalesce(b.group_id, 0) <> CAST(?2 AS INTEGER))
+    OR EXISTS (SELECT 1 FROM financings f WHERE f.account_id = ?1 AND coalesce(f.group_id, 0) <> CAST(?2 AS INTEGER)) AS INTEGER) AS used
+`
+
+type AccountUsedElsewhereParams struct {
+	AccountID int64
+	GroupID   int64
+}
+
+// Whether the account has entries or registered items in a group other than this one (RF-82).
+func (q *Queries) AccountUsedElsewhere(ctx context.Context, arg AccountUsedElsewhereParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, accountUsedElsewhere, arg.AccountID, arg.GroupID)
+	var used int64
+	err := row.Scan(&used)
+	return used, err
+}
+
 const createAccount = `-- name: CreateAccount :one
 INSERT INTO accounts (name, person_id, initial_balance_cents, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?)

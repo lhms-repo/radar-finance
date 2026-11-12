@@ -553,3 +553,34 @@ func TestGroupIsolation(t *testing.T) {
 		t.Fatalf("balance of the first group = %d, want 700", got)
 	}
 }
+
+// TestHolderStaysWhileUsedElsewhere keeps the holder of an account that has entries in another group, so that
+// group does not lose sight of its own entries (RF-82).
+func TestHolderStaysWhileUsedElsewhere(t *testing.T) {
+	f := newFixture(t)
+	a := f.newAccount(t, "Nubank Ana", 1_000)
+	ana, err := account.NewService(f.conn).Get(groupCtx, f.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beach := testutil.NewGroup(t, f.conn, "Praia", ana)
+	toBruno := AccountChanges{PersonID: &f.persons[1]}
+	// Unused elsewhere, the holder may change.
+	if _, err := f.s.UpdateAccount(groupCtx, a.ID, toBruno); err != nil {
+		t.Fatalf("holder change before any use elsewhere: %v", err)
+	}
+	back := AccountChanges{PersonID: &f.persons[0]}
+	if _, err := f.s.UpdateAccount(groupCtx, a.ID, back); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.AddExpense(beach, f.userID, NewExpense{AccountID: a.ID, AmountCents: 300, Date: day(t, "2026-11-11"), CategoryID: f.delivery}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.UpdateAccount(groupCtx, a.ID, toBruno); !errors.Is(err, ErrHolderUsedElsewhere) {
+		t.Fatalf("holder change with entries in the beach group: %v, want ErrHolderUsedElsewhere", err)
+	}
+	name := "Renomeada"
+	if _, err := f.s.UpdateAccount(groupCtx, a.ID, AccountChanges{Name: &name}); err != nil {
+		t.Fatalf("other changes still work: %v", err)
+	}
+}

@@ -733,3 +733,27 @@ func TestSharedCardPaidPerGroup(t *testing.T) {
 		})
 	}
 }
+
+// TestCardHolderStaysWhileUsedElsewhere keeps the holder of a card that has purchases in another group (RF-82).
+func TestCardHolderStaysWhileUsedElsewhere(t *testing.T) {
+	f := newFixture(t)
+	c := f.newCard(t)
+	ana, err := account.NewService(f.conn).Get(groupCtx, f.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beach := testutil.NewGroup(t, f.conn, "Praia", ana)
+	in := f.nubank()
+	in.PersonID = f.persons[1]
+	if _, err := f.s.AddPurchase(beach, f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.October, 20), Merchant: "Loja Ficticia", CategoryID: f.delivery, AmountCents: 10_000, Installments: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.UpdateCard(groupCtx, c.ID, in, true); !errors.Is(err, ErrHolderUsedElsewhere) {
+		t.Fatalf("holder change with purchases in the beach group: %v, want ErrHolderUsedElsewhere", err)
+	}
+	same := f.nubank()
+	same.Name = "Nubank novo"
+	if _, err := f.s.UpdateCard(groupCtx, c.ID, same, true); err != nil {
+		t.Fatalf("other changes still work: %v", err)
+	}
+}

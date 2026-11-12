@@ -38,6 +38,23 @@ func (q *Queries) AleloBalanceBefore(ctx context.Context, arg AleloBalanceBefore
 	return balance_cents, err
 }
 
+const aleloUsedElsewhere = `-- name: AleloUsedElsewhere :one
+SELECT CAST(EXISTS (SELECT 1 FROM alelo_purchases ap WHERE ap.alelo_id = ?1 AND coalesce(ap.group_id, 0) <> CAST(?2 AS INTEGER)) AS INTEGER) AS used
+`
+
+type AleloUsedElsewhereParams struct {
+	AleloID int64
+	GroupID int64
+}
+
+// Whether the Alelo card has purchases in a group other than this one (RF-82).
+func (q *Queries) AleloUsedElsewhere(ctx context.Context, arg AleloUsedElsewhereParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, aleloUsedElsewhere, arg.AleloID, arg.GroupID)
+	var used int64
+	err := row.Scan(&used)
+	return used, err
+}
+
 const createAleloCard = `-- name: CreateAleloCard :one
 INSERT INTO alelo_cards (name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month,
                          style, created_by, created_at, updated_at)

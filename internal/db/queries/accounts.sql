@@ -109,3 +109,10 @@ SELECT CAST(coalesce(sum(CASE WHEN kind = 'income' THEN amount_cents END), 0) AS
        CAST(coalesce(-sum(CASE WHEN kind = 'expense' THEN amount_cents END), 0) AS INTEGER) AS expense_cents
 FROM entries
 WHERE group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND confirmed AND occurred_on >= sqlc.arg(first_day) AND occurred_on <= sqlc.arg(last_day);
+
+-- name: AccountUsedElsewhere :one
+-- Whether the account has entries or registered items in a group other than this one (RF-82).
+SELECT CAST(EXISTS (SELECT 1 FROM entries e WHERE e.account_id = sqlc.arg(account_id) AND coalesce(e.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER))
+    OR EXISTS (SELECT 1 FROM incomes i WHERE i.account_id = sqlc.arg(account_id) AND coalesce(i.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER))
+    OR EXISTS (SELECT 1 FROM bills b WHERE b.account_id = sqlc.arg(account_id) AND coalesce(b.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER))
+    OR EXISTS (SELECT 1 FROM financings f WHERE f.account_id = sqlc.arg(account_id) AND coalesce(f.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER)) AS INTEGER) AS used;

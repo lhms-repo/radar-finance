@@ -296,3 +296,29 @@ func TestGroupIsolation(t *testing.T) {
 		t.Fatalf("month of the first group = %+v, %v", v, err)
 	}
 }
+
+// TestAleloHolderStaysWhileUsedElsewhere keeps the holder of an Alelo card with purchases in another group (RF-82).
+func TestAleloHolderStaysWhileUsedElsewhere(t *testing.T) {
+	f := newFixture(t)
+	c, err := f.s.Create(groupCtx, f.userID, f.card())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ana, err := account.NewService(f.conn).Get(groupCtx, f.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beach := testutil.NewGroup(t, f.conn, "Praia", ana)
+	if _, err := f.s.AddPurchase(beach, f.userID, Purchase{AleloID: c.ID, Date: date(2026, time.November, 11), Description: "Feira", AmountCents: 1_000}); err != nil {
+		t.Fatal(err)
+	}
+	ch := Changes{Name: "Alelo Ana", PersonID: f.persons[1], MonthlyCreditCents: 80_000, CreditDay: 5, Style: "tudo", Active: true}
+	if _, err := f.s.Update(groupCtx, c.ID, ch); !errors.Is(err, ErrHolderUsedElsewhere) {
+		t.Fatalf("holder change with purchases in the beach group: %v, want ErrHolderUsedElsewhere", err)
+	}
+	ch.PersonID = f.persons[0]
+	ch.Name = "Alelo nova"
+	if _, err := f.s.Update(groupCtx, c.ID, ch); err != nil {
+		t.Fatalf("other changes still work: %v", err)
+	}
+}
