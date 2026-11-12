@@ -119,7 +119,7 @@ const createPurchase = `-- name: CreatePurchase :one
 INSERT INTO purchases (card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id,
                        total_cents, installment_count, first_invoice, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id
+RETURNING id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id, group_id
 `
 
 type CreatePurchaseParams struct {
@@ -171,6 +171,7 @@ func (q *Queries) CreatePurchase(ctx context.Context, arg CreatePurchaseParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImportID,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -178,7 +179,7 @@ func (q *Queries) CreatePurchase(ctx context.Context, arg CreatePurchaseParams) 
 const createRecurrence = `-- name: CreateRecurrence :one
 INSERT INTO recurrences (card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at
+RETURNING id, card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at, group_id
 `
 
 type CreateRecurrenceParams struct {
@@ -214,6 +215,7 @@ func (q *Queries) CreateRecurrence(ctx context.Context, arg CreateRecurrencePara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -314,7 +316,7 @@ func (q *Queries) GetCard(ctx context.Context, id int64) (Card, error) {
 }
 
 const getPurchase = `-- name: GetPurchase :one
-SELECT id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id
+SELECT id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id, group_id
 FROM purchases
 WHERE id = ?
 `
@@ -338,12 +340,13 @@ func (q *Queries) GetPurchase(ctx context.Context, id int64) (Purchase, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ImportID,
+		&i.GroupID,
 	)
 	return i, err
 }
 
 const getRecurrence = `-- name: GetRecurrence :one
-SELECT id, card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at
+SELECT id, card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at, group_id
 FROM recurrences
 WHERE id = ?
 `
@@ -361,6 +364,7 @@ func (q *Queries) GetRecurrence(ctx context.Context, id int64) (Recurrence, erro
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -416,7 +420,7 @@ func (q *Queries) ListCardPayments(ctx context.Context, cardID int64) ([]ListCar
 }
 
 const listCardRecurrences = `-- name: ListCardRecurrences :many
-SELECT r.id, r.card_id, r.description, r.category_id, r.start_month, r.end_month, r.created_by, r.created_at, r.updated_at, coalesce(c.name, '') AS category_name, coalesce(pc.name, '') AS parent_category_name,
+SELECT r.id, r.card_id, r.description, r.category_id, r.start_month, r.end_month, r.created_by, r.created_at, r.updated_at, r.group_id, coalesce(c.name, '') AS category_name, coalesce(pc.name, '') AS parent_category_name,
        coalesce(pc.icon, '') AS category_icon
 FROM recurrences r
 JOIN categories c ON c.id = r.category_id
@@ -435,6 +439,7 @@ type ListCardRecurrencesRow struct {
 	CreatedBy          int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	GroupID            sql.NullInt64
 	CategoryName       string
 	ParentCategoryName string
 	CategoryIcon       string
@@ -459,6 +464,7 @@ func (q *Queries) ListCardRecurrences(ctx context.Context, cardID int64) ([]List
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GroupID,
 			&i.CategoryName,
 			&i.ParentCategoryName,
 			&i.CategoryIcon,

@@ -15,7 +15,7 @@ const createIncome = `-- name: CreateIncome :one
 INSERT INTO incomes (kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on,
                      created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on, created_by, created_at, updated_at
+RETURNING id, kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on, created_by, created_at, updated_at, group_id
 `
 
 type CreateIncomeParams struct {
@@ -63,6 +63,7 @@ func (q *Queries) CreateIncome(ctx context.Context, arg CreateIncomeParams) (Inc
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -114,7 +115,7 @@ func (q *Queries) DeleteIncome(ctx context.Context, id int64) error {
 }
 
 const getIncome = `-- name: GetIncome :one
-SELECT id, kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on, created_by, created_at, updated_at
+SELECT id, kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on, created_by, created_at, updated_at, group_id
 FROM incomes
 WHERE id = ?
 `
@@ -136,6 +137,7 @@ func (q *Queries) GetIncome(ctx context.Context, id int64) (Income, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -218,7 +220,7 @@ func (q *Queries) ListIncomeConfirmedMonths(ctx context.Context, incomeID sql.Nu
 }
 
 const listIncomes = `-- name: ListIncomes :many
-SELECT i.id, i.kind, i.name, i.person_id, i.account_id, i.amount_cents, i.day, i.start_month, i.end_on, i.expected_on, i.created_by, i.created_at, i.updated_at, p.name AS person_name, a.name AS account_name
+SELECT i.id, i.kind, i.name, i.person_id, i.account_id, i.amount_cents, i.day, i.start_month, i.end_on, i.expected_on, i.created_by, i.created_at, i.updated_at, i.group_id, p.name AS person_name, a.name AS account_name
 FROM incomes i
 JOIN persons p ON p.id = i.person_id
 JOIN accounts a ON a.id = i.account_id
@@ -239,6 +241,7 @@ type ListIncomesRow struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     sql.NullInt64
 	PersonName  string
 	AccountName string
 }
@@ -266,6 +269,7 @@ func (q *Queries) ListIncomes(ctx context.Context) ([]ListIncomesRow, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GroupID,
 			&i.PersonName,
 			&i.AccountName,
 		); err != nil {

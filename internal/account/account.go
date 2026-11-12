@@ -1,4 +1,4 @@
-// Package account manages the two users of the couple and their preferences (RF-01, RF-02).
+// Package account manages people, their users, PINs and preferences, and the groups they belong to (RF-01, RF-02, RF-78 to RF-81).
 package account
 
 import (
@@ -13,14 +13,8 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 )
 
-// MaxUsers is the number of users the system accepts: one per person of the couple.
-const MaxUsers = 2
-
 // ErrNotFound is returned when the user does not exist.
 var ErrNotFound = errors.New("user not found")
-
-// ErrLimitReached is returned when both users already exist.
-var ErrLimitReached = fmt.Errorf("o Radar aceita no máximo %d usuários", MaxUsers)
 
 // Themes accepted as user preference (RNF-14).
 var validThemes = map[string]bool{"system": true, "light": true, "dark": true}
@@ -52,7 +46,7 @@ func NewService(conn *sql.DB) *Service {
 	return &Service{conn: conn, now: time.Now}
 }
 
-// Create adds a person of the couple and the user linked to it, up to MaxUsers.
+// Create adds a person and the user linked to it, without a group or a PIN yet (RF-80).
 func (s *Service) Create(ctx context.Context, login, name string) (User, error) {
 	login = strings.ToLower(strings.TrimSpace(login))
 	name = strings.TrimSpace(name)
@@ -62,13 +56,6 @@ func (s *Service) Create(ctx context.Context, login, name string) (User, error) 
 	now := s.now().UTC()
 	var u store.User
 	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		count, err := q.CountUsers(ctx)
-		if err != nil {
-			return err
-		}
-		if count >= MaxUsers {
-			return ErrLimitReached
-		}
 		p, err := q.CreatePerson(ctx, store.CreatePersonParams{Name: name, CreatedAt: now})
 		if err != nil {
 			return fmt.Errorf("create person: %w", err)

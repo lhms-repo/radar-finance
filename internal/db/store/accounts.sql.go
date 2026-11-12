@@ -89,7 +89,7 @@ const createEntry = `-- name: CreateEntry :one
 INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, category_id, description,
                      transfer_id, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month
+RETURNING id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id
 `
 
 type CreateEntryParams struct {
@@ -138,6 +138,7 @@ func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry
 		&i.IncomeMonth,
 		&i.BillID,
 		&i.BillMonth,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -232,7 +233,7 @@ func (q *Queries) GetAccount(ctx context.Context, id int64) (Account, error) {
 }
 
 const getEntry = `-- name: GetEntry :one
-SELECT id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month
+SELECT id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id
 FROM entries
 WHERE id = ?
 `
@@ -257,6 +258,7 @@ func (q *Queries) GetEntry(ctx context.Context, id int64) (Entry, error) {
 		&i.IncomeMonth,
 		&i.BillID,
 		&i.BillMonth,
+		&i.GroupID,
 	)
 	return i, err
 }

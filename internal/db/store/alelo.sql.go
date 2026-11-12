@@ -112,7 +112,7 @@ func (q *Queries) CreateAleloCredit(ctx context.Context, arg CreateAleloCreditPa
 const createAleloPurchase = `-- name: CreateAleloPurchase :one
 INSERT INTO alelo_purchases (alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at
+RETURNING id, alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at, group_id
 `
 
 type CreateAleloPurchaseParams struct {
@@ -145,6 +145,7 @@ func (q *Queries) CreateAleloPurchase(ctx context.Context, arg CreateAleloPurcha
 		&i.CategoryID,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -240,7 +241,7 @@ func (q *Queries) GetAleloCredit(ctx context.Context, arg GetAleloCreditParams) 
 }
 
 const getAleloPurchase = `-- name: GetAleloPurchase :one
-SELECT id, alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at
+SELECT id, alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at, group_id
 FROM alelo_purchases
 WHERE id = ?
 `
@@ -257,6 +258,7 @@ func (q *Queries) GetAleloPurchase(ctx context.Context, id int64) (AleloPurchase
 		&i.CategoryID,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -340,7 +342,7 @@ func (q *Queries) ListAleloCards(ctx context.Context) ([]ListAleloCardsRow, erro
 }
 
 const listAleloPurchases = `-- name: ListAleloPurchases :many
-SELECT pu.id, pu.alelo_id, pu.purchased_on, pu.description, pu.amount_cents, pu.category_id, pu.created_by, pu.created_at, p.name AS created_by_name
+SELECT pu.id, pu.alelo_id, pu.purchased_on, pu.description, pu.amount_cents, pu.category_id, pu.created_by, pu.created_at, pu.group_id, p.name AS created_by_name
 FROM alelo_purchases pu
 JOIN users u ON u.id = pu.created_by
 JOIN persons p ON p.id = u.person_id
@@ -363,6 +365,7 @@ type ListAleloPurchasesRow struct {
 	CategoryID    int64
 	CreatedBy     int64
 	CreatedAt     time.Time
+	GroupID       sql.NullInt64
 	CreatedByName string
 }
 
@@ -384,6 +387,7 @@ func (q *Queries) ListAleloPurchases(ctx context.Context, arg ListAleloPurchases
 			&i.CategoryID,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.GroupID,
 			&i.CreatedByName,
 		); err != nil {
 			return nil, err

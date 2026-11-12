@@ -13,7 +13,7 @@ import (
 const createSavingsBox = `-- name: CreateSavingsBox :one
 INSERT INTO savings_boxes (name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at
+RETURNING id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id
 `
 
 type CreateSavingsBoxParams struct {
@@ -46,6 +46,7 @@ func (q *Queries) CreateSavingsBox(ctx context.Context, arg CreateSavingsBoxPara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -91,7 +92,7 @@ func (q *Queries) DeleteSavingsBox(ctx context.Context, id int64) error {
 }
 
 const getSavingsBox = `-- name: GetSavingsBox :one
-SELECT id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at
+SELECT id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id
 FROM savings_boxes
 WHERE id = ?
 `
@@ -108,12 +109,13 @@ func (q *Queries) GetSavingsBox(ctx context.Context, id int64) (SavingsBox, erro
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
 
 const listSavingsBoxes = `-- name: ListSavingsBoxes :many
-SELECT id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at
+SELECT id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id
 FROM savings_boxes
 ORDER BY id
 `
@@ -136,6 +138,7 @@ func (q *Queries) ListSavingsBoxes(ctx context.Context) ([]SavingsBox, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}
