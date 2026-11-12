@@ -134,3 +134,8 @@ ORDER BY ip.invoice_month;
 -- name: CreateInvoicePayment :exec
 INSERT INTO invoice_payments (card_id, invoice_month, entry_id, amount_cents, created_by, created_at)
 VALUES (?, ?, ?, ?, ?, ?);
+
+-- name: FirstInstallmentNumber :one
+SELECT CAST(coalesce(min(number), 1) AS INTEGER) AS number
+FROM installments
+WHERE purchase_id = ?;

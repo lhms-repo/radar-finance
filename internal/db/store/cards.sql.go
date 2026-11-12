@@ -273,6 +273,19 @@ func (q *Queries) DeleteRecurrencePricesAfter(ctx context.Context, arg DeleteRec
 	return err
 }
 
+const firstInstallmentNumber = `-- name: FirstInstallmentNumber :one
+SELECT CAST(coalesce(min(number), 1) AS INTEGER) AS number
+FROM installments
+WHERE purchase_id = ?
+`
+
+func (q *Queries) FirstInstallmentNumber(ctx context.Context, purchaseID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, firstInstallmentNumber, purchaseID)
+	var number int64
+	err := row.Scan(&number)
+	return number, err
+}
+
 const getCard = `-- name: GetCard :one
 SELECT id, name, person_id, limit_cents, closing_day, due_day, last_digits, color, finish, active, created_by, created_at, updated_at
 FROM cards

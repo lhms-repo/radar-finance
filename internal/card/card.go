@@ -53,6 +53,7 @@ var (
 	ErrMerchantRequired    = problem.Invalid("purchase_merchant_required", "Informe o estabelecimento.")
 	ErrMerchantTooLong     = problem.Invalid("purchase_merchant_too_long", "Use no máximo %d caracteres no estabelecimento.", maxMerchant)
 	ErrInvalidInstallments = problem.Invalid("purchase_installments_invalid", "Informe de 1 a %d parcelas, com pelo menos um centavo em cada.", maxInstallments)
+	ErrPartialImport       = problem.Conflict("purchase_partial_import", "Esta compra veio da importação a partir de uma parcela do meio. Nela só dá para mudar estabelecimento, descrição, categoria e comprador; para mudar valor, parcelas, data ou divisão, apague a compra.")
 	ErrRecurrenceNotFound  = problem.NotFound("recurrence_not_found", "Recorrência não encontrada.")
 	ErrDescriptionRequired = problem.Invalid("recurrence_description_required", "Informe a descrição da recorrência.")
 	ErrEndBeforeStart      = problem.Invalid("recurrence_end_before_start", "A última fatura é anterior à primeira.")
