@@ -4,16 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database, two fictional users, two accounts and the services.
@@ -27,24 +25,18 @@ type fixture struct {
 	inter   int64
 }
 
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
 // newFixture opens a fresh database where today is 2026-11-11.
 func newFixture(t *testing.T) fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	if _, err := users.Create(ctx, "bruno", "Bruno Ficticio"); err != nil {
-		t.Fatal(err)
-	}
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	l := ledger.NewService(conn)
 	nubank, err := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: persons[0].ID})
 	if err != nil {
@@ -76,7 +68,7 @@ func (f fixture) salary() Input {
 // TestCreate validates recurring and eventual incomes (RF-09, RF-11, RF-12).
 func TestCreate(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name    string
 		in      func() Input
@@ -120,7 +112,7 @@ func TestCreate(t *testing.T) {
 // TestMonthOccurrences derives the planned incomes of each month (RF-10, RF-11, RF-12).
 func TestMonthOccurrences(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	salary, _ := f.s.Create(ctx, f.userID, Input{Kind: KindRecurring, Name: "Salário", PersonID: f.persons[0], AccountID: f.nubank, AmountCents: 450_000, Day: 31, StartMonth: month(2026, time.November)})
 	grant, _ := f.s.Create(ctx, f.userID, Input{Kind: KindRecurring, Name: "Bolsa", PersonID: f.persons[1], AccountID: f.inter, AmountCents: 150_000, Day: 10, StartMonth: month(2026, time.November), EndOn: ptr(date(2027, time.January, 10))})
 	thirteenth, _ := f.s.Create(ctx, f.userID, Input{Kind: KindEventual, Name: "13º salário", PersonID: f.persons[0], AccountID: f.nubank, AmountCents: 225_000, ExpectedOn: date(2026, time.December, 18)})
@@ -166,7 +158,7 @@ func TestMonthOccurrences(t *testing.T) {
 // TestConfirm turns a planned income into a confirmed entry that changes the balance (RF-10, RN-13).
 func TestConfirm(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	salary, _ := f.s.Create(ctx, f.userID, f.salary())
 	nov := month(2026, time.November)
 
@@ -226,7 +218,7 @@ func TestConfirm(t *testing.T) {
 
 // TestUpdateKeepsConfirmedMonths refuses changes that leave a confirmed month outside the income (RF-10, RF-12).
 func TestUpdateKeepsConfirmedMonths(t *testing.T) {
-	ctx := context.Background()
+	ctx := groupCtx
 	thirteenth := func(f fixture) Input {
 		return Input{Kind: KindEventual, Name: "13º salário", PersonID: f.persons[0], AccountID: f.nubank, AmountCents: 100_000, ExpectedOn: date(2026, time.December, 18)}
 	}
@@ -270,7 +262,7 @@ func TestUpdateKeepsConfirmedMonths(t *testing.T) {
 // TestMonthIncludesOneOff lists one off incomes with the confirmed ones (RF-13).
 func TestMonthIncludesOneOff(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	if _, err := f.ledger.AddIncome(ctx, f.userID, ledger.NewIncome{AccountID: f.inter, AmountCents: 20_000, Date: date(2026, time.November, 3), Description: "Venda de bicicleta"}); err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +278,7 @@ func TestMonthIncludesOneOff(t *testing.T) {
 // TestEndingSoon warns when the end date of an income is within 30 days (RF-12).
 func TestEndingSoon(t *testing.T) {
 	f := newFixture(t) // today is 2026-11-11
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name      string
 		end       *civil.Date
@@ -318,7 +310,7 @@ func TestEndingSoon(t *testing.T) {
 // TestUpdateAndDelete edits incomes and keeps those with receipts (RF-12).
 func TestUpdateAndDelete(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	salary, _ := f.s.Create(ctx, f.userID, f.salary())
 	unused, _ := f.s.Create(ctx, f.userID, Input{Kind: KindEventual, Name: "Férias", PersonID: f.persons[0], AccountID: f.nubank, AmountCents: 100, ExpectedOn: date(2027, time.January, 15)})
 	if _, err := f.s.Confirm(ctx, f.userID, Confirmation{IncomeID: salary.ID, Month: month(2026, time.November)}); err != nil {
@@ -359,5 +351,49 @@ func TestUpdateAndDelete(t *testing.T) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestGroupIsolation shows that a second group sees none of the incomes of the first (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	inc, err := f.s.Create(groupCtx, f.userID, f.salary())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.Confirm(groupCtx, f.userID, Confirmation{IncomeID: inc.ID, Month: month(2026, time.November)}); err != nil {
+		t.Fatal(err)
+	}
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "get", run: func() error { _, err := f.s.Get(other, inc.ID); return err }, wantErr: ErrNotFound},
+		{name: "update", run: func() error { _, err := f.s.Update(other, inc.ID, f.salary()); return err }, wantErr: ErrNotFound},
+		{name: "delete", run: func() error { return f.s.Delete(other, inc.ID) }, wantErr: ErrNotFound},
+		{name: "confirm", run: func() error {
+			_, err := f.s.Confirm(other, carla.ID, Confirmation{IncomeID: inc.ID, Month: month(2026, time.November)})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "holder from another group", run: func() error { _, err := f.s.Create(other, carla.ID, f.salary()); return err }, wantErr: ErrPersonNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.List(context.Background()); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	if list, err := f.s.List(other); err != nil || len(list) != 0 {
+		t.Fatalf("incomes of the other group = %v, %v", list, err)
+	}
+	view, err := f.s.Month(other, month(2026, time.November))
+	if err != nil || len(view.Occurrences) != 0 || len(view.OneOffs) != 0 || view.ReceivedCents != 0 {
+		t.Fatalf("month of the other group = %+v, %v", view, err)
 	}
 }

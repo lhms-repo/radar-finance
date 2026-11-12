@@ -21,6 +21,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // EndingSoonDays is how close the end date must be to warn about it (RF-12).
@@ -152,9 +153,13 @@ func NewService(conn *sql.DB) *Service {
 	return &Service{conn: conn, ledger: ledger.NewService(conn), now: time.Now, today: func() civil.Date { return civil.Today(loc) }}
 }
 
-// List returns every registered income, recurring ones first.
+// List returns every income of the active group, recurring ones first.
 func (s *Service) List(ctx context.Context) ([]Income, error) {
-	rows, err := store.New(s.conn).ListIncomes(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListIncomes(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list incomes: %w", err)
 	}
@@ -190,6 +195,10 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Income, e
 	if err != nil {
 		return Income{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Income{}, err
+	}
 	var id int64
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if err := checkRefs(ctx, q, in); err != nil {
@@ -200,7 +209,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Income, e
 		row, err := q.CreateIncome(ctx, store.CreateIncomeParams{
 			Kind: string(in.Kind), Name: p.Name, PersonID: p.PersonID, AccountID: p.AccountID, AmountCents: p.AmountCents,
 			Day: p.Day, StartMonth: p.StartMonth, EndOn: p.EndOn, ExpectedOn: p.ExpectedOn,
-			CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create income: %w", err)
@@ -216,8 +225,12 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Income, e
 
 // Update replaces the fields of an income; confirmed months keep what was received (RF-12).
 func (s *Service) Update(ctx context.Context, id int64, in Input) (Income, error) {
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		cur, err := q.GetIncome(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Income{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		cur, err := q.GetIncome(ctx, store.GetIncomeParams{ID: id, GroupID: groupID})
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -237,7 +250,7 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Income, error
 			return err
 		}
 		p := toParams(in)
-		p.UpdatedAt, p.ID = s.now().UTC(), id
+		p.UpdatedAt, p.ID, p.GroupID = s.now().UTC(), id, groupID
 		return q.UpdateIncome(ctx, p)
 	})
 	if err != nil {
@@ -248,13 +261,17 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Income, error
 
 // Delete removes an income without confirmed receipts.
 func (s *Service) Delete(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetIncome(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetIncome(ctx, store.GetIncomeParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
 		}
-		if err := q.DeleteIncome(ctx, id); err != nil {
+		if err := q.DeleteIncome(ctx, store.DeleteIncomeParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrInUse
 			}
@@ -270,8 +287,12 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 	if err != nil {
 		return MonthView{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return MonthView{}, err
+	}
 	q := store.New(s.conn)
-	confirmations, err := q.ListIncomeConfirmations(ctx, sql.NullString{String: m.String(), Valid: true})
+	confirmations, err := q.ListIncomeConfirmations(ctx, store.ListIncomeConfirmationsParams{GroupID: groupID, IncomeMonth: sql.NullString{String: m.String(), Valid: true}})
 	if err != nil {
 		return MonthView{}, fmt.Errorf("list confirmations: %w", err)
 	}
@@ -301,7 +322,7 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 		}
 		view.Occurrences = append(view.Occurrences, o)
 	}
-	oneOffs, err := q.ListOneOffIncomes(ctx, store.ListOneOffIncomesParams{FirstDay: m.First().String(), LastDay: m.Last().String()})
+	oneOffs, err := q.ListOneOffIncomes(ctx, store.ListOneOffIncomesParams{GroupID: groupID, FirstDay: m.First().String(), LastDay: m.Last().String()})
 	if err != nil {
 		return MonthView{}, fmt.Errorf("list one off incomes: %w", err)
 	}
@@ -318,9 +339,13 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 
 // Confirm records the receipt of an occurrence as a confirmed entry (RF-10, RN-13).
 func (s *Service) Confirm(ctx context.Context, userID int64, c Confirmation) (ledger.Entry, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ledger.Entry{}, err
+	}
 	var entryID int64
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		row, err := q.GetIncome(ctx, c.IncomeID)
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		row, err := q.GetIncome(ctx, store.GetIncomeParams{ID: c.IncomeID, GroupID: groupID})
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -338,7 +363,7 @@ func (s *Service) Confirm(ctx context.Context, userID int64, c Confirmation) (le
 		if !ok {
 			return ErrNoOccurrence
 		}
-		done, err := q.ListIncomeConfirmations(ctx, sql.NullString{String: c.Month.String(), Valid: true})
+		done, err := q.ListIncomeConfirmations(ctx, store.ListIncomeConfirmationsParams{GroupID: groupID, IncomeMonth: sql.NullString{String: c.Month.String(), Valid: true}})
 		if err != nil {
 			return err
 		}
@@ -368,7 +393,7 @@ func (s *Service) Confirm(ctx context.Context, userID int64, c Confirmation) (le
 			AccountID: accountID, AmountCents: amount, OccurredOn: on.String(), Description: inc.Name,
 			IncomeID:    sql.NullInt64{Int64: inc.ID, Valid: true},
 			IncomeMonth: sql.NullString{String: c.Month.String(), Valid: true},
-			CreatedBy:   userID, CreatedAt: now, UpdatedAt: now,
+			CreatedBy:   userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("confirm income: %w", err)
@@ -383,7 +408,11 @@ func (s *Service) Confirm(ctx context.Context, userID int64, c Confirmation) (le
 
 // checkConfirmedMonths refuses a change that leaves a confirmed month without an occurrence, which would hide the receipt and allow a second one.
 func checkConfirmedMonths(ctx context.Context, q *store.Queries, id int64, in Input) error {
-	months, err := q.ListIncomeConfirmedMonths(ctx, sql.NullInt64{Int64: id, Valid: true})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	months, err := q.ListIncomeConfirmedMonths(ctx, store.ListIncomeConfirmedMonthsParams{GroupID: groupID, IncomeID: sql.NullInt64{Int64: id, Valid: true}})
 	if err != nil {
 		return err
 	}
@@ -454,9 +483,13 @@ func validate(in Input) (Input, error) {
 	return in, nil
 }
 
-// checkRefs ensures the person exists and the account accepts entries.
+// checkRefs ensures the person is a member of the active group and the account accepts entries.
 func checkRefs(ctx context.Context, q *store.Queries, in Input) error {
-	if _, err := q.GetPerson(ctx, in.PersonID); errors.Is(err, sql.ErrNoRows) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := q.GetGroupPerson(ctx, store.GetGroupPersonParams{ID: in.PersonID, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 		return ErrPersonNotFound
 	} else if err != nil {
 		return err
