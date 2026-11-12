@@ -96,7 +96,9 @@ Dentro do Dev Container:
 | `make setup` | Baixa dependências Go e pnpm e os navegadores do Playwright |
 | `make generate` | Gera sqlc, servidor oapi-codegen e tipos do front a partir de `api/openapi.yaml` |
 | `make dev` | API Go na porta 8080 e Vite na 5173, com banco em `tmp/` |
-| `make user-add LOGIN=x NAME="Y"` | Cria usuário no banco de desenvolvimento |
+| `make user-add LOGIN=x NAME="Y" [GROUP="Z"]` | Cria usuário no banco de desenvolvimento, opcionalmente já num grupo |
+| `make group-create NAME="Z" ADMIN=x` | Cria um grupo de desenvolvimento com o primeiro administrador |
+| `make user-pin LOGIN=x` | Define o PIN de um usuário de desenvolvimento, digitado no terminal |
 | `make test` | `go test ./...` e checagem de tipos do front |
 | `make e2e` | Playwright com WebKit de iPhone, WebKit e Chromium de desktop. Os três projetos dividem o mesmo banco, então os testes usam nomes com o projeto. As notas fiscais vêm das páginas fictícias de `internal/nfce/testdata` pela variável `RADAR_NFCE_FIXTURES`, nunca da Sefaz |
 | `make lint` | golangci-lint e ESLint |
@@ -109,7 +111,9 @@ No terminal do WSL2, fora do Dev Container:
 | Comando | O que faz |
 | --- | --- |
 | `make deploy` | Constrói e sobe a produção (RNF-19) |
-| `make deploy-user-add LOGIN=x NAME="Y"` | Cria usuário na produção |
+| `make deploy-user-add LOGIN=x NAME="Y" [GROUP="Z"]` | Cria usuário na produção, opcionalmente já num grupo |
+| `make deploy-group-create NAME="Z" ADMIN=x` | Cria um grupo na produção com o primeiro administrador |
+| `make deploy-user-pin LOGIN=x` | Define o PIN de um usuário na produção, digitado no terminal |
 | `make deploy-backup` | Backup manual na produção |
 | `make deploy-logs` | Logs da produção |
 | `deploy/restore.sh <arquivo>` | Restaura um backup, veja `docs/backup.md` |
