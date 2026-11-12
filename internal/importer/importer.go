@@ -360,7 +360,7 @@ type matched struct {
 	recurrences  map[int64]bool
 }
 
-// duplicate looks for a card line with the same amount bought within a day, or a recurrence with the same amount on the invoice (RN-20).
+// duplicate looks for a one-shot card purchase with the same amount bought within a day, or a recurrence with the same amount on the invoice (RN-20).
 // An installment line is matched only by number, count and amount on the invoice, since the CSV dates later installments
 // at the start of the cycle instead of the purchase day (RF-57). What matched one line is not used again.
 func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64, invoice civil.Month, l Line, recurring []card.Recurrence, used matched) (*Duplicate, error) {
