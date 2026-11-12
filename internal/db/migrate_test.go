@@ -38,6 +38,10 @@ func seedCouple(t *testing.T, conn *sql.DB) {
 		`INSERT INTO shopping_lists (id, name, status, created_by, created_at, paid_with) VALUES (1, 'Semana', 'open', 1, '` + now + `', '')`,
 		`INSERT INTO list_items (list_id, product_id, quantity_milli, picked, created_at) VALUES (1, 1, 2000, 0, '` + now + `')`,
 		`INSERT INTO savings_boxes (id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at) VALUES (1, 'Reserva', 1000000, 1000, 0, 1, '` + now + `', '` + now + `')`,
+		`INSERT INTO entries (id, account_id, kind, amount_cents, occurred_on, confirmed, description, created_by, created_at, updated_at) VALUES (3, 1, 'invoice_payment', -30000, '2026-12-10', 1, 'Nubank, fatura 12/2026', 1, '` + now + `', '` + now + `')`,
+		`INSERT INTO invoice_payments (card_id, invoice_month, entry_id, amount_cents, created_by, created_at) VALUES (1, '2026-12', 3, 30000, 1, '` + now + `')`,
+		`INSERT INTO imports (id, card_id, invoice_month, file_name, line_count, created_by, created_at) VALUES (1, 1, '2026-12', 'fatura.csv', 3, 1, '` + now + `')`,
+		`INSERT INTO notification_reads (user_id, key, read_at) VALUES (1, 'budget_over:2:2026-11', '` + now + `')`,
 	}
 	for _, s := range stmts {
 		if _, err := conn.Exec(s); err != nil {
@@ -77,7 +81,7 @@ func TestMigrateCoupleToGroup(t *testing.T) {
 	seedCouple(t, conn)
 
 	// Rows and money of every touched table, before the migration.
-	tables := []string{"entries", "purchases", "installments", "parties", "splits", "budgets", "markets", "products", "receipts", "prices", "receipt_links", "shopping_lists", "list_items", "savings_boxes", "market_settings"}
+	tables := []string{"entries", "purchases", "installments", "parties", "splits", "budgets", "markets", "products", "receipts", "prices", "receipt_links", "shopping_lists", "list_items", "savings_boxes", "market_settings", "invoice_payments", "imports", "notification_reads"}
 	before := map[string]int64{}
 	for _, table := range tables {
 		before[table] = scalar(t, conn, `SELECT count(*) FROM `+table)
@@ -114,10 +118,14 @@ func TestMigrateCoupleToGroup(t *testing.T) {
 	if n := scalar(t, conn, `SELECT count(*) FROM group_members WHERE group_id = 1 AND role = 'admin' AND weight_bp = 5000`); n != 2 {
 		t.Fatalf("members with half the weight each = %d, want 2", n)
 	}
-	for _, table := range []string{"entries", "purchases", "recurrences", "bills", "financings", "incomes", "alelo_purchases", "savings_boxes", "shopping_lists", "products", "parties", "budgets", "markets"} {
+	for _, table := range []string{"entries", "purchases", "recurrences", "bills", "financings", "incomes", "alelo_purchases", "savings_boxes", "shopping_lists", "products", "parties", "budgets", "markets", "invoice_payments", "imports"} {
 		if n := scalar(t, conn, `SELECT count(*) FROM `+table+` WHERE group_id IS NOT 1`); n != 0 {
 			t.Errorf("%s has %d rows outside the first group", table, n)
 		}
+	}
+	// Warnings read before are read in the first group, where they come from now.
+	if n := scalar(t, conn, `SELECT count(*) FROM notification_reads WHERE key = 'g1:budget_over:2:2026-11'`); n != 1 {
+		t.Fatalf("notification read not moved to the first group")
 	}
 	if n := scalar(t, conn, `SELECT count(*) FROM market_settings WHERE group_id = 1 AND max_markets = 3 AND min_savings_cents = 500 AND stale_days = 20`); n != 1 {
 		t.Fatalf("market settings not carried to the first group")

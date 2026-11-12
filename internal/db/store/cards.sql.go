@@ -90,11 +90,12 @@ func (q *Queries) CreateInstallment(ctx context.Context, arg CreateInstallmentPa
 }
 
 const createInvoicePayment = `-- name: CreateInvoicePayment :exec
-INSERT INTO invoice_payments (card_id, invoice_month, entry_id, amount_cents, created_by, created_at)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO invoice_payments (group_id, card_id, invoice_month, entry_id, amount_cents, created_by, created_at)
+VALUES (CAST(?1 AS INTEGER), ?2, ?3, ?4, ?5, ?6, ?7)
 `
 
 type CreateInvoicePaymentParams struct {
+	GroupID      int64
 	CardID       int64
 	InvoiceMonth string
 	EntryID      int64
@@ -105,6 +106,7 @@ type CreateInvoicePaymentParams struct {
 
 func (q *Queries) CreateInvoicePayment(ctx context.Context, arg CreateInvoicePaymentParams) error {
 	_, err := q.db.ExecContext(ctx, createInvoicePayment,
+		arg.GroupID,
 		arg.CardID,
 		arg.InvoiceMonth,
 		arg.EntryID,
@@ -408,7 +410,7 @@ SELECT ip.id, ip.invoice_month, ip.entry_id, ip.amount_cents, e.occurred_on, e.a
 FROM invoice_payments ip
 JOIN entries e ON e.id = ip.entry_id
 JOIN accounts a ON a.id = e.account_id
-WHERE e.group_id = CAST(?1 AS INTEGER) AND ip.card_id = ?2
+WHERE ip.group_id = CAST(?1 AS INTEGER) AND e.group_id = CAST(?1 AS INTEGER) AND ip.card_id = ?2
 ORDER BY ip.invoice_month
 `
 

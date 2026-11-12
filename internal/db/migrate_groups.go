@@ -92,6 +92,23 @@ SELECT id, market_id, access_key, issued_on, total_cents, item_count, created_by
 SELECT id, (SELECT id FROM groups WHERE id = 1), max_markets, min_savings_cents, stale_days FROM market_settings`,
 	`DROP TABLE market_settings`,
 	`ALTER TABLE market_settings_new RENAME TO market_settings`,
+
+	// A card shared by a person in two groups has one invoice per group, each paid in its group (RF-21, RF-82).
+	`CREATE TABLE invoice_payments_new (
+    id            INTEGER  PRIMARY KEY,
+    group_id      INTEGER  REFERENCES groups (id),
+    card_id       INTEGER  NOT NULL REFERENCES cards (id),
+    invoice_month TEXT     NOT NULL,
+    entry_id      INTEGER  NOT NULL UNIQUE REFERENCES entries (id) ON DELETE CASCADE,
+    amount_cents  INTEGER  NOT NULL CHECK (amount_cents > 0),
+    created_by    INTEGER  NOT NULL REFERENCES users (id),
+    created_at    DATETIME NOT NULL,
+    UNIQUE (group_id, card_id, invoice_month)
+)`,
+	`INSERT INTO invoice_payments_new (id, group_id, card_id, invoice_month, entry_id, amount_cents, created_by, created_at)
+SELECT id, (SELECT id FROM groups WHERE id = 1), card_id, invoice_month, entry_id, amount_cents, created_by, created_at FROM invoice_payments`,
+	`DROP TABLE invoice_payments`,
+	`ALTER TABLE invoice_payments_new RENAME TO invoice_payments`,
 }
 
 // groupMigrations returns the Go migrations of the groups change, registered beside the SQL files.

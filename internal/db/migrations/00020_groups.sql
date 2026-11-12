@@ -43,6 +43,7 @@ ALTER TABLE alelo_purchases ADD COLUMN group_id INTEGER REFERENCES groups (id);
 ALTER TABLE savings_boxes ADD COLUMN group_id INTEGER REFERENCES groups (id);
 ALTER TABLE shopping_lists ADD COLUMN group_id INTEGER REFERENCES groups (id);
 ALTER TABLE products ADD COLUMN group_id INTEGER REFERENCES groups (id);
+ALTER TABLE imports ADD COLUMN group_id INTEGER REFERENCES groups (id);
 
 INSERT INTO groups (id, name, created_at)
 SELECT 1, 'Casa', CURRENT_TIMESTAMP
@@ -66,6 +67,10 @@ UPDATE alelo_purchases SET group_id = 1 WHERE EXISTS (SELECT 1 FROM groups WHERE
 UPDATE savings_boxes SET group_id = 1 WHERE EXISTS (SELECT 1 FROM groups WHERE id = 1);
 UPDATE shopping_lists SET group_id = 1 WHERE EXISTS (SELECT 1 FROM groups WHERE id = 1);
 UPDATE products SET group_id = 1 WHERE EXISTS (SELECT 1 FROM groups WHERE id = 1);
+UPDATE imports SET group_id = 1 WHERE EXISTS (SELECT 1 FROM groups WHERE id = 1);
+
+-- Warnings are read per group: the same card or category may warn in two groups (RF-64).
+UPDATE notification_reads SET key = 'g1:' || key WHERE EXISTS (SELECT 1 FROM groups WHERE id = 1);
 
 CREATE INDEX entries_group_idx ON entries (group_id);
 CREATE INDEX purchases_group_idx ON purchases (group_id);
@@ -76,6 +81,7 @@ CREATE INDEX incomes_group_idx ON incomes (group_id);
 CREATE INDEX alelo_purchases_group_idx ON alelo_purchases (group_id);
 CREATE INDEX savings_boxes_group_idx ON savings_boxes (group_id);
 CREATE INDEX shopping_lists_group_idx ON shopping_lists (group_id);
+CREATE INDEX imports_group_idx ON imports (group_id);
 
 -- A product is the same brand and size inside one group; another group keeps its own catalog (RF-85).
 DROP INDEX products_identity;

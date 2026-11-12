@@ -415,6 +415,13 @@ func TestGroupIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Ana herself in a second group of hers: the import belongs to the group it was made in.
+	ana, err := accounts.Get(context.Background(), f.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	anaBeach := auth.WithUserID(testutil.NewGroup(t, f.conn, "Praia", ana), ana.ID)
+
 	for _, ctx := range []struct {
 		name string
 		ctx  context.Context
@@ -436,6 +443,13 @@ func TestGroupIsolation(t *testing.T) {
 				t.Fatalf("undo: err = %v", err)
 			}
 		})
+	}
+	// Her alias rules are hers in any group, but the import stays in the group it was made in.
+	if got, err := f.s.Imports(anaBeach); err != nil || len(got) != 0 {
+		t.Fatalf("imports of Ana in her other group = %v, %v", got, err)
+	}
+	if err := f.s.Undo(anaBeach, res.ImportID); !errors.Is(err, ErrImportNotFound) {
+		t.Fatalf("undo from her other group: err = %v", err)
 	}
 	if _, err := f.s.Preview(other, f.cardID, dec, invoiceCSV); !errors.Is(err, card.ErrCardNotFound) {
 		t.Fatalf("preview on the card of another group: err = %v", err)

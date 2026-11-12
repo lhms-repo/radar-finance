@@ -130,12 +130,12 @@ SELECT ip.id, ip.invoice_month, ip.entry_id, ip.amount_cents, e.occurred_on, e.a
 FROM invoice_payments ip
 JOIN entries e ON e.id = ip.entry_id
 JOIN accounts a ON a.id = e.account_id
-WHERE e.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND ip.card_id = sqlc.arg(card_id)
+WHERE ip.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND e.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND ip.card_id = sqlc.arg(card_id)
 ORDER BY ip.invoice_month;
 
 -- name: CreateInvoicePayment :exec
-INSERT INTO invoice_payments (card_id, invoice_month, entry_id, amount_cents, created_by, created_at)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO invoice_payments (group_id, card_id, invoice_month, entry_id, amount_cents, created_by, created_at)
+VALUES (CAST(sqlc.arg(group_id) AS INTEGER), sqlc.arg(card_id), sqlc.arg(invoice_month), sqlc.arg(entry_id), sqlc.arg(amount_cents), sqlc.arg(created_by), sqlc.arg(created_at));
 
 -- name: FirstInstallmentNumber :one
 SELECT CAST(coalesce(min(number), 1) AS INTEGER) AS number

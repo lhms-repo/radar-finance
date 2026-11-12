@@ -278,7 +278,7 @@ func (s *Service) Commit(ctx context.Context, userID, cardID int64, invoice civi
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		now := s.now().UTC()
 		imp, err := q.CreateImport(ctx, store.CreateImportParams{
-			CardID: cardID, InvoiceMonth: invoice.String(), FileName: truncate(strings.TrimSpace(fileName), 200), LineCount: int64(len(lines)), CreatedBy: userID, CreatedAt: now,
+			GroupID: groupID, CardID: cardID, InvoiceMonth: invoice.String(), FileName: truncate(strings.TrimSpace(fileName), 200), LineCount: int64(len(lines)), CreatedBy: userID, CreatedAt: now,
 		})
 		if err != nil {
 			if db.IsForeignKeyViolation(err) {

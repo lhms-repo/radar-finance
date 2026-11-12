@@ -181,12 +181,13 @@ func (q *Queries) CreateAliasRule(ctx context.Context, arg CreateAliasRuleParams
 }
 
 const createImport = `-- name: CreateImport :one
-INSERT INTO imports (card_id, invoice_month, file_name, line_count, created_by, created_at)
-VALUES (?, ?, ?, ?, ?, ?)
-RETURNING id, card_id, invoice_month, file_name, line_count, created_by, created_at
+INSERT INTO imports (group_id, card_id, invoice_month, file_name, line_count, created_by, created_at)
+VALUES (CAST(?1 AS INTEGER), ?2, ?3, ?4, ?5, ?6, ?7)
+RETURNING id, card_id, invoice_month, file_name, line_count, created_by, created_at, group_id
 `
 
 type CreateImportParams struct {
+	GroupID      int64
 	CardID       int64
 	InvoiceMonth string
 	FileName     string
@@ -197,6 +198,7 @@ type CreateImportParams struct {
 
 func (q *Queries) CreateImport(ctx context.Context, arg CreateImportParams) (Import, error) {
 	row := q.db.QueryRowContext(ctx, createImport,
+		arg.GroupID,
 		arg.CardID,
 		arg.InvoiceMonth,
 		arg.FileName,
@@ -213,6 +215,7 @@ func (q *Queries) CreateImport(ctx context.Context, arg CreateImportParams) (Imp
 		&i.LineCount,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -234,16 +237,17 @@ func (q *Queries) DeleteAliasRule(ctx context.Context, arg DeleteAliasRuleParams
 
 const deleteImport = `-- name: DeleteImport :exec
 DELETE FROM imports
-WHERE id = ?1 AND created_by = ?2
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER) AND created_by = ?3
 `
 
 type DeleteImportParams struct {
 	ID        int64
+	GroupID   int64
 	CreatedBy int64
 }
 
 func (q *Queries) DeleteImport(ctx context.Context, arg DeleteImportParams) error {
-	_, err := q.db.ExecContext(ctx, deleteImport, arg.ID, arg.CreatedBy)
+	_, err := q.db.ExecContext(ctx, deleteImport, arg.ID, arg.GroupID, arg.CreatedBy)
 	return err
 }
 
@@ -273,20 +277,20 @@ func (q *Queries) GetAliasRule(ctx context.Context, arg GetAliasRuleParams) (Ali
 }
 
 const getImport = `-- name: GetImport :one
-SELECT i.id, i.card_id, i.invoice_month, i.file_name, i.line_count, i.created_by, i.created_at
+SELECT i.id, i.card_id, i.invoice_month, i.file_name, i.line_count, i.created_by, i.created_at, i.group_id
 FROM imports i
 JOIN cards c ON c.id = i.card_id
-WHERE i.id = ?1 AND i.created_by = ?2 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?3 AS INTEGER) AND gm.person_id = c.person_id)
+WHERE i.id = ?1 AND i.group_id = CAST(?2 AS INTEGER) AND i.created_by = ?3
 `
 
 type GetImportParams struct {
 	ID        int64
-	CreatedBy int64
 	GroupID   int64
+	CreatedBy int64
 }
 
 func (q *Queries) GetImport(ctx context.Context, arg GetImportParams) (Import, error) {
-	row := q.db.QueryRowContext(ctx, getImport, arg.ID, arg.CreatedBy, arg.GroupID)
+	row := q.db.QueryRowContext(ctx, getImport, arg.ID, arg.GroupID, arg.CreatedBy)
 	var i Import
 	err := row.Scan(
 		&i.ID,
@@ -296,6 +300,7 @@ func (q *Queries) GetImport(ctx context.Context, arg GetImportParams) (Import, e
 		&i.LineCount,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -384,13 +389,13 @@ func (q *Queries) ListImportPurchases(ctx context.Context, arg ListImportPurchas
 }
 
 const listImports = `-- name: ListImports :many
-SELECT i.id, i.card_id, i.invoice_month, i.file_name, i.line_count, i.created_by, i.created_at, c.name AS card_name, p.name AS created_by_name,
+SELECT i.id, i.card_id, i.invoice_month, i.file_name, i.line_count, i.created_by, i.created_at, i.group_id, c.name AS card_name, p.name AS created_by_name,
        CAST((SELECT count(*) FROM purchases pu WHERE pu.import_id = i.id AND pu.group_id = CAST(?1 AS INTEGER)) AS INTEGER) AS purchase_count
 FROM imports i
 JOIN cards c ON c.id = i.card_id
 JOIN users u ON u.id = i.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE i.created_by = ?2 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = c.person_id)
+WHERE i.group_id = CAST(?1 AS INTEGER) AND i.created_by = ?2
 ORDER BY i.id DESC
 `
 
@@ -407,6 +412,7 @@ type ListImportsRow struct {
 	LineCount     int64
 	CreatedBy     int64
 	CreatedAt     time.Time
+	GroupID       sql.NullInt64
 	CardName      string
 	CreatedByName string
 	PurchaseCount int64
@@ -429,6 +435,7 @@ func (q *Queries) ListImports(ctx context.Context, arg ListImportsParams) ([]Lis
 			&i.LineCount,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.GroupID,
 			&i.CardName,
 			&i.CreatedByName,
 			&i.PurchaseCount,

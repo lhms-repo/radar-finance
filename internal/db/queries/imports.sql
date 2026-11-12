@@ -25,8 +25,8 @@ DELETE FROM alias_rules
 WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
 
 -- name: CreateImport :one
-INSERT INTO imports (card_id, invoice_month, file_name, line_count, created_by, created_at)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO imports (group_id, card_id, invoice_month, file_name, line_count, created_by, created_at)
+VALUES (CAST(sqlc.arg(group_id) AS INTEGER), sqlc.arg(card_id), sqlc.arg(invoice_month), sqlc.arg(file_name), sqlc.arg(line_count), sqlc.arg(created_by), sqlc.arg(created_at))
 RETURNING *;
 
 -- name: ListImports :many
@@ -36,14 +36,14 @@ FROM imports i
 JOIN cards c ON c.id = i.card_id
 JOIN users u ON u.id = i.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE i.created_by = sqlc.arg(created_by) AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND gm.person_id = c.person_id)
+WHERE i.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND i.created_by = sqlc.arg(created_by)
 ORDER BY i.id DESC;
 
 -- name: GetImport :one
 SELECT i.*
 FROM imports i
 JOIN cards c ON c.id = i.card_id
-WHERE i.id = sqlc.arg(id) AND i.created_by = sqlc.arg(created_by) AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND gm.person_id = c.person_id);
+WHERE i.id = sqlc.arg(id) AND i.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND i.created_by = sqlc.arg(created_by);
 
 -- name: ListImportPurchases :many
 SELECT id
@@ -52,7 +52,7 @@ WHERE group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND import_id = sqlc.arg(im
 
 -- name: DeleteImport :exec
 DELETE FROM imports
-WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND created_by = sqlc.arg(created_by);
 
 -- name: SetPurchaseImport :exec
 UPDATE purchases
