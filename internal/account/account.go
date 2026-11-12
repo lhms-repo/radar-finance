@@ -11,6 +11,7 @@ import (
 
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // ErrNotFound is returned when the user does not exist.
@@ -141,9 +142,13 @@ type Person struct {
 	Name string
 }
 
-// ListPersons returns the people of the couple in creation order.
+// ListPersons returns the members of the active group in creation order (RF-78).
 func (s *Service) ListPersons(ctx context.Context) ([]Person, error) {
-	rows, err := store.New(s.conn).ListPersons(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListPersons(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list persons: %w", err)
 	}
