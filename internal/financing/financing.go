@@ -17,6 +17,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Limits of the financing fields.
@@ -171,8 +172,12 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Financing
 	if err := validate(in); err != nil {
 		return Financing{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Financing{}, err
+	}
 	var id int64
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if err := checkRefs(ctx, q, in.CategoryID, in.AccountID); err != nil {
 			return err
 		}
@@ -180,7 +185,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Financing
 		f, err := q.CreateFinancing(ctx, store.CreateFinancingParams{
 			Name: in.Name, CategoryID: in.CategoryID, AccountID: in.AccountID, DueDay: int64(in.DueDay),
 			InstallmentCents: in.InstallmentCents, TotalInstallments: int64(in.TotalInstallments), InitialPaid: int64(in.PaidInstallments),
-			InitialBalanceCents: in.BalanceCents, StartMonth: in.NextMonth.String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			InitialBalanceCents: in.BalanceCents, StartMonth: in.NextMonth.String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create financing: %w", err)
@@ -203,7 +208,11 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Financing, e
 	if c.DueDay < 1 || c.DueDay > 31 {
 		return Financing{}, ErrInvalidDay
 	}
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Financing{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := s.get(ctx, q, id); err != nil {
 			return err
 		}
@@ -211,7 +220,7 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Financing, e
 			return err
 		}
 		return q.UpdateFinancing(ctx, store.UpdateFinancingParams{
-			Name: c.Name, CategoryID: c.CategoryID, AccountID: c.AccountID, DueDay: int64(c.DueDay), UpdatedAt: s.now().UTC(), ID: id,
+			Name: c.Name, CategoryID: c.CategoryID, AccountID: c.AccountID, DueDay: int64(c.DueDay), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		})
 	})
 	if err != nil {
@@ -222,6 +231,10 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Financing, e
 
 // Delete removes a financing without payments.
 func (s *Service) Delete(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		f, err := s.get(ctx, q, id)
 		if err != nil {
@@ -230,7 +243,7 @@ func (s *Service) Delete(ctx context.Context, id int64) error {
 		if len(f.paid) > 0 {
 			return ErrInUse
 		}
-		return q.DeleteFinancing(ctx, id)
+		return q.DeleteFinancing(ctx, store.DeleteFinancingParams{ID: id, GroupID: groupID})
 	})
 }
 
@@ -263,8 +276,12 @@ func (s *Service) Month(ctx context.Context, m civil.Month) ([]Occurrence, error
 
 // Pay records the installment as spending of the financing category and sets the balance after it (RF-41, RN-16).
 func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (ledger.Entry, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ledger.Entry{}, err
+	}
 	var entryID int64
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		f, err := s.get(ctx, q, p.FinancingID)
 		if err != nil {
 			return err
@@ -303,7 +320,7 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (ledger.Entr
 		e, err := q.CreateEntry(ctx, store.CreateEntryParams{
 			AccountID: accountID, Kind: string(ledger.KindExpense), AmountCents: -amount, OccurredOn: on.String(), Confirmed: true,
 			CategoryID: sql.NullInt64{Int64: f.CategoryID, Valid: true}, Description: fmt.Sprintf("%s, parcela %d de %d", f.Name, number, f.TotalInstallments),
-			CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create installment entry: %w", err)
@@ -329,12 +346,16 @@ func (s *Service) Correct(ctx context.Context, userID int64, c Correction) (Fina
 	if err := ledger.CheckPositive(c.InstallmentCents); err != nil {
 		return Financing{}, err
 	}
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Financing{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := s.get(ctx, q, c.FinancingID); err != nil {
 			return err
 		}
 		now := s.now().UTC()
-		if err := q.SetFinancingInstallment(ctx, store.SetFinancingInstallmentParams{InstallmentCents: c.InstallmentCents, UpdatedAt: now, ID: c.FinancingID}); err != nil {
+		if err := q.SetFinancingInstallment(ctx, store.SetFinancingInstallmentParams{InstallmentCents: c.InstallmentCents, UpdatedAt: now, ID: c.FinancingID, GroupID: groupID}); err != nil {
 			return err
 		}
 		return q.CreateFinancingEvent(ctx, store.CreateFinancingEventParams{
@@ -373,11 +394,15 @@ func (s *Service) get(ctx context.Context, q *store.Queries, id int64) (Financin
 
 // list reads every financing and replays its events to get the paid count and the balance.
 func (s *Service) list(ctx context.Context, q *store.Queries) ([]Financing, error) {
-	rows, err := q.ListFinancings(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.ListFinancings(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list financings: %w", err)
 	}
-	events, err := q.ListFinancingEvents(ctx)
+	events, err := q.ListFinancingEvents(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list financing events: %w", err)
 	}
