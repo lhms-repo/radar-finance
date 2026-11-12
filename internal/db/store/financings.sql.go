@@ -13,8 +13,8 @@ import (
 
 const createFinancing = `-- name: CreateFinancing :one
 INSERT INTO financings (name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid,
-                        initial_balance_cents, start_month, created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        initial_balance_cents, start_month, created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(?13 AS INTEGER))
 RETURNING id, name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid, initial_balance_cents, start_month, created_by, created_at, updated_at, group_id
 `
 
@@ -31,6 +31,7 @@ type CreateFinancingParams struct {
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	GroupID             int64
 }
 
 func (q *Queries) CreateFinancing(ctx context.Context, arg CreateFinancingParams) (Financing, error) {
@@ -47,6 +48,7 @@ func (q *Queries) CreateFinancing(ctx context.Context, arg CreateFinancingParams
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var i Financing
 	err := row.Scan(
@@ -100,22 +102,32 @@ func (q *Queries) CreateFinancingEvent(ctx context.Context, arg CreateFinancingE
 
 const deleteFinancing = `-- name: DeleteFinancing :exec
 DELETE FROM financings
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteFinancing(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteFinancing, id)
+type DeleteFinancingParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteFinancing(ctx context.Context, arg DeleteFinancingParams) error {
+	_, err := q.db.ExecContext(ctx, deleteFinancing, arg.ID, arg.GroupID)
 	return err
 }
 
 const getFinancing = `-- name: GetFinancing :one
 SELECT id, name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid, initial_balance_cents, start_month, created_by, created_at, updated_at, group_id
 FROM financings
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetFinancing(ctx context.Context, id int64) (Financing, error) {
-	row := q.db.QueryRowContext(ctx, getFinancing, id)
+type GetFinancingParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetFinancing(ctx context.Context, arg GetFinancingParams) (Financing, error) {
+	row := q.db.QueryRowContext(ctx, getFinancing, arg.ID, arg.GroupID)
 	var i Financing
 	err := row.Scan(
 		&i.ID,
@@ -140,8 +152,10 @@ const listFinancingEvents = `-- name: ListFinancingEvents :many
 SELECT ev.id, ev.financing_id, ev.kind, ev.month, ev.number, ev.entry_id, ev.balance_after_cents, ev.created_by, ev.created_at, coalesce(e.amount_cents, 0) AS entry_amount_cents, coalesce(e.occurred_on, '') AS paid_on,
        coalesce(a.name, '') AS paid_from
 FROM financing_events ev
+JOIN financings f ON f.id = ev.financing_id
 LEFT JOIN entries e ON e.id = ev.entry_id
 LEFT JOIN accounts a ON a.id = e.account_id
+WHERE f.group_id = CAST(?1 AS INTEGER)
 ORDER BY ev.financing_id, ev.id
 `
 
@@ -160,8 +174,8 @@ type ListFinancingEventsRow struct {
 	PaidFrom          string
 }
 
-func (q *Queries) ListFinancingEvents(ctx context.Context) ([]ListFinancingEventsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listFinancingEvents)
+func (q *Queries) ListFinancingEvents(ctx context.Context, groupID int64) ([]ListFinancingEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listFinancingEvents, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +216,7 @@ FROM financings f
 JOIN accounts a ON a.id = f.account_id
 JOIN categories c ON c.id = f.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
+WHERE f.group_id = CAST(?1 AS INTEGER)
 ORDER BY f.due_day, f.name COLLATE NOCASE, f.id
 `
 
@@ -225,8 +240,8 @@ type ListFinancingsRow struct {
 	CategoryIcon        string
 }
 
-func (q *Queries) ListFinancings(ctx context.Context) ([]ListFinancingsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listFinancings)
+func (q *Queries) ListFinancings(ctx context.Context, groupID int64) ([]ListFinancingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listFinancings, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -269,24 +284,30 @@ func (q *Queries) ListFinancings(ctx context.Context) ([]ListFinancingsRow, erro
 const setFinancingInstallment = `-- name: SetFinancingInstallment :exec
 UPDATE financings
 SET installment_cents = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?3 AND group_id = CAST(?4 AS INTEGER)
 `
 
 type SetFinancingInstallmentParams struct {
 	InstallmentCents int64
 	UpdatedAt        time.Time
 	ID               int64
+	GroupID          int64
 }
 
 func (q *Queries) SetFinancingInstallment(ctx context.Context, arg SetFinancingInstallmentParams) error {
-	_, err := q.db.ExecContext(ctx, setFinancingInstallment, arg.InstallmentCents, arg.UpdatedAt, arg.ID)
+	_, err := q.db.ExecContext(ctx, setFinancingInstallment,
+		arg.InstallmentCents,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.GroupID,
+	)
 	return err
 }
 
 const updateFinancing = `-- name: UpdateFinancing :exec
 UPDATE financings
 SET name = ?, category_id = ?, account_id = ?, due_day = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?6 AND group_id = CAST(?7 AS INTEGER)
 `
 
 type UpdateFinancingParams struct {
@@ -296,6 +317,7 @@ type UpdateFinancingParams struct {
 	DueDay     int64
 	UpdatedAt  time.Time
 	ID         int64
+	GroupID    int64
 }
 
 func (q *Queries) UpdateFinancing(ctx context.Context, arg UpdateFinancingParams) error {
@@ -306,6 +328,7 @@ func (q *Queries) UpdateFinancing(ctx context.Context, arg UpdateFinancingParams
 		arg.DueDay,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }

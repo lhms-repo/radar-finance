@@ -13,8 +13,8 @@ import (
 
 const createBill = `-- name: CreateBill :one
 INSERT INTO bills (name, category_id, account_id, due_day, expected_cents, start_month, end_month,
-                   created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(?11 AS INTEGER))
 RETURNING id, name, category_id, account_id, due_day, expected_cents, start_month, end_month, created_by, created_at, updated_at, group_id
 `
 
@@ -29,6 +29,7 @@ type CreateBillParams struct {
 	CreatedBy     int64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	GroupID       int64
 }
 
 func (q *Queries) CreateBill(ctx context.Context, arg CreateBillParams) (Bill, error) {
@@ -43,6 +44,7 @@ func (q *Queries) CreateBill(ctx context.Context, arg CreateBillParams) (Bill, e
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var i Bill
 	err := row.Scan(
@@ -64,8 +66,8 @@ func (q *Queries) CreateBill(ctx context.Context, arg CreateBillParams) (Bill, e
 
 const createBillEntry = `-- name: CreateBillEntry :one
 INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, bill_id, bill_month,
-                     created_by, created_at, updated_at)
-VALUES (?, 'expense', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                     created_by, created_at, updated_at, group_id)
+VALUES (?, 'expense', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, CAST(?11 AS INTEGER))
 RETURNING id
 `
 
@@ -80,6 +82,7 @@ type CreateBillEntryParams struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     int64
 }
 
 func (q *Queries) CreateBillEntry(ctx context.Context, arg CreateBillEntryParams) (int64, error) {
@@ -94,6 +97,7 @@ func (q *Queries) CreateBillEntry(ctx context.Context, arg CreateBillEntryParams
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -102,11 +106,16 @@ func (q *Queries) CreateBillEntry(ctx context.Context, arg CreateBillEntryParams
 
 const deleteBill = `-- name: DeleteBill :exec
 DELETE FROM bills
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteBill(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteBill, id)
+type DeleteBillParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteBill(ctx context.Context, arg DeleteBillParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBill, arg.ID, arg.GroupID)
 	return err
 }
 
@@ -128,11 +137,16 @@ func (q *Queries) DeleteBillAmount(ctx context.Context, arg DeleteBillAmountPara
 const getBill = `-- name: GetBill :one
 SELECT id, name, category_id, account_id, due_day, expected_cents, start_month, end_month, created_by, created_at, updated_at, group_id
 FROM bills
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetBill(ctx context.Context, id int64) (Bill, error) {
-	row := q.db.QueryRowContext(ctx, getBill, id)
+type GetBillParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetBill(ctx context.Context, arg GetBillParams) (Bill, error) {
+	row := q.db.QueryRowContext(ctx, getBill, arg.ID, arg.GroupID)
 	var i Bill
 	err := row.Scan(
 		&i.ID,
@@ -152,18 +166,24 @@ func (q *Queries) GetBill(ctx context.Context, id int64) (Bill, error) {
 }
 
 const listBillAmounts = `-- name: ListBillAmounts :many
-SELECT bill_id, actual_cents
-FROM bill_amounts
-WHERE month = ?
+SELECT ba.bill_id, ba.actual_cents
+FROM bill_amounts ba
+JOIN bills b ON b.id = ba.bill_id
+WHERE b.group_id = CAST(?1 AS INTEGER) AND ba.month = ?2
 `
+
+type ListBillAmountsParams struct {
+	GroupID int64
+	Month   string
+}
 
 type ListBillAmountsRow struct {
 	BillID      int64
 	ActualCents int64
 }
 
-func (q *Queries) ListBillAmounts(ctx context.Context, month string) ([]ListBillAmountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listBillAmounts, month)
+func (q *Queries) ListBillAmounts(ctx context.Context, arg ListBillAmountsParams) ([]ListBillAmountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBillAmounts, arg.GroupID, arg.Month)
 	if err != nil {
 		return nil, err
 	}
@@ -188,11 +208,16 @@ func (q *Queries) ListBillAmounts(ctx context.Context, month string) ([]ListBill
 const listBillPaidMonths = `-- name: ListBillPaidMonths :many
 SELECT coalesce(bill_month, '') AS month
 FROM entries
-WHERE bill_id = ?
+WHERE group_id = CAST(?1 AS INTEGER) AND bill_id = ?2
 `
 
-func (q *Queries) ListBillPaidMonths(ctx context.Context, billID sql.NullInt64) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listBillPaidMonths, billID)
+type ListBillPaidMonthsParams struct {
+	GroupID int64
+	BillID  sql.NullInt64
+}
+
+func (q *Queries) ListBillPaidMonths(ctx context.Context, arg ListBillPaidMonthsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listBillPaidMonths, arg.GroupID, arg.BillID)
 	if err != nil {
 		return nil, err
 	}
@@ -218,8 +243,13 @@ const listBillPayments = `-- name: ListBillPayments :many
 SELECT e.id, e.bill_id, e.amount_cents, e.occurred_on, e.account_id, a.name AS account_name
 FROM entries e
 JOIN accounts a ON a.id = e.account_id
-WHERE e.bill_id IS NOT NULL AND e.bill_month = ?
+WHERE e.group_id = CAST(?1 AS INTEGER) AND e.bill_id IS NOT NULL AND e.bill_month = ?2
 `
+
+type ListBillPaymentsParams struct {
+	GroupID   int64
+	BillMonth sql.NullString
+}
 
 type ListBillPaymentsRow struct {
 	ID          int64
@@ -230,8 +260,8 @@ type ListBillPaymentsRow struct {
 	AccountName string
 }
 
-func (q *Queries) ListBillPayments(ctx context.Context, billMonth sql.NullString) ([]ListBillPaymentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listBillPayments, billMonth)
+func (q *Queries) ListBillPayments(ctx context.Context, arg ListBillPaymentsParams) ([]ListBillPaymentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBillPayments, arg.GroupID, arg.BillMonth)
 	if err != nil {
 		return nil, err
 	}
@@ -267,6 +297,7 @@ FROM bills b
 JOIN accounts a ON a.id = b.account_id
 JOIN categories c ON c.id = b.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
+WHERE b.group_id = CAST(?1 AS INTEGER)
 ORDER BY b.due_day, b.name COLLATE NOCASE, b.id
 `
 
@@ -289,8 +320,8 @@ type ListBillsRow struct {
 	CategoryIcon       string
 }
 
-func (q *Queries) ListBills(ctx context.Context) ([]ListBillsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listBills)
+func (q *Queries) ListBills(ctx context.Context, groupID int64) ([]ListBillsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBills, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +364,7 @@ const updateBill = `-- name: UpdateBill :exec
 UPDATE bills
 SET name = ?, category_id = ?, account_id = ?, due_day = ?, expected_cents = ?, start_month = ?, end_month = ?,
     updated_at = ?
-WHERE id = ?
+WHERE id = ?9 AND group_id = CAST(?10 AS INTEGER)
 `
 
 type UpdateBillParams struct {
@@ -346,6 +377,7 @@ type UpdateBillParams struct {
 	EndMonth      sql.NullString
 	UpdatedAt     time.Time
 	ID            int64
+	GroupID       int64
 }
 
 func (q *Queries) UpdateBill(ctx context.Context, arg UpdateBillParams) error {
@@ -359,6 +391,7 @@ func (q *Queries) UpdateBill(ctx context.Context, arg UpdateBillParams) error {
 		arg.EndMonth,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }

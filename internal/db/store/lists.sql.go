@@ -37,8 +37,8 @@ func (q *Queries) CreateListItem(ctx context.Context, arg CreateListItemParams) 
 }
 
 const createShoppingList = `-- name: CreateShoppingList :one
-INSERT INTO shopping_lists (name, created_by, created_at)
-VALUES (?, ?, ?)
+INSERT INTO shopping_lists (name, created_by, created_at, group_id)
+VALUES (?, ?, ?, CAST(?4 AS INTEGER))
 RETURNING id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with, group_id
 `
 
@@ -46,10 +46,16 @@ type CreateShoppingListParams struct {
 	Name      string
 	CreatedBy int64
 	CreatedAt time.Time
+	GroupID   int64
 }
 
 func (q *Queries) CreateShoppingList(ctx context.Context, arg CreateShoppingListParams) (ShoppingList, error) {
-	row := q.db.QueryRowContext(ctx, createShoppingList, arg.Name, arg.CreatedBy, arg.CreatedAt)
+	row := q.db.QueryRowContext(ctx, createShoppingList,
+		arg.Name,
+		arg.CreatedBy,
+		arg.CreatedAt,
+		arg.GroupID,
+	)
 	var i ShoppingList
 	err := row.Scan(
 		&i.ID,
@@ -79,18 +85,23 @@ func (q *Queries) DeleteListItem(ctx context.Context, id int64) error {
 
 const deleteShoppingList = `-- name: DeleteShoppingList :exec
 DELETE FROM shopping_lists
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteShoppingList(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteShoppingList, id)
+type DeleteShoppingListParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteShoppingList(ctx context.Context, arg DeleteShoppingListParams) error {
+	_, err := q.db.ExecContext(ctx, deleteShoppingList, arg.ID, arg.GroupID)
 	return err
 }
 
 const finishShoppingList = `-- name: FinishShoppingList :exec
 UPDATE shopping_lists
 SET status = 'done', finished_at = ?, paid_cents = ?, paid_on = ?, paid_method = ?, paid_with = ?
-WHERE id = ? AND status = 'open'
+WHERE id = ?6 AND group_id = CAST(?7 AS INTEGER) AND status = 'open'
 `
 
 type FinishShoppingListParams struct {
@@ -100,6 +111,7 @@ type FinishShoppingListParams struct {
 	PaidMethod sql.NullString
 	PaidWith   string
 	ID         int64
+	GroupID    int64
 }
 
 func (q *Queries) FinishShoppingList(ctx context.Context, arg FinishShoppingListParams) error {
@@ -110,6 +122,7 @@ func (q *Queries) FinishShoppingList(ctx context.Context, arg FinishShoppingList
 		arg.PaidMethod,
 		arg.PaidWith,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }
@@ -138,11 +151,16 @@ func (q *Queries) GetListItem(ctx context.Context, id int64) (ListItem, error) {
 const getShoppingList = `-- name: GetShoppingList :one
 SELECT id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with, group_id
 FROM shopping_lists
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetShoppingList(ctx context.Context, id int64) (ShoppingList, error) {
-	row := q.db.QueryRowContext(ctx, getShoppingList, id)
+type GetShoppingListParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetShoppingList(ctx context.Context, arg GetShoppingListParams) (ShoppingList, error) {
+	row := q.db.QueryRowContext(ctx, getShoppingList, arg.ID, arg.GroupID)
 	var i ShoppingList
 	err := row.Scan(
 		&i.ID,
@@ -254,6 +272,7 @@ SELECT l.id, l.name, l.status, l.created_by, l.created_at, l.finished_at, l.paid
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id) AS INTEGER) AS item_count,
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id AND i.picked) AS INTEGER) AS picked_count
 FROM shopping_lists l
+WHERE l.group_id = CAST(?1 AS INTEGER)
 ORDER BY l.status = 'done', l.created_at DESC, l.id DESC
 `
 
@@ -273,8 +292,8 @@ type ListShoppingListsRow struct {
 	PickedCount int64
 }
 
-func (q *Queries) ListShoppingLists(ctx context.Context) ([]ListShoppingListsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listShoppingLists)
+func (q *Queries) ListShoppingLists(ctx context.Context, groupID int64) ([]ListShoppingListsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listShoppingLists, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -313,16 +332,17 @@ func (q *Queries) ListShoppingLists(ctx context.Context) ([]ListShoppingListsRow
 const renameShoppingList = `-- name: RenameShoppingList :exec
 UPDATE shopping_lists
 SET name = ?
-WHERE id = ?
+WHERE id = ?2 AND group_id = CAST(?3 AS INTEGER)
 `
 
 type RenameShoppingListParams struct {
-	Name string
-	ID   int64
+	Name    string
+	ID      int64
+	GroupID int64
 }
 
 func (q *Queries) RenameShoppingList(ctx context.Context, arg RenameShoppingListParams) error {
-	_, err := q.db.ExecContext(ctx, renameShoppingList, arg.Name, arg.ID)
+	_, err := q.db.ExecContext(ctx, renameShoppingList, arg.Name, arg.ID, arg.GroupID)
 	return err
 }
 

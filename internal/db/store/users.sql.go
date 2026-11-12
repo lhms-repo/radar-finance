@@ -175,9 +175,11 @@ func (q *Queries) GetUserPIN(ctx context.Context, id int64) (GetUserPINRow, erro
 }
 
 const listPersons = `-- name: ListPersons :many
-SELECT id, name
-FROM persons
-ORDER BY id
+SELECT p.id, p.name
+FROM persons p
+JOIN group_members gm ON gm.person_id = p.id
+WHERE gm.group_id = CAST(?1 AS INTEGER)
+ORDER BY p.id
 `
 
 type ListPersonsRow struct {
@@ -185,8 +187,9 @@ type ListPersonsRow struct {
 	Name string
 }
 
-func (q *Queries) ListPersons(ctx context.Context) ([]ListPersonsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPersons)
+// The people who are members of the group (RF-78).
+func (q *Queries) ListPersons(ctx context.Context, groupID int64) ([]ListPersonsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPersons, groupID)
 	if err != nil {
 		return nil, err
 	}

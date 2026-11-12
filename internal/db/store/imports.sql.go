@@ -15,15 +15,17 @@ const cardInstallmentMatch = `-- name: CardInstallmentMatch :many
 SELECT i.id AS installment_id, p.merchant, p.purchased_on, i.amount_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE i.card_id = ?1
-  AND i.invoice_month = ?2
-  AND i.number = ?3
-  AND p.installment_count = ?4
-  AND i.amount_cents = ?5
+WHERE p.group_id = CAST(?1 AS INTEGER)
+  AND i.card_id = ?2
+  AND i.invoice_month = ?3
+  AND i.number = ?4
+  AND p.installment_count = ?5
+  AND i.amount_cents = ?6
 ORDER BY i.id
 `
 
 type CardInstallmentMatchParams struct {
+	GroupID          int64
 	CardID           int64
 	InvoiceMonth     string
 	Number           int64
@@ -41,6 +43,7 @@ type CardInstallmentMatchRow struct {
 // Installments of the card on the invoice with the given number, count and amount, to link a CSV installment (RF-57).
 func (q *Queries) CardInstallmentMatch(ctx context.Context, arg CardInstallmentMatchParams) ([]CardInstallmentMatchRow, error) {
 	rows, err := q.db.QueryContext(ctx, cardInstallmentMatch,
+		arg.GroupID,
 		arg.CardID,
 		arg.InvoiceMonth,
 		arg.Number,
@@ -77,13 +80,15 @@ const cardItemsNear = `-- name: CardItemsNear :many
 SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE i.card_id = ?1
+WHERE p.group_id = CAST(?1 AS INTEGER)
+  AND i.card_id = ?2
   AND p.installment_count = 1
-  AND p.purchased_on >= ?2 AND p.purchased_on <= ?3
+  AND p.purchased_on >= ?3 AND p.purchased_on <= ?4
 ORDER BY i.id
 `
 
 type CardItemsNearParams struct {
+	GroupID  int64
 	CardID   int64
 	FirstDay string
 	LastDay  string
@@ -104,7 +109,12 @@ type CardItemsNearRow struct {
 // One-shot purchases of the card bought within a day of the given date, for duplicates of one-shot CSV lines (RN-20).
 // Installment purchases are left out: their CSV lines carry Parcela N/M and match by number (RF-57).
 func (q *Queries) CardItemsNear(ctx context.Context, arg CardItemsNearParams) ([]CardItemsNearRow, error) {
-	rows, err := q.db.QueryContext(ctx, cardItemsNear, arg.CardID, arg.FirstDay, arg.LastDay)
+	rows, err := q.db.QueryContext(ctx, cardItemsNear,
+		arg.GroupID,
+		arg.CardID,
+		arg.FirstDay,
+		arg.LastDay,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -209,32 +219,47 @@ func (q *Queries) CreateImport(ctx context.Context, arg CreateImportParams) (Imp
 
 const deleteAliasRule = `-- name: DeleteAliasRule :exec
 DELETE FROM alias_rules
-WHERE id = ?
+WHERE id = ?1 AND created_by = ?2
 `
 
-func (q *Queries) DeleteAliasRule(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteAliasRule, id)
+type DeleteAliasRuleParams struct {
+	ID        int64
+	CreatedBy int64
+}
+
+func (q *Queries) DeleteAliasRule(ctx context.Context, arg DeleteAliasRuleParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAliasRule, arg.ID, arg.CreatedBy)
 	return err
 }
 
 const deleteImport = `-- name: DeleteImport :exec
 DELETE FROM imports
-WHERE id = ?
+WHERE id = ?1 AND created_by = ?2
 `
 
-func (q *Queries) DeleteImport(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteImport, id)
+type DeleteImportParams struct {
+	ID        int64
+	CreatedBy int64
+}
+
+func (q *Queries) DeleteImport(ctx context.Context, arg DeleteImportParams) error {
+	_, err := q.db.ExecContext(ctx, deleteImport, arg.ID, arg.CreatedBy)
 	return err
 }
 
 const getAliasRule = `-- name: GetAliasRule :one
 SELECT id, original, friendly_name, category_id, created_by, created_at
 FROM alias_rules
-WHERE id = ?
+WHERE id = ?1 AND created_by = ?2
 `
 
-func (q *Queries) GetAliasRule(ctx context.Context, id int64) (AliasRule, error) {
-	row := q.db.QueryRowContext(ctx, getAliasRule, id)
+type GetAliasRuleParams struct {
+	ID        int64
+	CreatedBy int64
+}
+
+func (q *Queries) GetAliasRule(ctx context.Context, arg GetAliasRuleParams) (AliasRule, error) {
+	row := q.db.QueryRowContext(ctx, getAliasRule, arg.ID, arg.CreatedBy)
 	var i AliasRule
 	err := row.Scan(
 		&i.ID,
@@ -248,13 +273,20 @@ func (q *Queries) GetAliasRule(ctx context.Context, id int64) (AliasRule, error)
 }
 
 const getImport = `-- name: GetImport :one
-SELECT id, card_id, invoice_month, file_name, line_count, created_by, created_at
-FROM imports
-WHERE id = ?
+SELECT i.id, i.card_id, i.invoice_month, i.file_name, i.line_count, i.created_by, i.created_at
+FROM imports i
+JOIN cards c ON c.id = i.card_id
+WHERE i.id = ?1 AND i.created_by = ?2 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?3 AS INTEGER) AND gm.person_id = c.person_id)
 `
 
-func (q *Queries) GetImport(ctx context.Context, id int64) (Import, error) {
-	row := q.db.QueryRowContext(ctx, getImport, id)
+type GetImportParams struct {
+	ID        int64
+	CreatedBy int64
+	GroupID   int64
+}
+
+func (q *Queries) GetImport(ctx context.Context, arg GetImportParams) (Import, error) {
+	row := q.db.QueryRowContext(ctx, getImport, arg.ID, arg.CreatedBy, arg.GroupID)
 	var i Import
 	err := row.Scan(
 		&i.ID,
@@ -272,6 +304,7 @@ const listAliasRules = `-- name: ListAliasRules :many
 SELECT r.id, r.original, r.friendly_name, r.category_id, r.created_by, r.created_at, coalesce(c.name, '') AS category_name
 FROM alias_rules r
 LEFT JOIN categories c ON c.id = r.category_id
+WHERE r.created_by = ?1
 ORDER BY r.original, r.id DESC
 `
 
@@ -285,8 +318,8 @@ type ListAliasRulesRow struct {
 	CategoryName string
 }
 
-func (q *Queries) ListAliasRules(ctx context.Context) ([]ListAliasRulesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAliasRules)
+func (q *Queries) ListAliasRules(ctx context.Context, createdBy int64) ([]ListAliasRulesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAliasRules, createdBy)
 	if err != nil {
 		return nil, err
 	}
@@ -319,11 +352,16 @@ func (q *Queries) ListAliasRules(ctx context.Context) ([]ListAliasRulesRow, erro
 const listImportPurchases = `-- name: ListImportPurchases :many
 SELECT id
 FROM purchases
-WHERE import_id = ?
+WHERE group_id = CAST(?1 AS INTEGER) AND import_id = ?2
 `
 
-func (q *Queries) ListImportPurchases(ctx context.Context, importID sql.NullInt64) ([]int64, error) {
-	rows, err := q.db.QueryContext(ctx, listImportPurchases, importID)
+type ListImportPurchasesParams struct {
+	GroupID  int64
+	ImportID sql.NullInt64
+}
+
+func (q *Queries) ListImportPurchases(ctx context.Context, arg ListImportPurchasesParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listImportPurchases, arg.GroupID, arg.ImportID)
 	if err != nil {
 		return nil, err
 	}
@@ -347,13 +385,19 @@ func (q *Queries) ListImportPurchases(ctx context.Context, importID sql.NullInt6
 
 const listImports = `-- name: ListImports :many
 SELECT i.id, i.card_id, i.invoice_month, i.file_name, i.line_count, i.created_by, i.created_at, c.name AS card_name, p.name AS created_by_name,
-       CAST((SELECT count(*) FROM purchases pu WHERE pu.import_id = i.id) AS INTEGER) AS purchase_count
+       CAST((SELECT count(*) FROM purchases pu WHERE pu.import_id = i.id AND pu.group_id = CAST(?1 AS INTEGER)) AS INTEGER) AS purchase_count
 FROM imports i
 JOIN cards c ON c.id = i.card_id
 JOIN users u ON u.id = i.created_by
 JOIN persons p ON p.id = u.person_id
+WHERE i.created_by = ?2 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = c.person_id)
 ORDER BY i.id DESC
 `
+
+type ListImportsParams struct {
+	GroupID   int64
+	CreatedBy int64
+}
 
 type ListImportsRow struct {
 	ID            int64
@@ -368,8 +412,8 @@ type ListImportsRow struct {
 	PurchaseCount int64
 }
 
-func (q *Queries) ListImports(ctx context.Context) ([]ListImportsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listImports)
+func (q *Queries) ListImports(ctx context.Context, arg ListImportsParams) ([]ListImportsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listImports, arg.GroupID, arg.CreatedBy)
 	if err != nil {
 		return nil, err
 	}
@@ -405,23 +449,24 @@ func (q *Queries) ListImports(ctx context.Context) ([]ListImportsRow, error) {
 const setPurchaseImport = `-- name: SetPurchaseImport :exec
 UPDATE purchases
 SET import_id = ?
-WHERE id = ?
+WHERE id = ?2 AND group_id = CAST(?3 AS INTEGER)
 `
 
 type SetPurchaseImportParams struct {
 	ImportID sql.NullInt64
 	ID       int64
+	GroupID  int64
 }
 
 func (q *Queries) SetPurchaseImport(ctx context.Context, arg SetPurchaseImportParams) error {
-	_, err := q.db.ExecContext(ctx, setPurchaseImport, arg.ImportID, arg.ID)
+	_, err := q.db.ExecContext(ctx, setPurchaseImport, arg.ImportID, arg.ID, arg.GroupID)
 	return err
 }
 
 const updateAliasRule = `-- name: UpdateAliasRule :exec
 UPDATE alias_rules
 SET original = ?, friendly_name = ?, category_id = ?
-WHERE id = ?
+WHERE id = ?4 AND created_by = ?5
 `
 
 type UpdateAliasRuleParams struct {
@@ -429,6 +474,7 @@ type UpdateAliasRuleParams struct {
 	FriendlyName string
 	CategoryID   sql.NullInt64
 	ID           int64
+	CreatedBy    int64
 }
 
 func (q *Queries) UpdateAliasRule(ctx context.Context, arg UpdateAliasRuleParams) error {
@@ -437,6 +483,7 @@ func (q *Queries) UpdateAliasRule(ctx context.Context, arg UpdateAliasRuleParams
 		arg.FriendlyName,
 		arg.CategoryID,
 		arg.ID,
+		arg.CreatedBy,
 	)
 	return err
 }

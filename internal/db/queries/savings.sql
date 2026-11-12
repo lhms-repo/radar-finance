@@ -1,26 +1,27 @@
 -- name: ListSavingsBoxes :many
 SELECT *
 FROM savings_boxes
+WHERE group_id = CAST(sqlc.arg(group_id) AS INTEGER)
 ORDER BY id;
 
 -- name: GetSavingsBox :one
 SELECT *
 FROM savings_boxes
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: CreateSavingsBox :one
-INSERT INTO savings_boxes (name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO savings_boxes (name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, CAST(sqlc.arg(group_id) AS INTEGER))
 RETURNING *;
 
 -- name: UpdateSavingsBox :exec
 UPDATE savings_boxes
 SET name = ?, target_cents = ?, percent_bp = ?, updated_at = ?
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: DeleteSavingsBox :exec
 DELETE FROM savings_boxes
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: ListSavingsMoves :many
 SELECT m.*, e.occurred_on, a.name AS account_name, p.name AS created_by_name
@@ -29,6 +30,8 @@ JOIN entries e ON e.id = m.entry_id
 JOIN accounts a ON a.id = e.account_id
 JOIN users u ON u.id = m.created_by
 JOIN persons p ON p.id = u.person_id
+JOIN savings_boxes b ON b.id = m.box_id
+WHERE b.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
 ORDER BY m.box_id, e.occurred_on, m.id;
 
 -- name: CreateSavingsMove :exec
@@ -41,5 +44,5 @@ SELECT CAST(b.initial_balance_cents + coalesce(sum(CASE m.kind WHEN 'deposit' TH
 FROM savings_moves d
 JOIN savings_boxes b ON b.id = d.box_id
 LEFT JOIN savings_moves m ON m.box_id = d.box_id AND m.entry_id <> d.entry_id
-WHERE d.entry_id = ?
+WHERE d.entry_id = sqlc.arg(entry_id) AND b.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
 GROUP BY b.id;

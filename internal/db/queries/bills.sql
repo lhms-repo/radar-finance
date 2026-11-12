@@ -5,33 +5,35 @@ FROM bills b
 JOIN accounts a ON a.id = b.account_id
 JOIN categories c ON c.id = b.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
+WHERE b.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
 ORDER BY b.due_day, b.name COLLATE NOCASE, b.id;
 
 -- name: GetBill :one
 SELECT *
 FROM bills
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: CreateBill :one
 INSERT INTO bills (name, category_id, account_id, due_day, expected_cents, start_month, end_month,
-                   created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(sqlc.arg(group_id) AS INTEGER))
 RETURNING *;
 
 -- name: UpdateBill :exec
 UPDATE bills
 SET name = ?, category_id = ?, account_id = ?, due_day = ?, expected_cents = ?, start_month = ?, end_month = ?,
     updated_at = ?
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: DeleteBill :exec
 DELETE FROM bills
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: ListBillAmounts :many
-SELECT bill_id, actual_cents
-FROM bill_amounts
-WHERE month = ?;
+SELECT ba.bill_id, ba.actual_cents
+FROM bill_amounts ba
+JOIN bills b ON b.id = ba.bill_id
+WHERE b.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND ba.month = sqlc.arg(month);
 
 -- name: UpsertBillAmount :exec
 INSERT INTO bill_amounts (bill_id, month, actual_cents)
@@ -46,15 +48,15 @@ WHERE bill_id = ? AND month = ?;
 SELECT e.id, e.bill_id, e.amount_cents, e.occurred_on, e.account_id, a.name AS account_name
 FROM entries e
 JOIN accounts a ON a.id = e.account_id
-WHERE e.bill_id IS NOT NULL AND e.bill_month = ?;
+WHERE e.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND e.bill_id IS NOT NULL AND e.bill_month = sqlc.arg(bill_month);
 
 -- name: CreateBillEntry :one
 INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, bill_id, bill_month,
-                     created_by, created_at, updated_at)
-VALUES (?, 'expense', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                     created_by, created_at, updated_at, group_id)
+VALUES (?, 'expense', ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, CAST(sqlc.arg(group_id) AS INTEGER))
 RETURNING id;
 
 -- name: ListBillPaidMonths :many
 SELECT coalesce(bill_month, '') AS month
 FROM entries
-WHERE bill_id = ?;
+WHERE group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND bill_id = sqlc.arg(bill_id);

@@ -35,9 +35,12 @@ SET theme = ?, haptics = ?, updated_at = ?
 WHERE id = ?;
 
 -- name: ListPersons :many
-SELECT id, name
-FROM persons
-ORDER BY id;
+-- The people who are members of the group (RF-78).
+SELECT p.id, p.name
+FROM persons p
+JOIN group_members gm ON gm.person_id = p.id
+WHERE gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+ORDER BY p.id;
 
 -- name: GetUserPIN :one
 SELECT id, person_id, pin_hash, pin_failures, pin_locked_until

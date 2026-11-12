@@ -12,8 +12,8 @@ import (
 )
 
 const createMarket = `-- name: CreateMarket :one
-INSERT INTO markets (name, neighborhood, cnpj, created_by, created_at)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO markets (name, neighborhood, cnpj, created_by, created_at, group_id)
+VALUES (?, ?, ?, ?, ?, CAST(?6 AS INTEGER))
 RETURNING id, name, neighborhood, cnpj, active, created_by, created_at
 `
 
@@ -23,6 +23,7 @@ type CreateMarketParams struct {
 	Cnpj         sql.NullString
 	CreatedBy    int64
 	CreatedAt    time.Time
+	GroupID      int64
 }
 
 func (q *Queries) CreateMarket(ctx context.Context, arg CreateMarketParams) (Market, error) {
@@ -32,6 +33,7 @@ func (q *Queries) CreateMarket(ctx context.Context, arg CreateMarketParams) (Mar
 		arg.Cnpj,
 		arg.CreatedBy,
 		arg.CreatedAt,
+		arg.GroupID,
 	)
 	var i Market
 	err := row.Scan(
@@ -80,8 +82,8 @@ func (q *Queries) CreatePrice(ctx context.Context, arg CreatePriceParams) (int64
 }
 
 const createProduct = `-- name: CreateProduct :one
-INSERT INTO products (name, brand, by_weight, size_milli, unit, created_by, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO products (name, brand, by_weight, size_milli, unit, created_by, created_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, CAST(?8 AS INTEGER))
 RETURNING id, name, brand, by_weight, size_milli, unit, created_by, created_at, group_id
 `
 
@@ -93,6 +95,7 @@ type CreateProductParams struct {
 	Unit      string
 	CreatedBy int64
 	CreatedAt time.Time
+	GroupID   int64
 }
 
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error) {
@@ -104,6 +107,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		arg.Unit,
 		arg.CreatedBy,
 		arg.CreatedAt,
+		arg.GroupID,
 	)
 	var i Product
 	err := row.Scan(
@@ -153,52 +157,79 @@ func (q *Queries) CreateReceipt(ctx context.Context, arg CreateReceiptParams) (i
 
 const deleteMarket = `-- name: DeleteMarket :exec
 DELETE FROM markets
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteMarket(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteMarket, id)
+type DeleteMarketParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteMarket(ctx context.Context, arg DeleteMarketParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMarket, arg.ID, arg.GroupID)
 	return err
 }
 
 const deletePrice = `-- name: DeletePrice :exec
 DELETE FROM prices
-WHERE id = ?
+WHERE prices.id = ?1
+  AND market_id IN (SELECT m.id FROM markets m WHERE m.group_id = CAST(?2 AS INTEGER))
 `
 
-func (q *Queries) DeletePrice(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deletePrice, id)
+type DeletePriceParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeletePrice(ctx context.Context, arg DeletePriceParams) error {
+	_, err := q.db.ExecContext(ctx, deletePrice, arg.ID, arg.GroupID)
 	return err
 }
 
 const deleteProduct = `-- name: DeleteProduct :exec
 DELETE FROM products
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteProduct(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteProduct, id)
+type DeleteProductParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteProduct(ctx context.Context, arg DeleteProductParams) error {
+	_, err := q.db.ExecContext(ctx, deleteProduct, arg.ID, arg.GroupID)
 	return err
 }
 
 const deleteReceipt = `-- name: DeleteReceipt :exec
 DELETE FROM receipts
-WHERE id = ?
+WHERE receipts.id = ?1
+  AND market_id IN (SELECT m.id FROM markets m WHERE m.group_id = CAST(?2 AS INTEGER))
 `
 
-func (q *Queries) DeleteReceipt(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteReceipt, id)
+type DeleteReceiptParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteReceipt(ctx context.Context, arg DeleteReceiptParams) error {
+	_, err := q.db.ExecContext(ctx, deleteReceipt, arg.ID, arg.GroupID)
 	return err
 }
 
 const getMarket = `-- name: GetMarket :one
 SELECT id, name, neighborhood, cnpj, active, created_by, created_at
 FROM markets
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetMarket(ctx context.Context, id int64) (Market, error) {
-	row := q.db.QueryRowContext(ctx, getMarket, id)
+type GetMarketParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetMarket(ctx context.Context, arg GetMarketParams) (Market, error) {
+	row := q.db.QueryRowContext(ctx, getMarket, arg.ID, arg.GroupID)
 	var i Market
 	err := row.Scan(
 		&i.ID,
@@ -215,11 +246,12 @@ func (q *Queries) GetMarket(ctx context.Context, id int64) (Market, error) {
 const getMarketSettings = `-- name: GetMarketSettings :one
 SELECT id, max_markets, min_savings_cents, stale_days
 FROM market_settings
-WHERE id = 1
+WHERE group_id = CAST(?1 AS INTEGER)
 `
 
-func (q *Queries) GetMarketSettings(ctx context.Context) (MarketSetting, error) {
-	row := q.db.QueryRowContext(ctx, getMarketSettings)
+// The row of the group; none means the defaults apply (RF-74).
+func (q *Queries) GetMarketSettings(ctx context.Context, groupID int64) (MarketSetting, error) {
+	row := q.db.QueryRowContext(ctx, getMarketSettings, groupID)
 	var i MarketSetting
 	err := row.Scan(
 		&i.ID,
@@ -231,13 +263,19 @@ func (q *Queries) GetMarketSettings(ctx context.Context) (MarketSetting, error) 
 }
 
 const getPrice = `-- name: GetPrice :one
-SELECT id, product_id, market_id, price_cents, observed_on, source, created_by, created_at, receipt_id
-FROM prices
-WHERE id = ?
+SELECT p.id, p.product_id, p.market_id, p.price_cents, p.observed_on, p.source, p.created_by, p.created_at, p.receipt_id
+FROM prices p
+JOIN markets m ON m.id = p.market_id
+WHERE p.id = ?1 AND m.group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetPrice(ctx context.Context, id int64) (Price, error) {
-	row := q.db.QueryRowContext(ctx, getPrice, id)
+type GetPriceParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetPrice(ctx context.Context, arg GetPriceParams) (Price, error) {
+	row := q.db.QueryRowContext(ctx, getPrice, arg.ID, arg.GroupID)
 	var i Price
 	err := row.Scan(
 		&i.ID,
@@ -256,11 +294,16 @@ func (q *Queries) GetPrice(ctx context.Context, id int64) (Price, error) {
 const getProduct = `-- name: GetProduct :one
 SELECT id, name, brand, by_weight, size_milli, unit, created_by, created_at, group_id
 FROM products
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetProduct(ctx context.Context, id int64) (Product, error) {
-	row := q.db.QueryRowContext(ctx, getProduct, id)
+type GetProductParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetProduct(ctx context.Context, arg GetProductParams) (Product, error) {
+	row := q.db.QueryRowContext(ctx, getProduct, arg.ID, arg.GroupID)
 	var i Product
 	err := row.Scan(
 		&i.ID,
@@ -277,13 +320,19 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (Product, error) {
 }
 
 const getReceipt = `-- name: GetReceipt :one
-SELECT id, market_id, access_key, issued_on, total_cents, item_count, created_by, created_at
-FROM receipts
-WHERE id = ?
+SELECT r.id, r.market_id, r.access_key, r.issued_on, r.total_cents, r.item_count, r.created_by, r.created_at
+FROM receipts r
+JOIN markets m ON m.id = r.market_id
+WHERE r.id = ?1 AND m.group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetReceipt(ctx context.Context, id int64) (Receipt, error) {
-	row := q.db.QueryRowContext(ctx, getReceipt, id)
+type GetReceiptParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetReceipt(ctx context.Context, arg GetReceiptParams) (Receipt, error) {
+	row := q.db.QueryRowContext(ctx, getReceipt, arg.ID, arg.GroupID)
 	var i Receipt
 	err := row.Scan(
 		&i.ID,
@@ -301,7 +350,8 @@ func (q *Queries) GetReceipt(ctx context.Context, id int64) (Receipt, error) {
 const latestPrices = `-- name: LatestPrices :many
 SELECT p.id, p.product_id, p.market_id, p.price_cents, p.observed_on, p.source
 FROM prices p
-WHERE p.id = (
+JOIN markets pm ON pm.id = p.market_id
+WHERE pm.group_id = CAST(?1 AS INTEGER) AND p.id = (
     SELECT p2.id FROM prices p2
     WHERE p2.product_id = p.product_id AND p2.market_id = p.market_id
     ORDER BY p2.observed_on DESC, p2.id DESC
@@ -319,8 +369,8 @@ type LatestPricesRow struct {
 }
 
 // Latest price of every product in every market: most recent date, then newest row (RN-22).
-func (q *Queries) LatestPrices(ctx context.Context) ([]LatestPricesRow, error) {
-	rows, err := q.db.QueryContext(ctx, latestPrices)
+func (q *Queries) LatestPrices(ctx context.Context, groupID int64) ([]LatestPricesRow, error) {
+	rows, err := q.db.QueryContext(ctx, latestPrices, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -352,6 +402,7 @@ func (q *Queries) LatestPrices(ctx context.Context) ([]LatestPricesRow, error) {
 const listMarkets = `-- name: ListMarkets :many
 SELECT m.id, m.name, m.neighborhood, m.cnpj, m.active, m.created_by, m.created_at, CAST((SELECT count(*) FROM prices p WHERE p.market_id = m.id) AS INTEGER) AS price_count
 FROM markets m
+WHERE m.group_id = CAST(?1 AS INTEGER)
 ORDER BY m.active DESC, m.name COLLATE NOCASE, m.neighborhood COLLATE NOCASE
 `
 
@@ -366,8 +417,8 @@ type ListMarketsRow struct {
 	PriceCount   int64
 }
 
-func (q *Queries) ListMarkets(ctx context.Context) ([]ListMarketsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMarkets)
+func (q *Queries) ListMarkets(ctx context.Context, groupID int64) ([]ListMarketsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMarkets, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -401,11 +452,12 @@ func (q *Queries) ListMarkets(ctx context.Context) ([]ListMarketsRow, error) {
 const listProducts = `-- name: ListProducts :many
 SELECT id, name, brand, by_weight, size_milli, unit, created_by, created_at, group_id
 FROM products
+WHERE group_id = CAST(?1 AS INTEGER)
 ORDER BY name COLLATE NOCASE, brand COLLATE NOCASE, size_milli
 `
 
-func (q *Queries) ListProducts(ctx context.Context) ([]Product, error) {
-	rows, err := q.db.QueryContext(ctx, listProducts)
+func (q *Queries) ListProducts(ctx context.Context, groupID int64) ([]Product, error) {
+	rows, err := q.db.QueryContext(ctx, listProducts, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -444,6 +496,7 @@ FROM receipts r
 JOIN markets m ON m.id = r.market_id
 JOIN users u ON u.id = r.created_by
 JOIN persons pe ON pe.id = u.person_id
+WHERE m.group_id = CAST(?1 AS INTEGER)
 ORDER BY r.issued_on DESC, r.id DESC
 `
 
@@ -457,8 +510,8 @@ type ListReceiptsRow struct {
 	PriceCount    int64
 }
 
-func (q *Queries) ListReceipts(ctx context.Context) ([]ListReceiptsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listReceipts)
+func (q *Queries) ListReceipts(ctx context.Context, groupID int64) ([]ListReceiptsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReceipts, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -491,11 +544,16 @@ func (q *Queries) ListReceipts(ctx context.Context) ([]ListReceiptsRow, error) {
 const marketByCNPJ = `-- name: MarketByCNPJ :one
 SELECT id, name, neighborhood, cnpj, active, created_by, created_at
 FROM markets
-WHERE cnpj = ?
+WHERE group_id = CAST(?1 AS INTEGER) AND cnpj = ?2
 `
 
-func (q *Queries) MarketByCNPJ(ctx context.Context, cnpj sql.NullString) (Market, error) {
-	row := q.db.QueryRowContext(ctx, marketByCNPJ, cnpj)
+type MarketByCNPJParams struct {
+	GroupID int64
+	Cnpj    sql.NullString
+}
+
+func (q *Queries) MarketByCNPJ(ctx context.Context, arg MarketByCNPJParams) (Market, error) {
+	row := q.db.QueryRowContext(ctx, marketByCNPJ, arg.GroupID, arg.Cnpj)
 	var i Market
 	err := row.Scan(
 		&i.ID,
@@ -548,9 +606,14 @@ const productPrices = `-- name: ProductPrices :many
 SELECT p.id, p.market_id, m.name AS market_name, m.neighborhood, p.price_cents, p.observed_on, p.source
 FROM prices p
 JOIN markets m ON m.id = p.market_id
-WHERE p.product_id = ?
+WHERE m.group_id = CAST(?1 AS INTEGER) AND p.product_id = ?2
 ORDER BY p.observed_on DESC, p.id DESC
 `
+
+type ProductPricesParams struct {
+	GroupID   int64
+	ProductID int64
+}
 
 type ProductPricesRow struct {
 	ID           int64
@@ -563,8 +626,8 @@ type ProductPricesRow struct {
 }
 
 // Price history of one product in every market, newest first (RF-76).
-func (q *Queries) ProductPrices(ctx context.Context, productID int64) ([]ProductPricesRow, error) {
-	rows, err := q.db.QueryContext(ctx, productPrices, productID)
+func (q *Queries) ProductPrices(ctx context.Context, arg ProductPricesParams) ([]ProductPricesRow, error) {
+	rows, err := q.db.QueryContext(ctx, productPrices, arg.GroupID, arg.ProductID)
 	if err != nil {
 		return nil, err
 	}
@@ -595,13 +658,19 @@ func (q *Queries) ProductPrices(ctx context.Context, productID int64) ([]Product
 }
 
 const receiptByKey = `-- name: ReceiptByKey :one
-SELECT id
-FROM receipts
-WHERE access_key = ?
+SELECT r.id
+FROM receipts r
+JOIN markets m ON m.id = r.market_id
+WHERE m.group_id = CAST(?1 AS INTEGER) AND r.access_key = ?2
 `
 
-func (q *Queries) ReceiptByKey(ctx context.Context, accessKey string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, receiptByKey, accessKey)
+type ReceiptByKeyParams struct {
+	GroupID   int64
+	AccessKey string
+}
+
+func (q *Queries) ReceiptByKey(ctx context.Context, arg ReceiptByKeyParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, receiptByKey, arg.GroupID, arg.AccessKey)
 	var id int64
 	err := row.Scan(&id)
 	return id, err
@@ -610,23 +679,24 @@ func (q *Queries) ReceiptByKey(ctx context.Context, accessKey string) (int64, er
 const setMarketCNPJ = `-- name: SetMarketCNPJ :exec
 UPDATE markets
 SET cnpj = ?
-WHERE id = ? AND cnpj IS NULL
+WHERE id = ?2 AND group_id = CAST(?3 AS INTEGER) AND cnpj IS NULL
 `
 
 type SetMarketCNPJParams struct {
-	Cnpj sql.NullString
-	ID   int64
+	Cnpj    sql.NullString
+	ID      int64
+	GroupID int64
 }
 
 func (q *Queries) SetMarketCNPJ(ctx context.Context, arg SetMarketCNPJParams) error {
-	_, err := q.db.ExecContext(ctx, setMarketCNPJ, arg.Cnpj, arg.ID)
+	_, err := q.db.ExecContext(ctx, setMarketCNPJ, arg.Cnpj, arg.ID, arg.GroupID)
 	return err
 }
 
 const updateMarket = `-- name: UpdateMarket :exec
 UPDATE markets
 SET name = ?, neighborhood = ?, active = ?
-WHERE id = ?
+WHERE id = ?4 AND group_id = CAST(?5 AS INTEGER)
 `
 
 type UpdateMarketParams struct {
@@ -634,6 +704,7 @@ type UpdateMarketParams struct {
 	Neighborhood string
 	Active       bool
 	ID           int64
+	GroupID      int64
 }
 
 func (q *Queries) UpdateMarket(ctx context.Context, arg UpdateMarketParams) error {
@@ -642,48 +713,39 @@ func (q *Queries) UpdateMarket(ctx context.Context, arg UpdateMarketParams) erro
 		arg.Neighborhood,
 		arg.Active,
 		arg.ID,
+		arg.GroupID,
 	)
-	return err
-}
-
-const updateMarketSettings = `-- name: UpdateMarketSettings :exec
-UPDATE market_settings
-SET max_markets = ?, min_savings_cents = ?, stale_days = ?
-WHERE id = 1
-`
-
-type UpdateMarketSettingsParams struct {
-	MaxMarkets      int64
-	MinSavingsCents int64
-	StaleDays       int64
-}
-
-func (q *Queries) UpdateMarketSettings(ctx context.Context, arg UpdateMarketSettingsParams) error {
-	_, err := q.db.ExecContext(ctx, updateMarketSettings, arg.MaxMarkets, arg.MinSavingsCents, arg.StaleDays)
 	return err
 }
 
 const updatePrice = `-- name: UpdatePrice :exec
 UPDATE prices
 SET price_cents = ?, observed_on = ?
-WHERE id = ?
+WHERE prices.id = ?3
+  AND market_id IN (SELECT m.id FROM markets m WHERE m.group_id = CAST(?4 AS INTEGER))
 `
 
 type UpdatePriceParams struct {
 	PriceCents int64
 	ObservedOn string
 	ID         int64
+	GroupID    int64
 }
 
 func (q *Queries) UpdatePrice(ctx context.Context, arg UpdatePriceParams) error {
-	_, err := q.db.ExecContext(ctx, updatePrice, arg.PriceCents, arg.ObservedOn, arg.ID)
+	_, err := q.db.ExecContext(ctx, updatePrice,
+		arg.PriceCents,
+		arg.ObservedOn,
+		arg.ID,
+		arg.GroupID,
+	)
 	return err
 }
 
 const updateProduct = `-- name: UpdateProduct :exec
 UPDATE products
 SET name = ?, brand = ?, by_weight = ?, size_milli = ?, unit = ?
-WHERE id = ?
+WHERE id = ?6 AND group_id = CAST(?7 AS INTEGER)
 `
 
 type UpdateProductParams struct {
@@ -693,6 +755,7 @@ type UpdateProductParams struct {
 	SizeMilli int64
 	Unit      string
 	ID        int64
+	GroupID   int64
 }
 
 func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) error {
@@ -703,6 +766,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) er
 		arg.SizeMilli,
 		arg.Unit,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }
@@ -726,6 +790,30 @@ func (q *Queries) UpsertLink(ctx context.Context, arg UpsertLinkParams) error {
 		arg.ItemKey,
 		arg.ProductID,
 		arg.Ignored,
+	)
+	return err
+}
+
+const upsertMarketSettings = `-- name: UpsertMarketSettings :exec
+INSERT INTO market_settings (group_id, max_markets, min_savings_cents, stale_days)
+VALUES (CAST(?4 AS INTEGER), ?, ?, ?)
+ON CONFLICT (group_id) DO UPDATE SET max_markets = excluded.max_markets,
+    min_savings_cents = excluded.min_savings_cents, stale_days = excluded.stale_days
+`
+
+type UpsertMarketSettingsParams struct {
+	GroupID         int64
+	MaxMarkets      int64
+	MinSavingsCents int64
+	StaleDays       int64
+}
+
+func (q *Queries) UpsertMarketSettings(ctx context.Context, arg UpsertMarketSettingsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertMarketSettings,
+		arg.GroupID,
+		arg.MaxMarkets,
+		arg.MinSavingsCents,
+		arg.StaleDays,
 	)
 	return err
 }
