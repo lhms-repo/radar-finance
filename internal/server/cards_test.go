@@ -15,7 +15,7 @@ import (
 func TestCardRoutes(t *testing.T) {
 	srv, conn := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 	loc, _ := time.LoadLocation(config.Location)
 	today := civil.Today(loc)
 	past := today.AddDays(-75)

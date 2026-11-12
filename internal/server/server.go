@@ -41,11 +41,18 @@ import (
 // maxBodyBytes limits JSON request bodies.
 const maxBodyBytes = 1 << 20
 
-// publicRoutes do not require a logged in user.
-var publicRoutes = map[string]bool{
-	"GET /api/ping":        true,
-	"GET /api/auth/users":  true,
-	"POST /api/auth/login": true,
+// publicRoute tells the requests that need no session: the liveness check and the steps of entering,
+// which show only group names and, after a group is chosen, the names of its members (RF-01).
+func publicRoute(r *http.Request) bool {
+	switch {
+	case r.Method == http.MethodGet && (r.URL.Path == "/api/ping" || r.URL.Path == "/api/auth/groups"):
+		return true
+	case r.Method == http.MethodPost && r.URL.Path == "/api/auth/login":
+		return true
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/auth/groups/") && strings.HasSuffix(r.URL.Path, "/members"):
+		return true
+	}
+	return false
 }
 
 // contentSecurityPolicy only allows resources from the same origin.
@@ -115,7 +122,7 @@ func New(d Deps) http.Handler {
 	if hub == nil {
 		hub = events.NewHub()
 	}
-	protected := limitBody(auth.RequireUser(d.Sessions, publicRoutes, apiHandler))
+	protected := limitBody(auth.RequireUser(d.Sessions, publicRoute, apiHandler))
 	root := http.NewServeMux()
 	root.Handle("/api/events", eventsHandler(hub, d.Sessions))
 	root.Handle("/api/", http.NewCrossOriginProtection().Handler(d.Sessions.LoadAndSave(noStore(publishChanges(hub, d.Sessions, protected)))))

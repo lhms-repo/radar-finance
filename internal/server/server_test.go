@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -51,11 +52,28 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 	if err := db.Migrate(context.Background(), conn, log); err != nil {
 		t.Fatal(err)
 	}
+	old := auth.PINIterations
+	auth.PINIterations = 1_000
+	t.Cleanup(func() { auth.PINIterations = old })
 	accounts := account.NewService(conn)
+	ctx := context.Background()
+	ids := map[string]int64{}
 	for _, u := range [][2]string{{"ana", "Ana Ficticia"}, {"bruno", "Bruno Ficticio"}} {
-		if _, err := accounts.Create(context.Background(), u[0], u[1]); err != nil {
+		created, err := accounts.Create(ctx, u[0], u[1])
+		if err != nil {
 			t.Fatal(err)
 		}
+		ids[u[0]] = created.ID
+		if err := accounts.SetPIN(ctx, created.ID, testPINs[u[0]]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	home, err := accounts.CreateGroup(ctx, "Casa", ids["ana"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.AddMember(ctx, home.ID, ids["bruno"], account.RoleMember); err != nil {
+		t.Fatal(err)
 	}
 	loc, _ := time.LoadLocation(config.Location)
 	cfg := config.Config{DBPath: filepath.Join(dir, "radar.db"), BackupDir: filepath.Join(dir, "backups"), BackupKeep: 30, BackupHour: 3, Loc: loc}
@@ -88,6 +106,18 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv, conn
+}
+
+// testPINs are the fictional PINs of the people of the test server.
+var testPINs = map[string]string{"ana": "4821", "bruno": "7351"}
+
+// testUserIDs are the ids the test server gives its people, created in this order.
+var testUserIDs = map[string]int64{"ana": 1, "bruno": 2}
+
+// signIn enters the group "Casa" of the test server as the person, with the right PIN (RF-01).
+func signIn(t *testing.T, c *http.Client, srv *httptest.Server, login string) *http.Response {
+	t.Helper()
+	return postJSON(t, c, srv, "/api/auth/login", fmt.Sprintf(`{"groupId":1,"userId":%d,"pin":%q}`, testUserIDs[login], testPINs[login]))
 }
 
 // newClient returns an HTTP client that keeps cookies.
@@ -123,9 +153,9 @@ func postJSON(t *testing.T, c *http.Client, srv *httptest.Server, path, body str
 	return resp
 }
 
-// TestLoginFlow covers login, session use and logout (RF-01, RNF-10).
+// TestLoginFlow covers entering by group, person and PIN, session use, switching groups and logout (RF-01, RF-81, RNF-10).
 func TestLoginFlow(t *testing.T) {
-	srv, _ := testServer(t)
+	srv, conn := testServer(t)
 	c := newClient(t)
 
 	resp := get(t, c, srv.URL+"/api/me")
@@ -133,25 +163,66 @@ func TestLoginFlow(t *testing.T) {
 		t.Fatalf("me without session = %d, want 401", resp.StatusCode)
 	}
 
-	resp = get(t, c, srv.URL+"/api/auth/users")
-	var users []struct{ Login, Name string }
-	_ = json.NewDecoder(resp.Body).Decode(&users)
-	if resp.StatusCode != http.StatusOK || len(users) != 2 || users[0].Name != "Ana Ficticia" {
-		t.Fatalf("login users = %d %+v", resp.StatusCode, users)
+	resp = get(t, c, srv.URL+"/api/auth/groups")
+	var groups []struct {
+		ID   int64
+		Name string
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&groups)
+	if resp.StatusCode != http.StatusOK || len(groups) != 1 || groups[0].Name != "Casa" {
+		t.Fatalf("login groups = %d %+v", resp.StatusCode, groups)
+	}
+	resp = get(t, c, srv.URL+"/api/auth/groups/1/members")
+	var members []struct {
+		UserID int64 `json:"userId"`
+		Name   string
+		HasPIN bool `json:"hasPin"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&members)
+	if resp.StatusCode != http.StatusOK || len(members) != 2 || members[0].Name != "Ana Ficticia" || !members[0].HasPIN {
+		t.Fatalf("login members = %d %+v", resp.StatusCode, members)
+	}
+	if resp := get(t, c, srv.URL+"/api/auth/groups/99/members"); resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("members of a missing group = %d, want 404", resp.StatusCode)
 	}
 
-	resp = postJSON(t, c, srv, "/api/auth/login", `{"login":"carla"}`)
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("unknown user = %d, want 401", resp.StatusCode)
+	tests := []struct {
+		name string
+		body string
+		want int
+		code string
+	}{
+		{name: "unknown person", body: `{"groupId":1,"userId":99,"pin":"4821"}`, want: http.StatusUnauthorized},
+		{name: "wrong PIN", body: `{"groupId":1,"userId":1,"pin":"0000"}`, want: http.StatusBadRequest, code: "pin_wrong"},
+		{name: "group of someone else", body: `{"groupId":2,"userId":1,"pin":"4821"}`, want: http.StatusBadRequest, code: "group_not_member"},
+		{name: "no group", body: `{"userId":1,"pin":"4821"}`, want: http.StatusBadRequest},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := postJSON(t, c, srv, "/api/auth/login", tt.body)
+			var e struct{ Code string }
+			_ = json.NewDecoder(resp.Body).Decode(&e)
+			if resp.StatusCode != tt.want || (tt.code != "" && e.Code != tt.code) {
+				t.Fatalf("login = %d %s, want %d %s", resp.StatusCode, e.Code, tt.want, tt.code)
+			}
+		})
 	}
 
-	resp = postJSON(t, c, srv, "/api/auth/login", `{"login":"ANA"}`)
+	resp = signIn(t, c, srv, "ana")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("login = %d, want 200", resp.StatusCode)
 	}
-	var me struct{ Login, Name, Theme string }
+	var me struct {
+		Login, Name, Theme string
+		Group              struct {
+			ID   int64
+			Name string
+			Role string
+		}
+		Groups []struct{ ID int64 }
+	}
 	_ = json.NewDecoder(resp.Body).Decode(&me)
-	if me.Name != "Ana Ficticia" || me.Theme != "system" {
+	if me.Name != "Ana Ficticia" || me.Theme != "system" || me.Group.Name != "Casa" || me.Group.Role != "admin" || len(me.Groups) != 1 {
 		t.Fatalf("unexpected me: %+v", me)
 	}
 	cookie := resp.Header.Get("Set-Cookie")
@@ -165,6 +236,39 @@ func TestLoginFlow(t *testing.T) {
 	}
 	if resp.Header.Get("Cache-Control") != "no-store" {
 		t.Fatalf("api responses must not be cached")
+	}
+
+	// A second group of Ana: switching needs no PIN, and a group she is not in is refused.
+	if _, err := conn.Exec(`INSERT INTO groups (id, name, created_at) VALUES (2, 'Praia', '2026-11-12 12:00:00+00:00'), (3, 'Outro', '2026-11-12 12:00:00+00:00')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`INSERT INTO group_members (group_id, person_id, role, weight_bp, joined_at) VALUES (2, 1, 'member', 10000, '2026-11-12 12:00:00+00:00')`); err != nil {
+		t.Fatal(err)
+	}
+	put := func(body string) *http.Response {
+		req, _ := http.NewRequest(http.MethodPut, srv.URL+"/api/me/group", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Origin", srv.URL)
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { resp.Body.Close() })
+		return resp
+	}
+	if resp := put(`{"groupId":3}`); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("switch to a group of others = %d, want 400", resp.StatusCode)
+	}
+	resp = put(`{"groupId":2}`)
+	_ = json.NewDecoder(resp.Body).Decode(&me)
+	if resp.StatusCode != http.StatusOK || me.Group.Name != "Praia" || me.Group.Role != "member" || len(me.Groups) != 2 {
+		t.Fatalf("switch = %d %+v", resp.StatusCode, me)
+	}
+	resp = get(t, c, srv.URL+"/api/me")
+	_ = json.NewDecoder(resp.Body).Decode(&me)
+	if me.Group.Name != "Praia" {
+		t.Fatalf("active group after the switch = %+v", me.Group)
 	}
 
 	resp = postJSON(t, c, srv, "/api/auth/logout", "")
@@ -199,7 +303,7 @@ func TestCrossOriginBlocked(t *testing.T) {
 func TestBackupAndExport(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 
 	resp := postJSON(t, c, srv, "/api/system/backups", "")
 	if resp.StatusCode != http.StatusCreated {
@@ -253,7 +357,7 @@ func TestBackupAndExport(t *testing.T) {
 func TestUnknownAPIRoute(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 	resp := get(t, c, srv.URL+"/api/nada")
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {

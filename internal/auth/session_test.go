@@ -37,7 +37,7 @@ func TestLateResponseSendsNoCookie(t *testing.T) {
 	entered, release := make(chan struct{}), make(chan struct{})
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
-		if err := SignIn(r.Context(), sm, 7); err != nil {
+		if err := SignIn(r.Context(), sm, 7, 1); err != nil {
 			t.Error(err)
 		}
 	})
@@ -111,7 +111,7 @@ func TestSignOutSurvivesLateCommit(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := SignIn(login, sm, 7); err != nil {
+			if err := SignIn(login, sm, 7, 1); err != nil {
 				t.Fatal(err)
 			}
 			token, _, err := sm.Commit(login)

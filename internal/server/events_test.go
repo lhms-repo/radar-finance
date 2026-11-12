@@ -21,8 +21,8 @@ func TestEventsStream(t *testing.T) {
 		t.Fatalf("signed out = %d", resp.StatusCode)
 	}
 	ana, bruno := newClient(t), newClient(t)
-	postJSON(t, ana, srv, "/api/auth/login", `{"login":"ana"}`)
-	postJSON(t, bruno, srv, "/api/auth/login", `{"login":"bruno"}`)
+	signIn(t, ana, srv, "ana")
+	signIn(t, bruno, srv, "bruno")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -77,7 +77,7 @@ func TestEventsStreamEndsOnHubClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := auth.SignIn(ctx, sm, 1); err != nil {
+	if err := auth.SignIn(ctx, sm, 1, 1); err != nil {
 		t.Fatal(err)
 	}
 	token, _, err := sm.Commit(ctx)

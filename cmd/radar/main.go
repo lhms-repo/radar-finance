@@ -2,15 +2,18 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,8 +52,12 @@ const usage = `Uso: radar <comando>
 
 Comandos:
   serve                  inicia o servidor (padrão)
-  user add               cria um usuário e a pessoa ligada a ele (máximo de dois)
+  user add               cria uma pessoa e o usuário dela (--login, --name; --group e --admin para já pôr num grupo)
+  user pin               define o PIN de um usuário (--login; o PIN é lido da entrada)
   user list              lista os usuários
+  group create           cria um grupo com o primeiro administrador (--name, --admin LOGIN)
+  group add              põe um usuário num grupo (--group NOME, --login; --admin para administrador)
+  group list             lista os grupos e os membros
   backup                 gera um backup manual
   healthcheck            verifica se o servidor responde
   version                mostra a versão
@@ -74,6 +81,8 @@ func run(args []string) int {
 		err = serve(log)
 	case "user":
 		err = userCommand(args, log)
+	case "group":
+		err = groupCommand(args, log)
 	case "backup":
 		err = backupCommand(log)
 	case "healthcheck":
@@ -200,15 +209,17 @@ func openForCommand(log *slog.Logger) (*account.Service, func(), error) {
 	return account.NewService(conn), func() { _ = conn.Close() }, nil
 }
 
-// userCommand handles the "user add" and "user list" subcommands.
+// userCommand handles the "user add", "user pin" and "user list" subcommands.
 func userCommand(args []string, log *slog.Logger) error {
 	if len(args) == 0 {
-		return errors.New("use: radar user add|list")
+		return errors.New("use: radar user add|pin|list")
 	}
 	sub, args := args[0], args[1:]
 	fs := flag.NewFlagSet("user "+sub, flag.ContinueOnError)
 	login := fs.String("login", "", "login do usuário")
 	name := fs.String("name", "", "nome da pessoa")
+	group := fs.String("group", "", "nome do grupo em que a pessoa entra")
+	admin := fs.Bool("admin", false, "entra no grupo como administrador")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -226,6 +237,22 @@ func userCommand(args []string, log *slog.Logger) error {
 			return err
 		}
 		fmt.Printf("Usuário %q criado para %s.\n", u.Login, u.Name)
+		if *group != "" {
+			return addToGroup(ctx, accounts, *group, u, *admin)
+		}
+	case "pin":
+		u, err := accounts.GetByLogin(ctx, *login)
+		if err != nil {
+			return fmt.Errorf("usuário %q: %w", *login, err)
+		}
+		pin, err := readPIN()
+		if err != nil {
+			return err
+		}
+		if err := accounts.SetPIN(ctx, u.ID, pin); err != nil {
+			return err
+		}
+		fmt.Printf("PIN de %q definido.\n", u.Login)
 	case "list":
 		users, err := accounts.List(ctx)
 		if err != nil {
@@ -238,6 +265,110 @@ func userCommand(args []string, log *slog.Logger) error {
 		return fmt.Errorf("subcomando desconhecido: user %s", sub)
 	}
 	return nil
+}
+
+// groupCommand handles the "group create", "group add" and "group list" subcommands (RF-78, RF-80).
+func groupCommand(args []string, log *slog.Logger) error {
+	if len(args) == 0 {
+		return errors.New("use: radar group create|add|list")
+	}
+	sub, args := args[0], args[1:]
+	fs := flag.NewFlagSet("group "+sub, flag.ContinueOnError)
+	name := fs.String("name", "", "nome do grupo")
+	adminLogin := fs.String("admin", "", "login do primeiro administrador")
+	group := fs.String("group", "", "nome do grupo")
+	login := fs.String("login", "", "login do usuário")
+	asAdmin := fs.Bool("as-admin", false, "entra como administrador")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	accounts, closeDB, err := openForCommand(log)
+	if err != nil {
+		return err
+	}
+	defer closeDB()
+	ctx := context.Background()
+
+	switch sub {
+	case "create":
+		u, err := accounts.GetByLogin(ctx, *adminLogin)
+		if err != nil {
+			return fmt.Errorf("administrador %q: %w", *adminLogin, err)
+		}
+		g, err := accounts.CreateGroup(ctx, *name, u.ID)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Grupo %q criado com %s como administrador.\n", g.Name, u.Name)
+	case "add":
+		u, err := accounts.GetByLogin(ctx, *login)
+		if err != nil {
+			return fmt.Errorf("usuário %q: %w", *login, err)
+		}
+		return addToGroup(ctx, accounts, *group, u, *asAdmin)
+	case "list":
+		groups, err := accounts.Groups(ctx)
+		if err != nil {
+			return err
+		}
+		for _, g := range groups {
+			members, err := accounts.Members(ctx, g.ID)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%d\t%s\n", g.ID, g.Name)
+			for _, m := range members {
+				pin := "sem PIN"
+				if m.HasPIN {
+					pin = "com PIN"
+				}
+				fmt.Printf("\t%s\t%s\t%s\t%s\n", m.Login, m.Name, roleName(m.Role), pin)
+			}
+		}
+	default:
+		return fmt.Errorf("subcomando desconhecido: group %s", sub)
+	}
+	return nil
+}
+
+// addToGroup puts the user in the group with the given name.
+func addToGroup(ctx context.Context, accounts *account.Service, groupName string, u account.User, admin bool) error {
+	groups, err := accounts.Groups(ctx)
+	if err != nil {
+		return err
+	}
+	for _, g := range groups {
+		if strings.EqualFold(g.Name, groupName) {
+			role := account.RoleMember
+			if admin {
+				role = account.RoleAdmin
+			}
+			if err := accounts.AddMember(ctx, g.ID, u.ID, role); err != nil {
+				return err
+			}
+			fmt.Printf("%s entrou no grupo %q como %s.\n", u.Name, g.Name, roleName(role))
+			return nil
+		}
+	}
+	return fmt.Errorf("grupo %q não encontrado; crie com radar group create", groupName)
+}
+
+// roleName writes a role in Portuguese for the terminal.
+func roleName(r account.Role) string {
+	if r == account.RoleAdmin {
+		return "administrador"
+	}
+	return "membro"
+}
+
+// readPIN reads the PIN from the first line of the standard input, so it stays out of the shell history.
+func readPIN() (string, error) {
+	fmt.Fprint(os.Stderr, "PIN (4 a 6 números): ")
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
 }
 
 // backupCommand runs a manual backup against the configured database.

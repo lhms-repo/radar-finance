@@ -22,7 +22,8 @@ func eventsHandler(hub *events.Hub, sm *scs.SessionManager) http.Handler {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Método não permitido.")
 			return
 		}
-		if auth.SessionUser(sm, r) == 0 {
+		user, group := auth.SessionUser(sm, r)
+		if user == 0 || group == 0 {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "Entre de novo para continuar.")
 			return
 		}

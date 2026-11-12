@@ -12,7 +12,7 @@ import (
 func TestMarketRoutes(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 
 	var m struct {
 		ID int64 `json:"id"`
@@ -82,7 +82,7 @@ func TestMarketRoutes(t *testing.T) {
 func TestReceiptRoutes(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 	link := "https://nfce.fixture.gov.br/?p=fictional%7C" + strings.Repeat("3", 44) + "%7C11222333000144"
 
 	resp := postJSON(t, c, srv, "/api/market/receipts/preview", fmt.Sprintf(`{"url":%q}`, link))
@@ -133,7 +133,7 @@ func TestReceiptRoutes(t *testing.T) {
 func TestCompareRoute(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 	var m, p, l struct {
 		ID int64 `json:"id"`
 	}
