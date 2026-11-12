@@ -188,6 +188,35 @@ func (q *Queries) ListIncomeConfirmations(ctx context.Context, incomeMonth sql.N
 	return items, nil
 }
 
+const listIncomeConfirmedMonths = `-- name: ListIncomeConfirmedMonths :many
+SELECT coalesce(income_month, '') AS month
+FROM entries
+WHERE income_id = ?
+`
+
+func (q *Queries) ListIncomeConfirmedMonths(ctx context.Context, incomeID sql.NullInt64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listIncomeConfirmedMonths, incomeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var month string
+		if err := rows.Scan(&month); err != nil {
+			return nil, err
+		}
+		items = append(items, month)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIncomes = `-- name: ListIncomes :many
 SELECT i.id, i.kind, i.name, i.person_id, i.account_id, i.amount_cents, i.day, i.start_month, i.end_on, i.expected_on, i.created_by, i.created_at, i.updated_at, p.name AS person_name, a.name AS account_name
 FROM incomes i
