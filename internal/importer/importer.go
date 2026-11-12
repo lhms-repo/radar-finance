@@ -217,6 +217,7 @@ func (s *Service) Preview(ctx context.Context, cardID int64, invoice civil.Month
 		return nil, err
 	}
 	out := make([]PreviewLine, 0, len(lines))
+	used := matched{installments: map[int64]bool{}, recurrences: map[int64]bool{}}
 	for i, l := range lines {
 		p := PreviewLine{Line: l, Index: i, FriendlyName: l.Merchant}
 		if r, ok := rules[Normalize(l.Merchant)]; ok {
@@ -229,7 +230,7 @@ func (s *Service) Preview(ctx context.Context, cardID int64, invoice civil.Month
 		}
 		if l.Kind == LinePayment {
 			p.Skip = true
-		} else if dup, err := s.duplicate(ctx, q, cardID, invoice, l, recurring); err != nil {
+		} else if dup, err := s.duplicate(ctx, q, cardID, invoice, l, recurring, used); err != nil {
 			return nil, err
 		} else if dup != nil {
 			p.Duplicate, p.Skip = dup, true
@@ -353,22 +354,35 @@ func (s *Service) Undo(ctx context.Context, id int64) error {
 	})
 }
 
+// matched remembers what in the Radar already flagged a CSV line, so each one flags a single line (RF-56).
+type matched struct {
+	installments map[int64]bool
+	recurrences  map[int64]bool
+}
+
 // duplicate looks for a card line with the same amount bought within a day, or a recurrence with the same amount on the invoice (RN-20).
 // An installment line is matched only by number, count and amount on the invoice, since the CSV dates later installments
-// at the start of the cycle instead of the purchase day (RF-57).
-func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64, invoice civil.Month, l Line, recurring []card.Recurrence) (*Duplicate, error) {
+// at the start of the cycle instead of the purchase day (RF-57). What matched one line is not used again.
+func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64, invoice civil.Month, l Line, recurring []card.Recurrence, used matched) (*Duplicate, error) {
 	if l.Installments > 0 && l.Kind == LinePurchase {
 		rows, err := q.CardInstallmentMatch(ctx, store.CardInstallmentMatchParams{
 			CardID: cardID, InvoiceMonth: invoice.String(), Number: int64(l.Installment), InstallmentCount: int64(l.Installments), AmountCents: l.AmountCents,
 		})
-		if err != nil || len(rows) == 0 {
-			return nil, err
-		}
-		on, err := civil.ParseDate(rows[0].PurchasedOn)
 		if err != nil {
 			return nil, err
 		}
-		return &Duplicate{Description: rows[0].Merchant, Date: &on, AmountCents: rows[0].AmountCents}, nil
+		for _, r := range rows {
+			if used.installments[r.InstallmentID] {
+				continue
+			}
+			on, err := civil.ParseDate(r.PurchasedOn)
+			if err != nil {
+				return nil, err
+			}
+			used.installments[r.InstallmentID] = true
+			return &Duplicate{Description: r.Merchant, Date: &on, AmountCents: r.AmountCents}, nil
+		}
+		return nil, nil
 	}
 	rows, err := q.CardItemsNear(ctx, store.CardItemsNearParams{CardID: cardID, FirstDay: l.Date.AddDays(-1).String(), LastDay: l.Date.AddDays(1).String()})
 	if err != nil {
@@ -379,17 +393,19 @@ func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64,
 		want = -want
 	}
 	for _, r := range rows {
-		if r.AmountCents == want {
+		if r.AmountCents == want && !used.installments[r.InstallmentID] {
 			on, err := civil.ParseDate(r.PurchasedOn)
 			if err != nil {
 				return nil, err
 			}
+			used.installments[r.InstallmentID] = true
 			return &Duplicate{Description: r.Merchant, Date: &on, AmountCents: r.AmountCents}, nil
 		}
 	}
 	if l.Kind == LinePurchase {
 		for _, r := range recurring {
-			if r.AmountCents == l.AmountCents {
+			if r.AmountCents == l.AmountCents && !used.recurrences[r.ID] {
+				used.recurrences[r.ID] = true
 				return &Duplicate{Description: r.Description, AmountCents: r.AmountCents}, nil
 			}
 		}
