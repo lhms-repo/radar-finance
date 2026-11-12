@@ -10,6 +10,8 @@ Radar é o sistema web de gestão financeira do casal, hospedado em casa, que mo
 
 **Usuários.** Ítalo e esposa. Os dois têm acesso total a todos os dados.
 
+**Grupos (a partir da Fase 8).** O Radar passa a atender grupos de pessoas cadastradas, como o casal ou amigos que dividem uma casa. Cada pessoa entra com PIN e pode pertencer a vários grupos, e cada grupo vê só os próprios dados. O casal de hoje vira o primeiro grupo. Decisões aprovadas em 12/11/2026; as seções 2.15 e 9 trazem os requisitos e as fases.
+
 **Modelo financeiro.** Caixa único do casal. Todas as rendas formam uma renda única e todos os percentuais são calculados sobre ela.
 
 **Ponto de partida.** O sistema começa do zero, sem importar histórico anterior.
@@ -24,8 +26,8 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 
 | ID | Requisito |
 | --- | --- |
-| RF-01 | O sistema tem exatamente dois usuários, um para cada pessoa do casal, sem senha. A entrada é pela tela "Quem está usando?", tocando no nome. Não existe tela de cadastro. |
-| RF-02 | Os dois usuários veem e editam todos os dados, sem restrição. |
+| RF-01 | Cada pessoa cadastrada entra escolhendo o grupo, depois o próprio nome, e digitando um PIN de 4 a 6 dígitos (RN-27). A tela de entrada lista os nomes dos grupos e, depois de escolhido o grupo, os nomes dos membros dele. Não existe autocadastro: pessoas são criadas pelo administrador do grupo ou pelo terminal (RF-80). |
+| RF-02 | Os membros de um grupo veem e editam os dados do grupo. Dados de outro grupo nunca aparecem. |
 | RF-03 | Todo lançamento registra qual usuário o criou e quando. |
 
 ### 2.2 Contas bancárias
@@ -169,6 +171,19 @@ Módulo em tela própria para descobrir onde a compra do mês sai mais barata, c
 | RF-76 | Exibir o histórico de preço de cada produto por mercado. |
 | RF-77 | Finalizar a compra gerando o lançamento do gasto no Alelo, no crédito ou em dinheiro, com o total real pago. |
 
+### 2.15 Grupos
+
+| ID | Requisito |
+| --- | --- |
+| RF-78 | Cadastrar grupos com nome. Uma pessoa pode pertencer a vários grupos. |
+| RF-79 | Cada membro tem papel, administrador ou membro, e peso no grupo, usado no acerto (RF-84). |
+| RF-80 | O administrador do grupo renomeia o grupo, adiciona pessoas já cadastradas, cadastra pessoas novas, define papéis e redefine PINs. O primeiro grupo e o primeiro administrador são criados pelo terminal. |
+| RF-81 | Quem está em vários grupos troca o grupo ativo por um seletor, sem entrar de novo. Todas as telas mostram só os dados do grupo ativo. |
+| RF-82 | Contas bancárias, cartões de crédito e cartões Alelo pertencem à pessoa e aparecem nos grupos de que ela faz parte. |
+| RF-83 | Cada lançamento, compra no cartão, conta fixa, financiamento, renda e caixinha é pessoal ou de um grupo. O pessoal é visível só para quem o criou. |
+| RF-84 | Exibir o saldo de acerto de cada membro do grupo e registrar o pagamento entre membros. |
+| RF-85 | Mercados, produtos, preços, notas fiscais e listas de compras são de cada grupo. |
+
 ## 3. Regras de negócio
 
 As regras abaixo definem como o sistema calcula e classifica os valores. Elas viram casos de teste na fase de validação.
@@ -201,6 +216,11 @@ As regras abaixo definem como o sistema calcula e classifica os valores. Elas vi
 | RN-24 | Melhor divisão: para cada combinação de mercados até o máximo configurado, cada item vai para o mercado mais barato da combinação. Vence a combinação de menor total que cubra todos os itens, desde que cada mercado a mais economize pelo menos o valor mínimo configurado. A comparação é passo a passo: a melhor combinação com um mercado a mais só vence se economizar o mínimo em relação à melhor combinação com um a menos; quando não economiza, a busca para. Item sem preço em nenhum mercado fica fora da divisão, com aviso. |
 | RN-25 | Preço com mais de 30 dias sem atualização é marcado como desatualizado. O prazo é configurável. |
 | RN-26 | A compra finalizada entra nos gastos como Alimentação, Compras para casa, exceto quando paga com Alelo, que segue a RN-15. |
+| RN-27 | O PIN tem de 4 a 6 dígitos e é guardado só como hash. Cinco erros seguidos bloqueiam a entrada daquela pessoa por 15 minutos. |
+| RN-28 | A cota de cada membro numa despesa do grupo segue os pesos do grupo, com a regra de centavos da RN-03; a despesa pode usar outra divisão na hora de lançar. Só entra no acerto o que é do grupo. |
+| RN-29 | Saldo de acerto de um membro = o que ele pagou de despesas do grupo, menos a cota dele nessas despesas, mais os pagamentos de acerto que fez, menos os que recebeu. A soma dos saldos do grupo é sempre zero. |
+| RN-30 | O pagamento de acerto entre membros é uma transferência entre contas de pessoas diferentes e não conta como gasto nem como renda. |
+| RN-31 | No grupo criado com os dados do casal, o acerto começa zerado na data da migração; nada anterior entra no saldo. |
 
 ## 4. Requisitos não funcionais
 
@@ -362,8 +382,11 @@ O centro do modelo é o Lançamento: toda movimentação de dinheiro, prevista o
 
 | Entidade | Principais atributos | Relaciona-se com |
 | --- | --- | --- |
-| Usuário | nome, login, preferência de tema | cria Lançamentos |
-| Pessoa do casal | nome | titular de Conta, Cartão, Alelo e Renda; autora opcional de Compra |
+| Usuário | nome, login, PIN, preferência de tema | cria Lançamentos |
+| Pessoa | nome | membro de Grupos; titular de Conta, Cartão, Alelo e Renda; autora opcional de Compra |
+| Grupo | nome | tem Membros; possui os dados do grupo |
+| Membro | papel, peso | liga Pessoa e Grupo |
+| Acerto | data, valor, de quem, para quem | pertence a um Grupo; é uma Transferência entre contas de Membros |
 | Conta bancária | nome, titular, saldo inicial | recebe e paga Lançamentos |
 | Renda | tipo, valor líquido, dia, data de término, recorrente ou eventual | gera Lançamentos previstos em uma Conta |
 | Cartão de crédito | nome, titular, limite, fechamento, vencimento, visual | possui Faturas |
@@ -487,7 +510,7 @@ Todas as animações respeitam a preferência de movimento reduzido do sistema o
 
 ## 9. Fases de construção
 
-O Radar é construído em sete fases, cada uma usada e validada antes da próxima. Em toda fase, os testes das regras de negócio envolvidas são escritos antes do código, e as animações da seção 8.6 entram junto com os componentes que elas animam.
+O Radar é construído em fases, cada uma usada e validada antes da próxima. As fases 8 a 11, aprovadas em 12/11/2026, levam o Radar do casal para grupos. Em toda fase, os testes das regras de negócio envolvidas são escritos antes do código, e as animações da seção 8.6 entram junto com os componentes que elas animam.
 
 | Fase | Entrega | Requisitos | Pronta quando |
 | --- | --- | --- | --- |
@@ -498,6 +521,10 @@ O Radar é construído em sete fases, cada uma usada e validada antes da próxim
 | 5. Visão geral | Dashboard completo, gráficos, orçamentos e notificações | RF-51, RF-52, RF-58 a RF-64, seção 5.3 | O saldo previsto do mês confere com a conta feita à mão |
 | 6. Importação | CSV do Nubank com regras de apelido e detecção de duplicatas | RF-53 a RF-57, RN-19, RN-20 | Uma fatura real importada sem duplicatas e com os apelidos aplicados |
 | 7. Mercado | Listas, comparação de preços e leitura da NFC-e | RF-65 a RF-77, RN-22 a RN-26 | Uma lista real mostra ranking e melhor divisão entre mercados a partir de notas escaneadas |
+| 8. Grupos e entrada | Grupos, membros, PIN, grupo ativo, administração, grupo em todas as tabelas e consultas, Mercado por grupo, avisos ao vivo por grupo | RF-01 a RF-03, RF-78 a RF-82, RF-85, RN-27 | O casal entra com PIN e vê tudo como antes, e um segundo grupo de teste não enxerga nada do primeiro em nenhuma tela nem rota |
+| 9. Contas da pessoa e lançamentos pessoais | Lançamentos pessoais ou do grupo, visibilidade do pessoal só para o dono, relatórios por grupo | RF-83 | Uma compra da casa de praia feita no cartão do casal aparece só no grupo da casa de praia, e a fatura completa só para a dona do cartão |
+| 10. Acerto entre membros | Pesos, cotas de membros por despesa e por parcela, saldos e pagamentos entre membros | RF-84, RN-28 a RN-31 | Um exemplo com três membros fecha centavo a centavo e zera depois dos pagamentos |
+| 11. Textos e ponta a ponta | Os textos "casal" viram o nome do grupo; e2e com dois grupos e uma pessoa nos dois | Todos os desta lista | Dois grupos leem a mesma nota fiscal sem misturar produtos nem preços, e nenhuma tela fala em casal |
 
 ## 10. Fora do escopo da v1
 
