@@ -1,7 +1,6 @@
 package market
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 // or an Alelo purchase, and closes the list in the same write (RF-77, RN-26).
 func TestFinish(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	persons, _ := account.NewService(f.conn).ListPersons(ctx)
 	acc, err := ledger.NewService(f.conn).CreateAccount(ctx, f.userID, ledger.NewAccount{Name: "Conta Ficticia", PersonID: persons[0].ID, InitialBalanceCents: 100_000})
 	if err != nil {

@@ -1,7 +1,6 @@
 package market
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -20,7 +19,7 @@ type compareWorld struct {
 func newCompareWorld(t *testing.T) compareWorld {
 	t.Helper()
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	w := compareWorld{f: f, a: f.mustMarket(t, "A", ""), b: f.mustMarket(t, "B", ""), c: f.mustMarket(t, "C", ""), d: f.mustMarket(t, "D", "")}
 	rice := f.mustProduct(t, "Arroz", "X", 5_000, UnitKilogram)
 	coffee := f.mustProduct(t, "Café", "X", 500_000, UnitGram)
@@ -59,7 +58,7 @@ func newCompareWorld(t *testing.T) compareWorld {
 // TestRanking puts complete markets first by total, then the incomplete ones, and leaves out markets without prices (RF-72, RF-75, RN-22, RN-23, RN-25).
 func TestRanking(t *testing.T) {
 	w := newCompareWorld(t)
-	got, err := w.f.s.Compare(context.Background(), w.listID)
+	got, err := w.f.s.Compare(groupCtx, w.listID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +103,7 @@ func TestBestSplit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newCompareWorld(t)
-			ctx := context.Background()
+			ctx := groupCtx
 			if err := w.f.s.UpdateSettings(ctx, tt.settings); err != nil {
 				t.Fatal(err)
 			}
@@ -137,7 +136,7 @@ func TestBestSplit(t *testing.T) {
 // TestSplitUncovered leaves out the item without any price and warns about it (RN-24).
 func TestSplitUncovered(t *testing.T) {
 	w := newCompareWorld(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	if err := w.f.s.AddItem(ctx, w.listID, w.noPrice.ID, 1_000); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +161,7 @@ func TestSplitUncovered(t *testing.T) {
 // TestCompareEmpty has no ranking and no split without priced items.
 func TestCompareEmpty(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	l, _ := f.s.CreateList(ctx, f.userID, "Vazia")
 	got, err := f.s.Compare(ctx, l.ID)
 	if err != nil {

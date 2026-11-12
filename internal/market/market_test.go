@@ -4,16 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database where today is 2026-11-11.
@@ -23,19 +20,15 @@ type fixture struct {
 	userID int64
 }
 
-// newFixture opens a fresh database for one test.
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
+// newFixture opens a fresh database for one test, with the group "Casa" of one fictional user.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	ana, _ := account.NewService(conn).Create(ctx, "ana", "Ana Ficticia")
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	testutil.FirstGroup(t, conn, ana)
 	s := NewService(conn)
 	s.today = func() civil.Date { return day(11) }
 	return &fixture{s: s, conn: conn, userID: ana.ID}
@@ -47,7 +40,7 @@ func day(d int) civil.Date { return civil.Date{Year: 2026, Month: time.November,
 // mustMarket creates a market or fails the test.
 func (f *fixture) mustMarket(t *testing.T, name, neighborhood string) Market {
 	t.Helper()
-	m, err := f.s.CreateMarket(context.Background(), f.userID, MarketInput{Name: name, Neighborhood: neighborhood})
+	m, err := f.s.CreateMarket(groupCtx, f.userID, MarketInput{Name: name, Neighborhood: neighborhood})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +50,7 @@ func (f *fixture) mustMarket(t *testing.T, name, neighborhood string) Market {
 // mustProduct creates a packaged product or fails the test.
 func (f *fixture) mustProduct(t *testing.T, name, brand string, sizeMilli int64, unit Unit) Product {
 	t.Helper()
-	p, err := f.s.CreateProduct(context.Background(), f.userID, ProductInput{Name: name, Brand: brand, SizeMilli: sizeMilli, Unit: unit})
+	p, err := f.s.CreateProduct(groupCtx, f.userID, ProductInput{Name: name, Brand: brand, SizeMilli: sizeMilli, Unit: unit})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +60,7 @@ func (f *fixture) mustProduct(t *testing.T, name, brand string, sizeMilli int64,
 // TestMarkets validates name and neighborhood and keeps a market with prices (RF-65).
 func TestMarkets(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name    string
 		in      MarketInput
@@ -115,7 +108,7 @@ func TestMarkets(t *testing.T) {
 // TestProducts requires a brand and a size, and makes products sold by weight priced per kg (RF-66).
 func TestProducts(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name      string
 		in        ProductInput
@@ -150,7 +143,7 @@ func TestProducts(t *testing.T) {
 // TestPrices keeps the history and takes the most recent date, then the newest row, as the latest price (RF-67, RF-70, RN-22).
 func TestPrices(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a, b := f.mustMarket(t, "Mercado A", ""), f.mustMarket(t, "Mercado B", "")
 	cafe := f.mustProduct(t, "Café", "Marca Ficticia", 500_000, UnitGram)
 
@@ -219,7 +212,7 @@ func TestPrices(t *testing.T) {
 // TestSettings bounds the comparison settings (RF-74, RN-25).
 func TestSettings(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	got, err := f.s.Settings(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -251,7 +244,7 @@ func TestSettings(t *testing.T) {
 // TestCatalog lists each product with the latest price per market and flags prices older than the configured days (RF-75, RN-25).
 func TestCatalog(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a, b := f.mustMarket(t, "Mercado A", ""), f.mustMarket(t, "Mercado B", "")
 	cafe := f.mustProduct(t, "Café", "Marca Ficticia", 500_000, UnitGram)
 	arroz := f.mustProduct(t, "Arroz", "Marca Ficticia", 5_000, UnitKilogram)

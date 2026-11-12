@@ -49,7 +49,7 @@ func fictionalReceipt(key string, day int) nfce.Receipt {
 // recognizes everything on the next receipt and refuses the same receipt twice (RF-68, RF-69).
 func TestReceiptFlow(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	fetch := &fakeFetcher{receipts: map[string]nfce.Receipt{
 		"https://nfce.sefaz.go.gov.br/1": fictionalReceipt(receiptKey("1"), 5),
 		"https://nfce.sefaz.go.gov.br/2": fictionalReceipt(receiptKey("2"), 9),
@@ -139,7 +139,7 @@ func TestReceiptFlow(t *testing.T) {
 // TestReceiptCommitErrors validates the lines and the market of a commit.
 func TestReceiptCommitErrors(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	f.s.receipts = &fakeFetcher{receipts: map[string]nfce.Receipt{"https://nfce.sefaz.go.gov.br/1": fictionalReceipt(receiptKey("1"), 5)}}
 	m := f.mustMarket(t, "Mercado Ficticio", "")
 	cafe := f.mustProduct(t, "Café", "Marca Ficticia", 500_000, UnitGram)

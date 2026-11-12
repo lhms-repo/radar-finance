@@ -12,6 +12,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // PayMethod is how a finished purchase was paid (RF-77).
@@ -57,6 +58,10 @@ type payments struct {
 // FinishList records the real total as an expense of Alimentação, Compras para casa, or as an Alelo purchase,
 // and closes the list, all in one write (RF-77, RN-26).
 func (s *Service) FinishList(ctx context.Context, userID, listID int64, in Finish) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if err := openList(ctx, q, listID); err != nil {
 			return err
@@ -67,7 +72,7 @@ func (s *Service) FinishList(ctx context.Context, userID, listID int64, in Finis
 		return q.FinishShoppingList(ctx, store.FinishShoppingListParams{
 			FinishedAt: sql.NullTime{Time: s.now().UTC(), Valid: true}, PaidCents: sql.NullInt64{Int64: in.TotalCents, Valid: true},
 			PaidOn: sql.NullString{String: in.Date.String(), Valid: true}, PaidMethod: sql.NullString{String: string(in.Method), Valid: true},
-			PaidWith: in.Description, ID: listID,
+			PaidWith: in.Description, ID: listID, GroupID: groupID,
 		})
 	})
 }

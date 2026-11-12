@@ -21,6 +21,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/nfce"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Unit is the unit of a product size.
@@ -160,12 +161,15 @@ type Key struct {
 	MarketID  int64
 }
 
-// Settings are the comparison settings shared by the couple (RF-74, RN-25).
+// Settings are the comparison settings shared by the members of a group (RF-74, RN-25).
 type Settings struct {
 	MaxMarkets      int
 	MinSavingsCents int64
 	StaleDays       int
 }
+
+// DefaultSettings apply to a group that never saved its own settings (RF-74).
+var DefaultSettings = Settings{MaxMarkets: 2, MinSavingsCents: 1_000, StaleDays: 30}
 
 // Label is the product name as shown and compared: name, brand and size, or "por kg" (RF-66).
 func (p Product) Label() string {
@@ -195,9 +199,13 @@ func (s *Service) WithFetcher(f Fetcher) *Service {
 	return s
 }
 
-// Markets lists the markets, active first.
+// Markets lists the markets of the active group, active first.
 func (s *Service) Markets(ctx context.Context) ([]Market, error) {
-	rows, err := store.New(s.conn).ListMarkets(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListMarkets(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list markets: %w", err)
 	}
@@ -219,11 +227,15 @@ func (s *Service) createMarket(ctx context.Context, q *store.Queries, userID int
 	if err != nil {
 		return Market{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Market{}, err
+	}
 	if err := checkUniqueMarket(ctx, q, name, neighborhood, 0); err != nil {
 		return Market{}, err
 	}
 	m, err := q.CreateMarket(ctx, store.CreateMarketParams{
-		Name: name, Neighborhood: neighborhood, Cnpj: sql.NullString{String: cnpj, Valid: cnpj != ""}, CreatedBy: userID, CreatedAt: s.now().UTC(),
+		Name: name, Neighborhood: neighborhood, Cnpj: sql.NullString{String: cnpj, Valid: cnpj != ""}, CreatedBy: userID, CreatedAt: s.now().UTC(), GroupID: groupID,
 	})
 	if err != nil {
 		return Market{}, fmt.Errorf("create market: %w", err)
@@ -237,6 +249,10 @@ func (s *Service) UpdateMarket(ctx context.Context, id int64, in MarketInput) (M
 	if err != nil {
 		return Market{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Market{}, err
+	}
 	var out Market
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		m, err := getMarket(ctx, q, id)
@@ -246,7 +262,7 @@ func (s *Service) UpdateMarket(ctx context.Context, id int64, in MarketInput) (M
 		if err := checkUniqueMarket(ctx, q, name, neighborhood, id); err != nil {
 			return err
 		}
-		if err := q.UpdateMarket(ctx, store.UpdateMarketParams{Name: name, Neighborhood: neighborhood, Active: in.Active, ID: id}); err != nil {
+		if err := q.UpdateMarket(ctx, store.UpdateMarketParams{Name: name, Neighborhood: neighborhood, Active: in.Active, ID: id, GroupID: groupID}); err != nil {
 			return fmt.Errorf("update market: %w", err)
 		}
 		out = Market{ID: id, Name: name, Neighborhood: neighborhood, CNPJ: m.Cnpj.String, Active: in.Active}
@@ -257,11 +273,15 @@ func (s *Service) UpdateMarket(ctx context.Context, id int64, in MarketInput) (M
 
 // DeleteMarket removes a market without prices.
 func (s *Service) DeleteMarket(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getMarket(ctx, q, id); err != nil {
 			return err
 		}
-		if err := q.DeleteMarket(ctx, id); err != nil {
+		if err := q.DeleteMarket(ctx, store.DeleteMarketParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrMarketInUse
 			}
@@ -271,9 +291,13 @@ func (s *Service) DeleteMarket(ctx context.Context, id int64) error {
 	})
 }
 
-// Products lists every product by name.
+// Products lists the products of the active group by name.
 func (s *Service) Products(ctx context.Context) ([]Product, error) {
-	rows, err := store.New(s.conn).ListProducts(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListProducts(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list products: %w", err)
 	}
@@ -301,11 +325,15 @@ func (s *Service) createProduct(ctx context.Context, q *store.Queries, userID in
 	if err != nil {
 		return Product{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Product{}, err
+	}
 	if err := checkUniqueProduct(ctx, q, in, 0); err != nil {
 		return Product{}, err
 	}
 	r, err := q.CreateProduct(ctx, store.CreateProductParams{
-		Name: in.Name, Brand: in.Brand, ByWeight: in.ByWeight, SizeMilli: in.SizeMilli, Unit: string(in.Unit), CreatedBy: userID, CreatedAt: s.now().UTC(),
+		Name: in.Name, Brand: in.Brand, ByWeight: in.ByWeight, SizeMilli: in.SizeMilli, Unit: string(in.Unit), CreatedBy: userID, CreatedAt: s.now().UTC(), GroupID: groupID,
 	})
 	if err != nil {
 		return Product{}, fmt.Errorf("create product: %w", err)
@@ -319,6 +347,10 @@ func (s *Service) UpdateProduct(ctx context.Context, id int64, in ProductInput) 
 	if err != nil {
 		return Product{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Product{}, err
+	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getProduct(ctx, q, id); err != nil {
 			return err
@@ -326,7 +358,7 @@ func (s *Service) UpdateProduct(ctx context.Context, id int64, in ProductInput) 
 		if err := checkUniqueProduct(ctx, q, in, id); err != nil {
 			return err
 		}
-		return q.UpdateProduct(ctx, store.UpdateProductParams{Name: in.Name, Brand: in.Brand, ByWeight: in.ByWeight, SizeMilli: in.SizeMilli, Unit: string(in.Unit), ID: id})
+		return q.UpdateProduct(ctx, store.UpdateProductParams{Name: in.Name, Brand: in.Brand, ByWeight: in.ByWeight, SizeMilli: in.SizeMilli, Unit: string(in.Unit), ID: id, GroupID: groupID})
 	})
 	if err != nil {
 		return Product{}, err
@@ -336,11 +368,15 @@ func (s *Service) UpdateProduct(ctx context.Context, id int64, in ProductInput) 
 
 // DeleteProduct removes a product without prices or list items.
 func (s *Service) DeleteProduct(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getProduct(ctx, q, id); err != nil {
 			return err
 		}
-		if err := q.DeleteProduct(ctx, id); err != nil {
+		if err := q.DeleteProduct(ctx, store.DeleteProductParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrProductInUse
 			}
@@ -386,31 +422,43 @@ func (s *Service) UpdatePrice(ctx context.Context, id int64, c PriceChanges) err
 	if err := s.checkPrice(c.PriceCents, c.Date); err != nil {
 		return err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if err := checkPriceExists(ctx, q, id); err != nil {
 			return err
 		}
-		return q.UpdatePrice(ctx, store.UpdatePriceParams{PriceCents: c.PriceCents, ObservedOn: c.Date.String(), ID: id})
+		return q.UpdatePrice(ctx, store.UpdatePriceParams{PriceCents: c.PriceCents, ObservedOn: c.Date.String(), ID: id, GroupID: groupID})
 	})
 }
 
 // DeletePrice removes a wrong price (RF-70).
 func (s *Service) DeletePrice(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if err := checkPriceExists(ctx, q, id); err != nil {
 			return err
 		}
-		return q.DeletePrice(ctx, id)
+		return q.DeletePrice(ctx, store.DeletePriceParams{ID: id, GroupID: groupID})
 	})
 }
 
 // History lists the prices of a product in every market, newest first (RF-76).
 func (s *Service) History(ctx context.Context, productID int64) ([]Price, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := store.New(s.conn)
 	if _, err := getProduct(ctx, q, productID); err != nil {
 		return nil, err
 	}
-	rows, err := q.ProductPrices(ctx, productID)
+	rows, err := q.ProductPrices(ctx, store.ProductPricesParams{GroupID: groupID, ProductID: productID})
 	if err != nil {
 		return nil, fmt.Errorf("product prices: %w", err)
 	}
@@ -432,7 +480,11 @@ func (s *Service) Latest(ctx context.Context) (map[Key]Price, error) {
 
 // latest reads the latest prices with the given queries.
 func latest(ctx context.Context, q *store.Queries) (map[Key]Price, error) {
-	rows, err := q.LatestPrices(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.LatestPrices(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("latest prices: %w", err)
 	}
@@ -447,21 +499,28 @@ func latest(ctx context.Context, q *store.Queries) (map[Key]Price, error) {
 	return out, nil
 }
 
-// Settings reads the comparison settings (RF-74, RN-25).
+// Settings reads the comparison settings of the active group, with the defaults when it has none yet (RF-74, RN-25).
 func (s *Service) Settings(ctx context.Context) (Settings, error) {
 	return settings(ctx, store.New(s.conn))
 }
 
 // settings reads the comparison settings with the given queries.
 func settings(ctx context.Context, q *store.Queries) (Settings, error) {
-	r, err := q.GetMarketSettings(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Settings{}, err
+	}
+	r, err := q.GetMarketSettings(ctx, groupID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return DefaultSettings, nil
+	}
 	if err != nil {
 		return Settings{}, fmt.Errorf("market settings: %w", err)
 	}
 	return Settings{MaxMarkets: int(r.MaxMarkets), MinSavingsCents: r.MinSavingsCents, StaleDays: int(r.StaleDays)}, nil
 }
 
-// UpdateSettings saves the comparison settings (RF-74, RN-25).
+// UpdateSettings saves the comparison settings of the active group, creating its row on the first save (RF-74, RN-25).
 func (s *Service) UpdateSettings(ctx context.Context, in Settings) error {
 	switch {
 	case in.MaxMarkets < 1 || in.MaxMarkets > 5:
@@ -471,8 +530,12 @@ func (s *Service) UpdateSettings(ctx context.Context, in Settings) error {
 	case in.StaleDays < 1 || in.StaleDays > 365:
 		return ErrSettingsDays
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		return q.UpdateMarketSettings(ctx, store.UpdateMarketSettingsParams{MaxMarkets: int64(in.MaxMarkets), MinSavingsCents: in.MinSavingsCents, StaleDays: int64(in.StaleDays)})
+		return q.UpsertMarketSettings(ctx, store.UpsertMarketSettingsParams{GroupID: groupID, MaxMarkets: int64(in.MaxMarkets), MinSavingsCents: in.MinSavingsCents, StaleDays: int64(in.StaleDays)})
 	})
 }
 
@@ -523,7 +586,11 @@ func cleanProduct(in ProductInput) (ProductInput, error) {
 
 // checkUniqueMarket rejects another market with the same name and neighborhood.
 func checkUniqueMarket(ctx context.Context, q *store.Queries, name, neighborhood string, self int64) error {
-	rows, err := q.ListMarkets(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	rows, err := q.ListMarkets(ctx, groupID)
 	if err != nil {
 		return err
 	}
@@ -537,7 +604,11 @@ func checkUniqueMarket(ctx context.Context, q *store.Queries, name, neighborhood
 
 // checkUniqueProduct rejects another product with the same name, brand and size.
 func checkUniqueProduct(ctx context.Context, q *store.Queries, in ProductInput, self int64) error {
-	rows, err := q.ListProducts(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	rows, err := q.ListProducts(ctx, groupID)
 	if err != nil {
 		return err
 	}
@@ -552,7 +623,11 @@ func checkUniqueProduct(ctx context.Context, q *store.Queries, in ProductInput, 
 
 // getMarket reads one market.
 func getMarket(ctx context.Context, q *store.Queries, id int64) (store.Market, error) {
-	m, err := q.GetMarket(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return store.Market{}, err
+	}
+	m, err := q.GetMarket(ctx, store.GetMarketParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return m, ErrMarketNotFound
 	}
@@ -561,7 +636,11 @@ func getMarket(ctx context.Context, q *store.Queries, id int64) (store.Market, e
 
 // getProduct reads one product.
 func getProduct(ctx context.Context, q *store.Queries, id int64) (Product, error) {
-	r, err := q.GetProduct(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Product{}, err
+	}
+	r, err := q.GetProduct(ctx, store.GetProductParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Product{}, ErrProductNotFound
 	}
@@ -573,7 +652,11 @@ func getProduct(ctx context.Context, q *store.Queries, id int64) (Product, error
 
 // checkPriceExists fails when the price is missing.
 func checkPriceExists(ctx context.Context, q *store.Queries, id int64) error {
-	if _, err := q.GetPrice(ctx, id); errors.Is(err, sql.ErrNoRows) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := q.GetPrice(ctx, store.GetPriceParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 		return ErrPriceNotFound
 	} else if err != nil {
 		return err

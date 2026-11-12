@@ -13,6 +13,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // List statuses: open while shopping, done once finished (RF-77).
@@ -59,9 +60,13 @@ type ListDetail struct {
 	Paid  *Payment
 }
 
-// Lists returns the lists, open ones first.
+// Lists returns the lists of the active group, open ones first.
 func (s *Service) Lists(ctx context.Context) ([]ShoppingList, error) {
-	rows, err := store.New(s.conn).ListShoppingLists(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListShoppingLists(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list lists: %w", err)
 	}
@@ -78,7 +83,11 @@ func (s *Service) CreateList(ctx context.Context, userID int64, name string) (Sh
 	if err != nil {
 		return ShoppingList{}, err
 	}
-	r, err := store.New(s.conn).CreateShoppingList(ctx, store.CreateShoppingListParams{Name: name, CreatedBy: userID, CreatedAt: s.now().UTC()})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ShoppingList{}, err
+	}
+	r, err := store.New(s.conn).CreateShoppingList(ctx, store.CreateShoppingListParams{Name: name, CreatedBy: userID, CreatedAt: s.now().UTC(), GroupID: groupID})
 	if err != nil {
 		return ShoppingList{}, fmt.Errorf("create list: %w", err)
 	}
@@ -91,21 +100,29 @@ func (s *Service) RenameList(ctx context.Context, id int64, name string) error {
 	if err != nil {
 		return err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getList(ctx, q, id); err != nil {
 			return err
 		}
-		return q.RenameShoppingList(ctx, store.RenameShoppingListParams{Name: name, ID: id})
+		return q.RenameShoppingList(ctx, store.RenameShoppingListParams{Name: name, ID: id, GroupID: groupID})
 	})
 }
 
 // DeleteList removes a list and its items; a finished purchase keeps its expense.
 func (s *Service) DeleteList(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getList(ctx, q, id); err != nil {
 			return err
 		}
-		return q.DeleteShoppingList(ctx, id)
+		return q.DeleteShoppingList(ctx, store.DeleteShoppingListParams{ID: id, GroupID: groupID})
 	})
 }
 
@@ -240,7 +257,11 @@ func cleanListName(name string) (string, error) {
 
 // getList reads one list.
 func getList(ctx context.Context, q *store.Queries, id int64) (store.ShoppingList, error) {
-	l, err := q.GetShoppingList(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return store.ShoppingList{}, err
+	}
+	l, err := q.GetShoppingList(ctx, store.GetShoppingListParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return l, ErrListNotFound
 	}
@@ -259,11 +280,19 @@ func openList(ctx context.Context, q *store.Queries, id int64) error {
 	return nil
 }
 
-// getItem reads one list item.
+// getItem reads one list item, which exists only while its list belongs to the active group.
 func getItem(ctx context.Context, q *store.Queries, id int64) (store.ListItem, error) {
 	it, err := q.GetListItem(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return it, ErrListItemNotFound
 	}
-	return it, err
+	if err != nil {
+		return it, err
+	}
+	if _, err := getList(ctx, q, it.ListID); errors.Is(err, ErrListNotFound) {
+		return store.ListItem{}, ErrListItemNotFound
+	} else if err != nil {
+		return store.ListItem{}, err
+	}
+	return it, nil
 }
