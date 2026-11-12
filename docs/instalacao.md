@@ -67,7 +67,18 @@ No terminal do Ubuntu, na pasta do repositório:
 ```bash
 cp deploy/.env.example deploy/.env   # ajuste RADAR_HOSTS e RADAR_BACKUP_HOST_DIR
 make deploy
-make deploy-user-add LOGIN=<login> NAME="<nome>"   # uma vez para cada pessoa, no máximo duas
+make deploy-user-add LOGIN=<login> NAME="<nome>"   # a primeira pessoa
+make deploy-group-create NAME="<grupo>" ADMIN=<login>   # o primeiro grupo, com ela como administradora
+make deploy-user-add LOGIN=<login> NAME="<nome>" GROUP="<grupo>"   # as outras pessoas do grupo
+make deploy-user-pin LOGIN=<login>   # o PIN de cada pessoa, de 4 a 6 números, digitado no terminal
+```
+
+Depois disso, os administradores do grupo cadastram pessoas, criam outros grupos e redefinem PINs pelo próprio Radar, em Ajustes.
+
+**Atualizando um Radar de antes da Fase 8.** A atualização cria o grupo "Casa" com as duas pessoas e todos os dados, mas ninguém tem PIN ainda, então ninguém entra até o PIN ser definido pelo terminal:
+
+```sh
+make deploy-user-pin LOGIN=<login>   # uma vez para cada pessoa
 ```
 
 Os usuários não têm senha (RF-01) e ficam só no banco, nunca no repositório. Atualizações futuras usam o mesmo `make deploy` (RNF-19). As migrações rodam sozinhas.
