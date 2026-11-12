@@ -137,6 +137,8 @@ func problemStatus(k problem.Kind) int {
 		return http.StatusNotFound
 	case problem.KindConflict:
 		return http.StatusConflict
+	case problem.KindForbidden:
+		return http.StatusForbidden
 	default:
 		return http.StatusBadRequest
 	}
