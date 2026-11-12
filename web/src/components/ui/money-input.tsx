@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,9 @@ export function MoneyInput({
   ariaLabel?: string;
 }) {
   const fallbackId = useId();
-  const negative = value < 0;
+  // Zero has no sign, so the chosen sign is kept apart while the field is empty.
+  const [signWhenZero, setSignWhenZero] = useState(false);
+  const negative = value === 0 ? allowNegative && signWhenZero : value < 0;
   return (
     <div
       className={cn(
@@ -35,7 +37,10 @@ export function MoneyInput({
       {allowNegative && (
         <button
           type="button"
-          onClick={() => onChange(-value)}
+          onClick={() => {
+            setSignWhenZero(!negative);
+            if (value !== 0) onChange(-value);
+          }}
           aria-label={negative ? "Tornar positivo" : "Tornar negativo"}
           aria-pressed={negative}
           className={cn("rounded-lg px-2 py-0.5 text-sm font-medium", negative ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}
@@ -56,6 +61,7 @@ export function MoneyInput({
         onChange={(e) => {
           const digits = e.target.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, MAX_DIGITS);
           const cents = digits === "" ? 0 : Number(digits);
+          setSignWhenZero(negative);
           onChange(negative ? -cents : cents);
         }}
       />
