@@ -81,7 +81,7 @@ Depois disso, os administradores do grupo cadastram pessoas, criam outros grupos
 make deploy-user-pin LOGIN=<login>   # uma vez para cada pessoa
 ```
 
-Os usuários não têm senha (RF-01) e ficam só no banco, nunca no repositório. Atualizações futuras usam o mesmo `make deploy` (RNF-19). As migrações rodam sozinhas.
+As pessoas entram com PIN (RF-01, RN-27) e ficam só no banco, nunca no repositório. Atualizações futuras usam o mesmo `make deploy` (RNF-19). As migrações rodam sozinhas.
 
 ## 5. Instalar como app no iPhone (RNF-23)
 
