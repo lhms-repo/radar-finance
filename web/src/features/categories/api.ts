@@ -27,7 +27,8 @@ function useCategoryMutation<V>(fn: (vars: V) => Promise<unknown>, success: stri
     onSuccess: () => {
       haptic();
       toast.success(success);
-      void qc.invalidateQueries({ queryKey: CATEGORIES_KEY });
+      // Category names and totals show on almost every screen and these writes are rare, so everything refreshes.
+      void qc.invalidateQueries();
     },
   });
 }

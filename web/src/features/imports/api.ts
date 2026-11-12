@@ -11,7 +11,8 @@ export type ImportRecord = components["schemas"]["ImportRecord"];
 
 /** Refreshes what an import touches: cards, rules, history and every indicator. */
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
-  for (const key of [["cards"], ["alias-rules"], ["imports"], ...ACCOUNT_KEYS]) void qc.invalidateQueries({ queryKey: key });
+  // Imports can split lines with other people, so receivables and the known names refresh too.
+  for (const key of [["cards"], ["alias-rules"], ["imports"], ["receivables"], ["parties"], ["search"], ...ACCOUNT_KEYS]) void qc.invalidateQueries({ queryKey: key });
 }
 
 /** Loads the alias rules (RF-54). */
