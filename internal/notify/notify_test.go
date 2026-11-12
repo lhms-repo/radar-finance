@@ -107,13 +107,13 @@ func TestNotifications(t *testing.T) {
 		severity Severity
 		title    string
 	}{
-		{key: "overdue:bill:2:2026-11", kind: KindOverdue, severity: SeverityDanger, title: "Conta atrasada: Internet"},
-		{key: "overdue:invoice:1:2026-11", kind: KindOverdue, severity: SeverityDanger, title: "Fatura atrasada: Nubank"},
-		{key: "budget_over:" + itoa(cat["Lazer"]) + ":2026-11", kind: KindBudgetOver, severity: SeverityDanger, title: "Orçamento de Lazer estourado"},
-		{key: "due_soon:bill:1:2026-11", kind: KindDueSoon, severity: SeverityWarning, title: "Vence em breve: Água"},
-		{key: "budget_warning:" + itoa(cat["Alimentação"]) + ":2026-11", kind: KindBudgetWarning, severity: SeverityWarning, title: "Orçamento de Alimentação em 90%"},
-		{key: "savings_pending:1:2026-11", kind: KindSavingsPending, severity: SeverityInfo, title: "Aporte pendente: Viagem"},
-		{key: "income_ending:1:2026-12-01", kind: KindIncomeEnding, severity: SeverityInfo, title: "Bolsa termina em 01/12/2026"},
+		{key: "g1:overdue:bill:2:2026-11", kind: KindOverdue, severity: SeverityDanger, title: "Conta atrasada: Internet"},
+		{key: "g1:overdue:invoice:1:2026-11", kind: KindOverdue, severity: SeverityDanger, title: "Fatura atrasada: Nubank"},
+		{key: "g1:budget_over:" + itoa(cat["Lazer"]) + ":2026-11", kind: KindBudgetOver, severity: SeverityDanger, title: "Orçamento de Lazer estourado"},
+		{key: "g1:due_soon:bill:1:2026-11", kind: KindDueSoon, severity: SeverityWarning, title: "Vence em breve: Água"},
+		{key: "g1:budget_warning:" + itoa(cat["Alimentação"]) + ":2026-11", kind: KindBudgetWarning, severity: SeverityWarning, title: "Orçamento de Alimentação em 90%"},
+		{key: "g1:savings_pending:1:2026-11", kind: KindSavingsPending, severity: SeverityInfo, title: "Aporte pendente: Viagem"},
+		{key: "g1:income_ending:1:2026-12-01", kind: KindIncomeEnding, severity: SeverityInfo, title: "Bolsa termina em 01/12/2026"},
 	}
 	if len(list.Items) != len(want) || list.Unread != len(want) {
 		t.Fatalf("notifications = %d, unread %d: %+v", len(list.Items), list.Unread, list.Items)

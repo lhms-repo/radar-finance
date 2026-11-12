@@ -185,8 +185,14 @@ func (s *Service) List(ctx context.Context, userID int64) (List, error) {
 	for _, k := range reads {
 		read[k] = true
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return List{}, err
+	}
 	out := List{Items: []Notification{}}
 	for _, n := range items {
+		// The same card or category can warn in two groups, so reading it in one keeps it unread in the other.
+		n.Key = fmt.Sprintf("g%d:%s", groupID, n.Key)
 		n.Read = read[n.Key]
 		if !n.Read {
 			out.Unread++

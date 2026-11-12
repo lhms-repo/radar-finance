@@ -197,6 +197,7 @@ type Import struct {
 	LineCount    int64
 	CreatedBy    int64
 	CreatedAt    time.Time
+	GroupID      sql.NullInt64
 }
 
 type Income struct {

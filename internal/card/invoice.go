@@ -257,7 +257,7 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, er
 			return fmt.Errorf("create payment entry: %w", err)
 		}
 		return q.CreateInvoicePayment(ctx, store.CreateInvoicePaymentParams{
-			CardID: p.CardID, InvoiceMonth: p.Month.String(), EntryID: e.ID, AmountCents: inv.TotalCents, CreatedBy: userID, CreatedAt: now,
+			GroupID: groupID, CardID: p.CardID, InvoiceMonth: p.Month.String(), EntryID: e.ID, AmountCents: inv.TotalCents, CreatedBy: userID, CreatedAt: now,
 		})
 	})
 	if err != nil {

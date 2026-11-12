@@ -704,3 +704,32 @@ func TestGroupIsolation(t *testing.T) {
 		t.Fatalf("cards of the first group = %d, want 1", len(cards))
 	}
 }
+
+// TestSharedCardPaidPerGroup pays the same month of a card shared by a person in two groups once in each group:
+// each group has its own invoice of that card (RF-21, RF-82).
+func TestSharedCardPaidPerGroup(t *testing.T) {
+	f := newFixture(t)
+	c := f.newCard(t)
+	ana, err := account.NewService(f.conn).Get(groupCtx, f.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beach := testutil.NewGroup(t, f.conn, "Praia", ana)
+	nov := civil.Month{Year: 2026, Month: time.November}
+	for _, ctx := range []context.Context{groupCtx, beach} {
+		if _, err := f.s.AddPurchase(ctx, f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.October, 20), Merchant: "Loja Ficticia", CategoryID: f.delivery, AmountCents: 10_000, Installments: 1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, ctx := range map[string]context.Context{"Casa": groupCtx, "Praia": beach} {
+		t.Run(name, func(t *testing.T) {
+			inv, err := f.s.Pay(ctx, f.userID, Payment{CardID: c.ID, Month: nov, AccountID: f.accountID, Date: d(2026, time.November, 10)})
+			if err != nil {
+				t.Fatalf("pay in %s: %v", name, err)
+			}
+			if inv.Status != StatusPaid || inv.TotalCents != 10_000 {
+				t.Fatalf("invoice in %s = %+v", name, inv)
+			}
+		})
+	}
+}
