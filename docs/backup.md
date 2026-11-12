@@ -9,7 +9,7 @@ Como o Radar guarda as cópias do banco e como voltar uma delas (RNF-05 a RNF-07
 - Antes de entrar no lugar, cada cópia passa por `PRAGMA quick_check` e é gravada no disco.
 - Ao ligar, se a cópia do último horário agendado não existir, o serviço faz uma na hora (RNF-06).
 - O botão **Fazer agora**, em Ajustes, gera uma cópia manual (RNF-07). Pelo terminal: `make deploy-backup`.
-- Ficam as 30 cópias mais recentes (`RADAR_BACKUP_KEEP`). As mais antigas são apagadas.
+- Ficam as 30 cópias diárias mais recentes, contando as de inicialização (`RADAR_BACKUP_KEEP`), e à parte as 10 manuais mais recentes. As mais antigas são apagadas, e tocar muitas vezes no botão não apaga o histórico diário.
 - As cópias vão para `RADAR_BACKUP_HOST_DIR`, uma pasta do Windows fora do volume. O padrão é `C:\RadarBackups`.
 
 Nome dos arquivos: `radar-AAAAMMDD-HHMMSS-tipo.db`, com tipo `daily`, `startup` ou `manual`.
