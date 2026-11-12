@@ -18,6 +18,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // maxName is the longest bill name accepted, in characters.
@@ -121,9 +122,13 @@ func NewService(conn *sql.DB) *Service {
 	return &Service{conn: conn, ledger: ledger.NewService(conn), now: time.Now, today: func() civil.Date { return civil.Today(loc) }}
 }
 
-// List returns every bill ordered by due day.
+// List returns every bill of the active group ordered by due day.
 func (s *Service) List(ctx context.Context) ([]Bill, error) {
-	rows, err := store.New(s.conn).ListBills(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListBills(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list bills: %w", err)
 	}
@@ -158,6 +163,10 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Bill, err
 	if err != nil {
 		return Bill{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Bill{}, err
+	}
 	var id int64
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if err := checkRefs(ctx, q, in); err != nil {
@@ -166,7 +175,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Bill, err
 		now := s.now().UTC()
 		b, err := q.CreateBill(ctx, store.CreateBillParams{
 			Name: in.Name, CategoryID: in.CategoryID, AccountID: in.AccountID, DueDay: int64(in.DueDay), ExpectedCents: in.ExpectedCents,
-			StartMonth: in.StartMonth.String(), EndMonth: nullMonth(in.EndMonth), CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			StartMonth: in.StartMonth.String(), EndMonth: nullMonth(in.EndMonth), CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create bill: %w", err)
@@ -186,6 +195,10 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Bill, error) 
 	if err != nil {
 		return Bill{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Bill{}, err
+	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getBill(ctx, q, id); err != nil {
 			return err
@@ -198,7 +211,7 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Bill, error) 
 		}
 		return q.UpdateBill(ctx, store.UpdateBillParams{
 			Name: in.Name, CategoryID: in.CategoryID, AccountID: in.AccountID, DueDay: int64(in.DueDay), ExpectedCents: in.ExpectedCents,
-			StartMonth: in.StartMonth.String(), EndMonth: nullMonth(in.EndMonth), UpdatedAt: s.now().UTC(), ID: id,
+			StartMonth: in.StartMonth.String(), EndMonth: nullMonth(in.EndMonth), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		})
 	})
 	if err != nil {
@@ -209,11 +222,15 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Bill, error) 
 
 // Delete removes a bill without payments.
 func (s *Service) Delete(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getBill(ctx, q, id); err != nil {
 			return err
 		}
-		if err := q.DeleteBill(ctx, id); err != nil {
+		if err := q.DeleteBill(ctx, store.DeleteBillParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrInUse
 			}
@@ -231,6 +248,10 @@ func (s *Service) SetActual(ctx context.Context, billID int64, m civil.Month, ce
 	if cents > ledger.MaxAmountCents {
 		return ledger.ErrAmountTooLarge
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		b, err := getBill(ctx, q, billID)
 		if err != nil {
@@ -240,7 +261,7 @@ func (s *Service) SetActual(ctx context.Context, billID int64, m civil.Month, ce
 			return ErrNoOccurrence
 		}
 		// Once paid, the paid amount is the real one of the month (RF-37).
-		paid, err := q.ListBillPayments(ctx, sql.NullString{String: m.String(), Valid: true})
+		paid, err := q.ListBillPayments(ctx, store.ListBillPaymentsParams{GroupID: groupID, BillMonth: sql.NullString{String: m.String(), Valid: true}})
 		if err != nil {
 			return err
 		}
@@ -262,8 +283,12 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 	if err != nil {
 		return MonthView{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return MonthView{}, err
+	}
 	q := store.New(s.conn)
-	amounts, err := q.ListBillAmounts(ctx, m.String())
+	amounts, err := q.ListBillAmounts(ctx, store.ListBillAmountsParams{GroupID: groupID, Month: m.String()})
 	if err != nil {
 		return MonthView{}, fmt.Errorf("list bill amounts: %w", err)
 	}
@@ -271,7 +296,7 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 	for _, a := range amounts {
 		actual[a.BillID] = a.ActualCents
 	}
-	payments, err := q.ListBillPayments(ctx, sql.NullString{String: m.String(), Valid: true})
+	payments, err := q.ListBillPayments(ctx, store.ListBillPaymentsParams{GroupID: groupID, BillMonth: sql.NullString{String: m.String(), Valid: true}})
 	if err != nil {
 		return MonthView{}, fmt.Errorf("list bill payments: %w", err)
 	}
@@ -310,8 +335,12 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 
 // Pay records the payment of the bill of a month as spending of its category; the amount paid becomes the real one (RF-37).
 func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (ledger.Entry, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ledger.Entry{}, err
+	}
 	var entryID int64
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		b, err := getBill(ctx, q, p.BillID)
 		if err != nil {
 			return err
@@ -319,7 +348,7 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (ledger.Entr
 		if _, ok := dueOn(b, p.Month); !ok {
 			return ErrNoOccurrence
 		}
-		done, err := q.ListBillPayments(ctx, sql.NullString{String: p.Month.String(), Valid: true})
+		done, err := q.ListBillPayments(ctx, store.ListBillPaymentsParams{GroupID: groupID, BillMonth: sql.NullString{String: p.Month.String(), Valid: true}})
 		if err != nil {
 			return err
 		}
@@ -331,7 +360,7 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (ledger.Entr
 		amount := p.AmountCents
 		if amount == 0 {
 			amount = b.ExpectedCents
-			amounts, err := q.ListBillAmounts(ctx, p.Month.String())
+			amounts, err := q.ListBillAmounts(ctx, store.ListBillAmountsParams{GroupID: groupID, Month: p.Month.String()})
 			if err != nil {
 				return err
 			}
@@ -365,7 +394,7 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (ledger.Entr
 			AccountID: accountID, AmountCents: -amount, OccurredOn: on.String(),
 			CategoryID: sql.NullInt64{Int64: b.CategoryID, Valid: true}, Description: b.Name,
 			BillID: sql.NullInt64{Int64: b.ID, Valid: true}, BillMonth: sql.NullString{String: p.Month.String(), Valid: true},
-			CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("pay bill: %w", err)
@@ -388,7 +417,11 @@ func dueOn(b Bill, m civil.Month) (civil.Date, bool) {
 
 // checkPaidMonths refuses a change that leaves a paid month outside the bill, which would hide the payment from the forecast.
 func checkPaidMonths(ctx context.Context, q *store.Queries, id int64, in Input) error {
-	months, err := q.ListBillPaidMonths(ctx, sql.NullInt64{Int64: id, Valid: true})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	months, err := q.ListBillPaidMonths(ctx, store.ListBillPaidMonthsParams{GroupID: groupID, BillID: sql.NullInt64{Int64: id, Valid: true}})
 	if err != nil {
 		return err
 	}
@@ -433,7 +466,11 @@ func checkRefs(ctx context.Context, q *store.Queries, in Input) error {
 
 // getBill reads one bill with its display names.
 func getBill(ctx context.Context, q *store.Queries, id int64) (Bill, error) {
-	r, err := q.GetBill(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Bill{}, err
+	}
+	r, err := q.GetBill(ctx, store.GetBillParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Bill{}, ErrNotFound
 	}
