@@ -119,6 +119,7 @@ func TestMarkReceived(t *testing.T) {
 		{name: "unknown share", in: Receipt{ItemIDs: []int64{9999}, AccountID: f.accountID, Date: dec}, wantErr: ErrItemNotFound},
 		{name: "missing account", in: Receipt{ItemIDs: []int64{joao.Items[0].ID}, AccountID: 999, Date: dec}, wantErr: ledger.ErrAccountNotFound},
 		{name: "missing date", in: Receipt{ItemIDs: []int64{joao.Items[0].ID}, AccountID: f.accountID}, wantErr: ledger.ErrDateRequired},
+		{name: "same share twice", in: Receipt{ItemIDs: []int64{joao.Items[0].ID, joao.Items[0].ID}, AccountID: f.accountID, Date: dec}, wantErr: ErrRepeatedItem},
 		{name: "first installment and the dinner together", in: Receipt{ItemIDs: []int64{joao.Items[0].ID, joao.Items[1].ID}, AccountID: f.accountID, Date: dec}},
 		{name: "already received", in: Receipt{ItemIDs: []int64{joao.Items[0].ID}, AccountID: f.accountID, Date: dec}, wantErr: ErrAlreadyReceived},
 	}

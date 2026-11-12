@@ -27,6 +27,7 @@ var (
 	ErrMixedPeople     = problem.Invalid("receivable_mixed", "Marque os pagamentos de uma pessoa por vez.")
 	ErrItemNotFound    = problem.NotFound("receivable_not_found", "Cota não encontrada.")
 	ErrAlreadyReceived = problem.Conflict("receivable_received", "Esta cota já foi recebida.")
+	ErrRepeatedItem    = problem.Invalid("receivable_repeated", "A mesma cota aparece duas vezes.")
 	ErrPartyNotFound   = problem.NotFound("party_not_found", "Pessoa não encontrada.")
 )
 
@@ -122,11 +123,16 @@ func (s *Service) MarkReceived(ctx context.Context, userID int64, r Receipt) (le
 		var party int64
 		var name string
 		var merchants []string
+		seen := map[int64]bool{}
 		for _, id := range r.ItemIDs {
 			row, ok := byID[id]
 			if !ok {
 				return ErrItemNotFound
 			}
+			if seen[id] {
+				return ErrRepeatedItem
+			}
+			seen[id] = true
 			if row.EntryID.Valid {
 				return ErrAlreadyReceived
 			}
