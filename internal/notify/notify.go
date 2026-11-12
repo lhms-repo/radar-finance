@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/agenda"
@@ -24,8 +25,9 @@ import (
 // dueSoonDays is how many days ahead a payment counts as due soon.
 const dueSoonDays = 3
 
-// overdueMonths is how many past months are checked for unpaid items.
-const overdueMonths = 2
+// overdueMonths is how many past months are checked for unpaid items; months before an item was
+// registered in the Radar are never checked (RF-64).
+const overdueMonths = 12
 
 // Kind tells what a notification is about.
 type Kind string
@@ -78,6 +80,7 @@ type Service struct {
 	incomes *income.Service
 	now     func() time.Time
 	today   func() civil.Date
+	loc     *time.Location
 }
 
 // NewService creates the notification service; today is read in America/Sao_Paulo.
@@ -86,7 +89,7 @@ func NewService(conn *sql.DB, ag *agenda.Service, reports *report.Service, sav *
 	if err != nil {
 		loc = time.UTC
 	}
-	return &Service{conn: conn, agenda: ag, reports: reports, savings: sav, incomes: incomes, now: time.Now, today: func() civil.Date { return civil.Today(loc) }}
+	return &Service{conn: conn, agenda: ag, reports: reports, savings: sav, incomes: incomes, now: time.Now, today: func() civil.Date { return civil.Today(loc) }, loc: loc}
 }
 
 // List returns the current notifications of the user, most urgent first (RF-64).
@@ -95,13 +98,24 @@ func (s *Service) List(ctx context.Context, userID int64) (List, error) {
 	m := today.MonthOf()
 	var items []Notification
 
-	for i := -overdueMonths; i <= 1; i++ {
-		ag, err := s.agenda.Month(ctx, m.Add(i))
+	registered, first, err := s.registrations(ctx)
+	if err != nil {
+		return List{}, err
+	}
+	start := m.Add(-overdueMonths)
+	if monthIndex(first) > monthIndex(start) {
+		start = first
+	}
+	for month := start; monthIndex(month) <= monthIndex(m.Add(1)); month = month.Add(1) {
+		ag, err := s.agenda.Month(ctx, month)
 		if err != nil {
 			return List{}, err
 		}
 		for _, it := range ag.Items {
 			if it.Paid || it.AmountCents <= 0 {
+				continue
+			}
+			if reg, ok := registered[string(it.Kind)+":"+strconv.FormatInt(it.RefID, 10)]; ok && monthIndex(it.DueOn.MonthOf()) < monthIndex(reg) {
 				continue
 			}
 			ref := fmt.Sprintf("%s:%d:%s", it.Kind, it.RefID, it.DueOn.MonthOf())
@@ -254,3 +268,25 @@ func link(k agenda.Kind) string {
 
 // dayMonth writes a date as day and month, like 05/11.
 func dayMonth(d civil.Date) string { return fmt.Sprintf("%02d/%02d", d.Day, d.Month) }
+
+// registrations returns the month each bill, financing and card was registered, keyed by agenda kind and
+// id, and the earliest of them, so no month before the Radar knew about an item is checked (RF-64).
+func (s *Service) registrations(ctx context.Context) (map[string]civil.Month, civil.Month, error) {
+	rows, err := store.New(s.conn).ListRegistrations(ctx)
+	if err != nil {
+		return nil, civil.Month{}, fmt.Errorf("list registrations: %w", err)
+	}
+	out := make(map[string]civil.Month, len(rows))
+	first := s.today().MonthOf()
+	for _, r := range rows {
+		m := civil.DateOf(r.CreatedAt.In(s.loc)).MonthOf()
+		out[r.Kind+":"+strconv.FormatInt(r.ID, 10)] = m
+		if monthIndex(m) < monthIndex(first) {
+			first = m
+		}
+	}
+	return out, first, nil
+}
+
+// monthIndex orders months as a single number.
+func monthIndex(m civil.Month) int { return m.Year*12 + int(m.Month) }

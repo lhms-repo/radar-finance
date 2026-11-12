@@ -7,3 +7,14 @@ WHERE user_id = ?;
 INSERT INTO notification_reads (user_id, key, read_at)
 VALUES (?, ?, ?)
 ON CONFLICT (user_id, key) DO NOTHING;
+
+-- name: ListRegistrations :many
+-- When each bill, financing and card was registered, so overdue warnings start there (RF-64).
+SELECT CAST('bill' AS TEXT) AS kind, b.id, b.created_at
+FROM bills b
+UNION ALL
+SELECT 'financing', f.id, f.created_at
+FROM financings f
+UNION ALL
+SELECT 'invoice', c.id, c.created_at
+FROM cards c;

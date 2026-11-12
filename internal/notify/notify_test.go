@@ -5,7 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +98,11 @@ func TestNotifications(t *testing.T) {
 
 	s := NewService(conn, agenda.NewService(bills, financing.NewService(conn), cards), reports, sav, incomes)
 	s.today = clock
+	// Registered at the start of the month of this fictional today, whatever the real clock says.
+	for _, table := range []string{"bills", "cards", "financings"} {
+		_, err := conn.Exec(`UPDATE ` + table + ` SET created_at = '2026-11-01 12:00:00+00:00'`)
+		must(err)
+	}
 
 	list, err := s.List(ctx, ana.ID)
 	must(err)
@@ -134,5 +141,80 @@ func TestNotifications(t *testing.T) {
 	must(s.MarkAllRead(ctx, ana.ID))
 	if got, _ := s.List(ctx, ana.ID); got.Unread != 0 {
 		t.Fatalf("after reading all = unread %d", got.Unread)
+	}
+}
+
+// TestOverdueSinceRegistration warns about every unpaid month since the item was registered, up to
+// 12 months back, and never about months before it (RF-64).
+func TestOverdueSinceRegistration(t *testing.T) {
+	ctx := context.Background()
+	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+		t.Fatal(err)
+	}
+	users := account.NewService(conn)
+	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
+	persons, _ := users.ListPersons(ctx)
+	var water int64
+	if err := conn.QueryRow(`SELECT id FROM categories WHERE name = ?`, "Água").Scan(&water); err != nil {
+		t.Fatal(err)
+	}
+	l := ledger.NewService(conn)
+	acc, err := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: persons[0].ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	today := d(2026, time.November, 11)
+	clock := func() civil.Date { return today }
+	bills := bill.NewService(conn)
+	tests := []struct {
+		name       string
+		start      civil.Month
+		registered string
+		want       []string
+	}{
+		{
+			name: "registered in June with a January start", start: civil.Month{Year: 2026, Month: time.January}, registered: "2026-06-15 12:00:00+00:00",
+			want: []string{"2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"},
+		},
+		{
+			name: "registered long ago stops at 12 months", start: civil.Month{Year: 2024, Month: time.January}, registered: "2024-01-10 12:00:00+00:00",
+			want: []string{"2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := conn.Exec(`DELETE FROM bills`); err != nil {
+				t.Fatal(err)
+			}
+			b, err := bills.Create(ctx, ana.ID, bill.Input{Name: "Água", CategoryID: water, AccountID: acc.ID, DueDay: 5, ExpectedCents: 9_000, StartMonth: tt.start})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := conn.Exec(`UPDATE bills SET created_at = ? WHERE id = ?`, tt.registered, b.ID); err != nil {
+				t.Fatal(err)
+			}
+			cards := card.NewService(conn).WithToday(clock)
+			s := NewService(conn, agenda.NewService(bills, financing.NewService(conn), cards), report.NewService(conn, cards), savings.NewService(conn), income.NewService(conn))
+			s.today = clock
+			list, err := s.List(ctx, ana.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, n := range list.Items {
+				if n.Kind == KindOverdue {
+					got = append(got, n.Date.MonthOf().String())
+				}
+			}
+			sort.Strings(got)
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Fatalf("overdue months = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
