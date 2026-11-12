@@ -15,7 +15,7 @@ import (
 // heartbeat keeps the stream alive through proxies and lets the browser notice a dead server.
 const heartbeat = 25 * time.Second
 
-// eventsHandler streams the changes of shared data as server sent events to signed in users (RF-71).
+// eventsHandler streams the changes of shared data of the session group as server sent events (RF-02, RF-71).
 func eventsHandler(hub *events.Hub, sm *scs.SessionManager) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -54,6 +54,10 @@ func eventsHandler(hub *events.Hub, sm *scs.SessionManager) http.Handler {
 					// The server is shutting down; the browser reconnects to the new one.
 					return
 				}
+				// A change of another group never reaches this screen (RF-02).
+				if e.GroupID != group {
+					continue
+				}
 				data, _ := json.Marshal(e)
 				if _, err := fmt.Fprintf(w, "event: change\ndata: %s\n\n", data); err != nil || rc.Flush() != nil {
 					return
@@ -88,7 +92,7 @@ func publishChanges(hub *events.Hub, sm *scs.SessionManager, next http.Handler) 
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 		if topic := events.Topic(r.URL.Path); topic != "" && rec.status < 400 {
-			hub.Publish(events.Event{Topic: topic, UserID: auth.CurrentUser(r.Context(), sm), ClientID: clientID(r)})
+			hub.Publish(events.Event{Topic: topic, GroupID: auth.CurrentGroup(r.Context(), sm), UserID: auth.CurrentUser(r.Context(), sm), ClientID: clientID(r)})
 		}
 	})
 }

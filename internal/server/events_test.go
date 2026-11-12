@@ -4,15 +4,72 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/events"
 )
+
+// TestEventsStayInGroup sends a change only to the streams of the same group, so a write in one group never
+// reloads the screens of another (RF-02, RF-71).
+func TestEventsStayInGroup(t *testing.T) {
+	srv, conn := testServer(t)
+	accounts := account.NewService(conn)
+	ctx := context.Background()
+	carla, err := accounts.Create(ctx, "carla", "Carla Ficticia")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := accounts.SetPIN(ctx, carla.ID, "9264"); err != nil {
+		t.Fatal(err)
+	}
+	beach, err := accounts.CreateGroup(ctx, "Praia", carla.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ana, other := newClient(t), newClient(t)
+	signIn(t, ana, srv, "ana")
+	if resp := postJSON(t, other, srv, "/api/auth/login", fmt.Sprintf(`{"groupId":%d,"userId":%d,"pin":"9264"}`, beach.ID, carla.ID)); resp.StatusCode != http.StatusOK {
+		t.Fatalf("carla login = %d", resp.StatusCode)
+	}
+
+	streamCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(streamCtx, http.MethodGet, srv.URL+"/api/events", nil)
+	resp, err := other.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	lines := bufio.NewScanner(resp.Body)
+	lines.Scan() // ": connected"
+
+	// Ana writes in her group first; the only event the beach stream may see is the write of Carla.
+	postJSON(t, ana, srv, "/api/market/markets", `{"name":"Mercado Ana","neighborhood":""}`)
+	postJSON(t, other, srv, "/api/market/markets", `{"name":"Mercado Praia","neighborhood":""}`)
+	for lines.Scan() {
+		data, ok := strings.CutPrefix(lines.Text(), "data: ")
+		if !ok {
+			continue
+		}
+		var e struct {
+			UserID  int64 `json:"userId"`
+			GroupID int64 `json:"groupId"`
+		}
+		_ = json.Unmarshal([]byte(data), &e)
+		if e.UserID != carla.ID || e.GroupID != beach.ID {
+			t.Fatalf("the beach stream received %s", data)
+		}
+		return
+	}
+	t.Fatalf("no event: %v", lines.Err())
+}
 
 // TestEventsStream sends the change of one user to the open stream of the other, and refuses signed out streams (RF-71).
 func TestEventsStream(t *testing.T) {
