@@ -27,6 +27,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
+	"github.com/italogfx/radar-finance/internal/events"
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/importer"
 	"github.com/italogfx/radar-finance/internal/income"
@@ -127,6 +128,8 @@ func serve(log *slog.Logger) error {
 		log.Warn("receipts read from fixtures, not from the Sefaz", "dir", cfg.ReceiptFixtures)
 		markets.WithFetcher(nfce.FixtureClient{Dir: cfg.ReceiptFixtures})
 	}
+	// The live updates hub is closed when shutdown starts, so open streams do not hold it (RF-71).
+	hub := events.NewHub()
 	handler := server.New(server.Deps{
 		Config:        cfg,
 		DB:            conn,
@@ -151,6 +154,7 @@ func serve(log *slog.Logger) error {
 		StartedAt:     time.Now(),
 		Log:           log,
 		Assets:        web.Assets(),
+		Events:        hub,
 	})
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -160,6 +164,7 @@ func serve(log *slog.Logger) error {
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+	srv.RegisterOnShutdown(hub.Close)
 	errCh := make(chan error, 1)
 	go func() {
 		log.Info("radar listening", "addr", cfg.Addr, "version", version, "db", cfg.DBPath)

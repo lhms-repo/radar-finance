@@ -48,7 +48,11 @@ func eventsHandler(hub *events.Hub, sm *scs.SessionManager) http.Handler {
 				if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil || rc.Flush() != nil {
 					return
 				}
-			case e := <-ch:
+			case e, open := <-ch:
+				if !open {
+					// The server is shutting down; the browser reconnects to the new one.
+					return
+				}
 				data, _ := json.Marshal(e)
 				if _, err := fmt.Fprintf(w, "event: change\ndata: %s\n\n", data); err != nil || rc.Flush() != nil {
 					return

@@ -16,8 +16,9 @@ type Event struct {
 
 // Hub fans events out to every open connection.
 type Hub struct {
-	mu   sync.Mutex
-	subs map[chan Event]struct{}
+	mu     sync.Mutex
+	subs   map[chan Event]struct{}
+	closed bool
 }
 
 // NewHub returns a hub without subscribers.
@@ -25,16 +26,35 @@ func NewHub() *Hub {
 	return &Hub{subs: map[chan Event]struct{}{}}
 }
 
-// Subscribe returns the channel of a new connection and the function that ends it.
+// Subscribe returns the channel of a new connection and the function that ends it; the channel is
+// closed when the hub closes, which ends the stream.
 func (h *Hub) Subscribe() (<-chan Event, func()) {
 	ch := make(chan Event, 16)
 	h.mu.Lock()
-	h.subs[ch] = struct{}{}
+	if h.closed {
+		close(ch)
+	} else {
+		h.subs[ch] = struct{}{}
+	}
 	h.mu.Unlock()
 	return ch, func() {
 		h.mu.Lock()
 		delete(h.subs, ch)
 		h.mu.Unlock()
+	}
+}
+
+// Close ends every open stream, so a server shutdown does not wait for them.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closed {
+		return
+	}
+	h.closed = true
+	for ch := range h.subs {
+		close(ch)
+		delete(h.subs, ch)
 	}
 }
 
