@@ -36,6 +36,14 @@ type SessionOptions struct {
 func NewSessionManager(conn *sql.DB, opts SessionOptions) *scs.SessionManager {
 	sm := scs.New()
 	sm.Store = &SQLiteStore{conn: conn}
+	fallback := sm.ErrorFunc
+	// A late commit of a signed out session is dropped without sending its dead cookie back.
+	sm.ErrorFunc = func(w http.ResponseWriter, r *http.Request, err error) {
+		if errors.Is(err, errRevoked) {
+			return
+		}
+		fallback(w, r, err)
+	}
 	sm.IdleTimeout = opts.Idle
 	sm.Lifetime = opts.Lifetime
 	sm.Cookie.Name = "radar_session"
@@ -92,13 +100,19 @@ func UserID(ctx context.Context) int64 {
 // revokedFor is how long a deleted token stays refused, far longer than any request that loaded it.
 const revokedFor = time.Hour
 
+// errRevoked stops scs from saving a session deleted by a logout and from writing its cookie.
+var errRevoked = errors.New("session token was revoked")
+
 // SQLiteStore implements scs.Store and scs.CtxStore on the sessions table.
 //
 // With an idle timeout, scs saves the session at the end of every request. A request that loaded the
 // session before a logout and ends after it would write the session back, so deleted tokens are kept
 // for a while and their late commits are dropped (RF-01).
 type SQLiteStore struct {
-	conn    *sql.DB
+	conn *sql.DB
+	// gate lets commits run together but never across a delete, so a commit that passed the
+	// revoked check cannot land after the delete of its token.
+	gate    sync.RWMutex
 	mu      sync.Mutex
 	revoked map[string]time.Time
 }
@@ -150,8 +164,10 @@ func (s *SQLiteStore) Commit(token string, b []byte, expiry time.Time) error {
 
 // CommitCtx saves the session data with its expiry; a token deleted by a logout stays deleted.
 func (s *SQLiteStore) CommitCtx(ctx context.Context, token string, b []byte, expiry time.Time) error {
+	s.gate.RLock()
+	defer s.gate.RUnlock()
 	if s.isRevoked(token, time.Now()) {
-		return nil
+		return errRevoked
 	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		return q.UpsertSession(ctx, store.UpsertSessionParams{Token: token, Data: b, ExpiryMs: expiry.UnixMilli()})
@@ -165,6 +181,8 @@ func (s *SQLiteStore) Delete(token string) error {
 
 // DeleteCtx removes the session and refuses later commits of its token.
 func (s *SQLiteStore) DeleteCtx(ctx context.Context, token string) error {
+	s.gate.Lock()
+	defer s.gate.Unlock()
 	s.revoke(token, time.Now())
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		return q.DeleteSession(ctx, token)
