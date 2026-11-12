@@ -9,11 +9,13 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // UncategorizedKey is the system key of Outros, Sem categoria definida, used for lines without a rule.
@@ -119,9 +121,13 @@ func Normalize(s string) string {
 	return strings.ToLower(strings.Join(strings.Fields(s), " "))
 }
 
-// Rules lists the alias rules, newest first for each original text.
+// Rules lists the alias rules of the current user, newest first for each original text.
 func (s *Service) Rules(ctx context.Context) ([]Rule, error) {
-	rows, err := store.New(s.conn).ListAliasRules(ctx)
+	userID, err := actor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListAliasRules(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list rules: %w", err)
 	}
@@ -160,8 +166,12 @@ func (s *Service) CreateRule(ctx context.Context, userID int64, in RuleInput) (R
 
 // UpdateRule replaces a rule.
 func (s *Service) UpdateRule(ctx context.Context, id int64, in RuleInput) (Rule, error) {
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetAliasRule(ctx, id); errors.Is(err, sql.ErrNoRows) {
+	userID, err := actor(ctx)
+	if err != nil {
+		return Rule{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		if _, err := q.GetAliasRule(ctx, store.GetAliasRuleParams{ID: id, CreatedBy: userID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrRuleNotFound
 		} else if err != nil {
 			return err
@@ -170,7 +180,7 @@ func (s *Service) UpdateRule(ctx context.Context, id int64, in RuleInput) (Rule,
 		if err != nil {
 			return err
 		}
-		return q.UpdateAliasRule(ctx, store.UpdateAliasRuleParams{Original: original, FriendlyName: name, CategoryID: nullID(in.CategoryID), ID: id})
+		return q.UpdateAliasRule(ctx, store.UpdateAliasRuleParams{Original: original, FriendlyName: name, CategoryID: nullID(in.CategoryID), ID: id, CreatedBy: userID})
 	})
 	if err != nil {
 		return Rule{}, err
@@ -180,19 +190,27 @@ func (s *Service) UpdateRule(ctx context.Context, id int64, in RuleInput) (Rule,
 
 // DeleteRule removes a rule.
 func (s *Service) DeleteRule(ctx context.Context, id int64) error {
+	userID, err := actor(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetAliasRule(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetAliasRule(ctx, store.GetAliasRuleParams{ID: id, CreatedBy: userID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrRuleNotFound
 		} else if err != nil {
 			return err
 		}
-		return q.DeleteAliasRule(ctx, id)
+		return q.DeleteAliasRule(ctx, store.DeleteAliasRuleParams{ID: id, CreatedBy: userID})
 	})
 }
 
 // Preview reads the CSV and returns each line with the rule applied and possible duplicates flagged,
 // without saving anything (RF-53, RF-55, RF-56, RN-19, RN-20).
 func (s *Service) Preview(ctx context.Context, cardID int64, invoice civil.Month, content string) ([]PreviewLine, error) {
+	userID, err := actor(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := store.New(s.conn)
 	if _, err := s.cards.GetCard(ctx, cardID); err != nil {
 		return nil, err
@@ -204,7 +222,7 @@ func (s *Service) Preview(ctx context.Context, cardID int64, invoice civil.Month
 	if len(lines) > maxLines {
 		return nil, ErrTooManyLines
 	}
-	rules, err := s.latestRules(ctx)
+	rules, err := s.latestRulesTx(ctx, q, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -248,8 +266,16 @@ func (s *Service) Commit(ctx context.Context, userID, cardID int64, invoice civi
 	if len(lines) > maxLines {
 		return Result{}, ErrTooManyLines
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Result{}, err
+	}
+	// The card has to belong to a member of the active group, even when every line ends up skipped.
+	if _, err := s.cards.GetCard(ctx, cardID); err != nil {
+		return Result{}, err
+	}
 	var res Result
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		now := s.now().UTC()
 		imp, err := q.CreateImport(ctx, store.CreateImportParams{
 			CardID: cardID, InvoiceMonth: invoice.String(), FileName: truncate(strings.TrimSpace(fileName), 200), LineCount: int64(len(lines)), CreatedBy: userID, CreatedAt: now,
@@ -261,7 +287,7 @@ func (s *Service) Commit(ctx context.Context, userID, cardID int64, invoice civi
 			return fmt.Errorf("create import: %w", err)
 		}
 		res.ImportID = imp.ID
-		rules, err := s.latestRulesTx(ctx, q)
+		rules, err := s.latestRulesTx(ctx, q, userID)
 		if err != nil {
 			return err
 		}
@@ -281,7 +307,7 @@ func (s *Service) Commit(ctx context.Context, userID, cardID int64, invoice civi
 			if err != nil {
 				return err
 			}
-			if err := q.SetPurchaseImport(ctx, store.SetPurchaseImportParams{ImportID: sql.NullInt64{Int64: imp.ID, Valid: true}, ID: id}); err != nil {
+			if err := q.SetPurchaseImport(ctx, store.SetPurchaseImportParams{ImportID: sql.NullInt64{Int64: imp.ID, Valid: true}, ID: id, GroupID: groupID}); err != nil {
 				return err
 			}
 			res.Created++
@@ -310,9 +336,17 @@ func (s *Service) Commit(ctx context.Context, userID, cardID int64, invoice civi
 	return res, nil
 }
 
-// Imports lists the import history, newest first.
+// Imports lists the import history of the current user in the active group, newest first.
 func (s *Service) Imports(ctx context.Context) ([]Import, error) {
-	rows, err := store.New(s.conn).ListImports(ctx)
+	userID, err := actor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListImports(ctx, store.ListImportsParams{GroupID: groupID, CreatedBy: userID})
 	if err != nil {
 		return nil, fmt.Errorf("list imports: %w", err)
 	}
@@ -332,13 +366,21 @@ func (s *Service) Imports(ctx context.Context) ([]Import, error) {
 
 // Undo removes every purchase of an import and the import itself, unless a share was already received.
 func (s *Service) Undo(ctx context.Context, id int64) error {
+	userID, err := actor(ctx)
+	if err != nil {
+		return err
+	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetImport(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetImport(ctx, store.GetImportParams{ID: id, CreatedBy: userID, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrImportNotFound
 		} else if err != nil {
 			return err
 		}
-		ids, err := q.ListImportPurchases(ctx, sql.NullInt64{Int64: id, Valid: true})
+		ids, err := q.ListImportPurchases(ctx, store.ListImportPurchasesParams{GroupID: groupID, ImportID: sql.NullInt64{Int64: id, Valid: true}})
 		if err != nil {
 			return err
 		}
@@ -346,11 +388,11 @@ func (s *Service) Undo(ctx context.Context, id int64) error {
 			if err := card.CheckNoReceived(ctx, q, pid); err != nil {
 				return err
 			}
-			if err := q.DeletePurchase(ctx, pid); err != nil {
+			if err := q.DeletePurchase(ctx, store.DeletePurchaseParams{ID: pid, GroupID: groupID}); err != nil {
 				return err
 			}
 		}
-		return q.DeleteImport(ctx, id)
+		return q.DeleteImport(ctx, store.DeleteImportParams{ID: id, CreatedBy: userID})
 	})
 }
 
@@ -364,9 +406,13 @@ type matched struct {
 // An installment line is matched only by number, count and amount on the invoice, since the CSV dates later installments
 // at the start of the cycle instead of the purchase day (RF-57). What matched one line is not used again.
 func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64, invoice civil.Month, l Line, recurring []card.Recurrence, used matched) (*Duplicate, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if l.Installments > 0 && l.Kind == LinePurchase {
 		rows, err := q.CardInstallmentMatch(ctx, store.CardInstallmentMatchParams{
-			CardID: cardID, InvoiceMonth: invoice.String(), Number: int64(l.Installment), InstallmentCount: int64(l.Installments), AmountCents: l.AmountCents,
+			GroupID: groupID, CardID: cardID, InvoiceMonth: invoice.String(), Number: int64(l.Installment), InstallmentCount: int64(l.Installments), AmountCents: l.AmountCents,
 		})
 		if err != nil {
 			return nil, err
@@ -384,7 +430,7 @@ func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64,
 		}
 		return nil, nil
 	}
-	rows, err := q.CardItemsNear(ctx, store.CardItemsNearParams{CardID: cardID, FirstDay: l.Date.AddDays(-1).String(), LastDay: l.Date.AddDays(1).String()})
+	rows, err := q.CardItemsNear(ctx, store.CardItemsNearParams{GroupID: groupID, CardID: cardID, FirstDay: l.Date.AddDays(-1).String(), LastDay: l.Date.AddDays(1).String()})
 	if err != nil {
 		return nil, fmt.Errorf("items near: %w", err)
 	}
@@ -413,14 +459,9 @@ func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64,
 	return nil, nil
 }
 
-// latestRules maps each normalized original to its most recent rule (RN-19).
-func (s *Service) latestRules(ctx context.Context) (map[string]Rule, error) {
-	return s.latestRulesTx(ctx, store.New(s.conn))
-}
-
-// latestRulesTx maps each normalized original to its most recent rule with the given queries.
-func (s *Service) latestRulesTx(ctx context.Context, q *store.Queries) (map[string]Rule, error) {
-	rows, err := q.ListAliasRules(ctx)
+// latestRulesTx maps each normalized original to the most recent rule of the user (RN-19).
+func (s *Service) latestRulesTx(ctx context.Context, q *store.Queries, userID int64) (map[string]Rule, error) {
+	rows, err := q.ListAliasRules(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list rules: %w", err)
 	}
@@ -438,6 +479,17 @@ func (s *Service) latestRulesTx(ctx context.Context, q *store.Queries) (map[stri
 		out[r.Original] = rule
 	}
 	return out, nil
+}
+
+// errNoUser is returned when a method of the import runs without the user who owns the rules and the history, a bug in the caller.
+var errNoUser = errors.New("import: no authenticated user in the context")
+
+// actor returns the authenticated user whose rules and import history the call acts on (RF-54).
+func actor(ctx context.Context) (int64, error) {
+	if id := auth.UserID(ctx); id != 0 {
+		return id, nil
+	}
+	return 0, errNoUser
 }
 
 // rule reads one rule.
