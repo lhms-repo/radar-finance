@@ -7,8 +7,20 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
+
+const clearPINFailures = `-- name: ClearPINFailures :exec
+UPDATE users
+SET pin_failures = 0, pin_locked_until = NULL
+WHERE id = ?
+`
+
+func (q *Queries) ClearPINFailures(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, clearPINFailures, id)
+	return err
+}
 
 const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users
@@ -42,7 +54,7 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (login, person_id, created_at, updated_at)
 VALUES (?, ?, ?, ?)
-RETURNING id, login, person_id, theme, haptics, created_at, updated_at
+RETURNING id, login, person_id, theme, haptics, created_at, updated_at, pin_hash, pin_failures, pin_locked_until
 `
 
 type CreateUserParams struct {
@@ -68,6 +80,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Haptics,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PinHash,
+		&i.PinFailures,
+		&i.PinLockedUntil,
 	)
 	return i, err
 }
@@ -128,6 +143,33 @@ func (q *Queries) GetUserByLogin(ctx context.Context, login string) (GetUserByLo
 		&i.Haptics,
 		&i.PersonID,
 		&i.PersonName,
+	)
+	return i, err
+}
+
+const getUserPIN = `-- name: GetUserPIN :one
+SELECT id, person_id, pin_hash, pin_failures, pin_locked_until
+FROM users
+WHERE id = ?
+`
+
+type GetUserPINRow struct {
+	ID             int64
+	PersonID       int64
+	PinHash        sql.NullString
+	PinFailures    int64
+	PinLockedUntil sql.NullTime
+}
+
+func (q *Queries) GetUserPIN(ctx context.Context, id int64) (GetUserPINRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserPIN, id)
+	var i GetUserPINRow
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.PinHash,
+		&i.PinFailures,
+		&i.PinLockedUntil,
 	)
 	return i, err
 }
@@ -206,6 +248,40 @@ func (q *Queries) ListUsers(ctx context.Context) ([]ListUsersRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordPINFailure = `-- name: RecordPINFailure :exec
+UPDATE users
+SET pin_failures = ?, pin_locked_until = ?
+WHERE id = ?
+`
+
+type RecordPINFailureParams struct {
+	PinFailures    int64
+	PinLockedUntil sql.NullTime
+	ID             int64
+}
+
+func (q *Queries) RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error {
+	_, err := q.db.ExecContext(ctx, recordPINFailure, arg.PinFailures, arg.PinLockedUntil, arg.ID)
+	return err
+}
+
+const setUserPIN = `-- name: SetUserPIN :exec
+UPDATE users
+SET pin_hash = ?, pin_failures = 0, pin_locked_until = NULL, updated_at = ?
+WHERE id = ?
+`
+
+type SetUserPINParams struct {
+	PinHash   sql.NullString
+	UpdatedAt time.Time
+	ID        int64
+}
+
+func (q *Queries) SetUserPIN(ctx context.Context, arg SetUserPINParams) error {
+	_, err := q.db.ExecContext(ctx, setUserPIN, arg.PinHash, arg.UpdatedAt, arg.ID)
+	return err
 }
 
 const updateUserPreferences = `-- name: UpdateUserPreferences :exec

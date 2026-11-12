@@ -15,7 +15,7 @@ const createBill = `-- name: CreateBill :one
 INSERT INTO bills (name, category_id, account_id, due_day, expected_cents, start_month, end_month,
                    created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, category_id, account_id, due_day, expected_cents, start_month, end_month, created_by, created_at, updated_at
+RETURNING id, name, category_id, account_id, due_day, expected_cents, start_month, end_month, created_by, created_at, updated_at, group_id
 `
 
 type CreateBillParams struct {
@@ -57,6 +57,7 @@ func (q *Queries) CreateBill(ctx context.Context, arg CreateBillParams) (Bill, e
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -125,7 +126,7 @@ func (q *Queries) DeleteBillAmount(ctx context.Context, arg DeleteBillAmountPara
 }
 
 const getBill = `-- name: GetBill :one
-SELECT id, name, category_id, account_id, due_day, expected_cents, start_month, end_month, created_by, created_at, updated_at
+SELECT id, name, category_id, account_id, due_day, expected_cents, start_month, end_month, created_by, created_at, updated_at, group_id
 FROM bills
 WHERE id = ?
 `
@@ -145,6 +146,7 @@ func (q *Queries) GetBill(ctx context.Context, id int64) (Bill, error) {
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -259,7 +261,7 @@ func (q *Queries) ListBillPayments(ctx context.Context, billMonth sql.NullString
 }
 
 const listBills = `-- name: ListBills :many
-SELECT b.id, b.name, b.category_id, b.account_id, b.due_day, b.expected_cents, b.start_month, b.end_month, b.created_by, b.created_at, b.updated_at, a.name AS account_name, c.name AS category_name, coalesce(pc.name, '') AS parent_category_name,
+SELECT b.id, b.name, b.category_id, b.account_id, b.due_day, b.expected_cents, b.start_month, b.end_month, b.created_by, b.created_at, b.updated_at, b.group_id, a.name AS account_name, c.name AS category_name, coalesce(pc.name, '') AS parent_category_name,
        coalesce(pc.icon, '') AS category_icon
 FROM bills b
 JOIN accounts a ON a.id = b.account_id
@@ -280,6 +282,7 @@ type ListBillsRow struct {
 	CreatedBy          int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	GroupID            sql.NullInt64
 	AccountName        string
 	CategoryName       string
 	ParentCategoryName string
@@ -307,6 +310,7 @@ func (q *Queries) ListBills(ctx context.Context) ([]ListBillsRow, error) {
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GroupID,
 			&i.AccountName,
 			&i.CategoryName,
 			&i.ParentCategoryName,

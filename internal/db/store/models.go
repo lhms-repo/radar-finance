@@ -54,6 +54,7 @@ type AleloPurchase struct {
 	CategoryID  int64
 	CreatedBy   int64
 	CreatedAt   time.Time
+	GroupID     sql.NullInt64
 }
 
 type AliasRule struct {
@@ -77,6 +78,7 @@ type Bill struct {
 	CreatedBy     int64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	GroupID       sql.NullInt64
 }
 
 type BillAmount struct {
@@ -140,6 +142,7 @@ type Entry struct {
 	IncomeMonth sql.NullString
 	BillID      sql.NullInt64
 	BillMonth   sql.NullString
+	GroupID     sql.NullInt64
 }
 
 type Financing struct {
@@ -156,6 +159,7 @@ type Financing struct {
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	GroupID             sql.NullInt64
 }
 
 type FinancingEvent struct {
@@ -168,6 +172,21 @@ type FinancingEvent struct {
 	BalanceAfterCents int64
 	CreatedBy         int64
 	CreatedAt         time.Time
+}
+
+type Group struct {
+	ID        int64
+	Name      string
+	CreatedBy sql.NullInt64
+	CreatedAt time.Time
+}
+
+type GroupMember struct {
+	GroupID  int64
+	PersonID int64
+	Role     string
+	WeightBp int64
+	JoinedAt time.Time
 }
 
 type Import struct {
@@ -194,6 +213,7 @@ type Income struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     sql.NullInt64
 }
 
 type Installment struct {
@@ -282,6 +302,7 @@ type Product struct {
 	Unit      string
 	CreatedBy int64
 	CreatedAt time.Time
+	GroupID   sql.NullInt64
 }
 
 type Purchase struct {
@@ -300,6 +321,7 @@ type Purchase struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	ImportID         sql.NullInt64
+	GroupID          sql.NullInt64
 }
 
 type Receipt struct {
@@ -331,6 +353,7 @@ type Recurrence struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     sql.NullInt64
 }
 
 type RecurrencePrice struct {
@@ -349,6 +372,7 @@ type SavingsBox struct {
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	GroupID             sql.NullInt64
 }
 
 type SavingsMove struct {
@@ -380,6 +404,7 @@ type ShoppingList struct {
 	PaidOn     sql.NullString
 	PaidMethod sql.NullString
 	PaidWith   string
+	GroupID    sql.NullInt64
 }
 
 type Split struct {
@@ -410,11 +435,14 @@ type Transfer struct {
 }
 
 type User struct {
-	ID        int64
-	Login     string
-	PersonID  int64
-	Theme     string
-	Haptics   bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID             int64
+	Login          string
+	PersonID       int64
+	Theme          string
+	Haptics        bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	PinHash        sql.NullString
+	PinFailures    int64
+	PinLockedUntil sql.NullTime
 }

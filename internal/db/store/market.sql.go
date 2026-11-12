@@ -82,7 +82,7 @@ func (q *Queries) CreatePrice(ctx context.Context, arg CreatePriceParams) (int64
 const createProduct = `-- name: CreateProduct :one
 INSERT INTO products (name, brand, by_weight, size_milli, unit, created_by, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, brand, by_weight, size_milli, unit, created_by, created_at
+RETURNING id, name, brand, by_weight, size_milli, unit, created_by, created_at, group_id
 `
 
 type CreateProductParams struct {
@@ -115,6 +115,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		&i.Unit,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -253,7 +254,7 @@ func (q *Queries) GetPrice(ctx context.Context, id int64) (Price, error) {
 }
 
 const getProduct = `-- name: GetProduct :one
-SELECT id, name, brand, by_weight, size_milli, unit, created_by, created_at
+SELECT id, name, brand, by_weight, size_milli, unit, created_by, created_at, group_id
 FROM products
 WHERE id = ?
 `
@@ -270,6 +271,7 @@ func (q *Queries) GetProduct(ctx context.Context, id int64) (Product, error) {
 		&i.Unit,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -397,7 +399,7 @@ func (q *Queries) ListMarkets(ctx context.Context) ([]ListMarketsRow, error) {
 }
 
 const listProducts = `-- name: ListProducts :many
-SELECT id, name, brand, by_weight, size_milli, unit, created_by, created_at
+SELECT id, name, brand, by_weight, size_milli, unit, created_by, created_at, group_id
 FROM products
 ORDER BY name COLLATE NOCASE, brand COLLATE NOCASE, size_milli
 `
@@ -420,6 +422,7 @@ func (q *Queries) ListProducts(ctx context.Context) ([]Product, error) {
 			&i.Unit,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}

@@ -87,11 +87,15 @@ func TestCreateValidation(t *testing.T) {
 	if _, err := s.Create(ctx, "bruno", "Bruno Ficticio"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Create(ctx, "carla", "Carla Ficticia"); !errors.Is(err, ErrLimitReached) {
-		t.Fatalf("third user: err = %v, want ErrLimitReached", err)
+	// Groups have any number of people since Fase 8 (RF-78).
+	if _, err := s.Create(ctx, "carla", "Carla Ficticia"); err != nil {
+		t.Fatalf("third user: %v", err)
+	}
+	if _, err := s.Create(ctx, "Carla", "Outra Carla"); err == nil {
+		t.Fatal("the same login twice was accepted")
 	}
 	users, _ := s.List(ctx)
-	if len(users) != 2 || users[0].Login != "ana" || users[1].Login != "bruno" {
+	if len(users) != 3 || users[0].Login != "ana" || users[1].Login != "bruno" || users[2].Login != "carla" {
 		t.Fatalf("users = %+v", users)
 	}
 }

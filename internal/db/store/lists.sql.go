@@ -39,7 +39,7 @@ func (q *Queries) CreateListItem(ctx context.Context, arg CreateListItemParams) 
 const createShoppingList = `-- name: CreateShoppingList :one
 INSERT INTO shopping_lists (name, created_by, created_at)
 VALUES (?, ?, ?)
-RETURNING id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with
+RETURNING id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with, group_id
 `
 
 type CreateShoppingListParams struct {
@@ -62,6 +62,7 @@ func (q *Queries) CreateShoppingList(ctx context.Context, arg CreateShoppingList
 		&i.PaidOn,
 		&i.PaidMethod,
 		&i.PaidWith,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -135,7 +136,7 @@ func (q *Queries) GetListItem(ctx context.Context, id int64) (ListItem, error) {
 }
 
 const getShoppingList = `-- name: GetShoppingList :one
-SELECT id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with
+SELECT id, name, status, created_by, created_at, finished_at, paid_cents, paid_on, paid_method, paid_with, group_id
 FROM shopping_lists
 WHERE id = ?
 `
@@ -154,6 +155,7 @@ func (q *Queries) GetShoppingList(ctx context.Context, id int64) (ShoppingList, 
 		&i.PaidOn,
 		&i.PaidMethod,
 		&i.PaidWith,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -248,7 +250,7 @@ func (q *Queries) ListItems(ctx context.Context, listID int64) ([]ListItemsRow, 
 }
 
 const listShoppingLists = `-- name: ListShoppingLists :many
-SELECT l.id, l.name, l.status, l.created_by, l.created_at, l.finished_at, l.paid_cents, l.paid_on, l.paid_method, l.paid_with,
+SELECT l.id, l.name, l.status, l.created_by, l.created_at, l.finished_at, l.paid_cents, l.paid_on, l.paid_method, l.paid_with, l.group_id,
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id) AS INTEGER) AS item_count,
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id AND i.picked) AS INTEGER) AS picked_count
 FROM shopping_lists l
@@ -266,6 +268,7 @@ type ListShoppingListsRow struct {
 	PaidOn      sql.NullString
 	PaidMethod  sql.NullString
 	PaidWith    string
+	GroupID     sql.NullInt64
 	ItemCount   int64
 	PickedCount int64
 }
@@ -290,6 +293,7 @@ func (q *Queries) ListShoppingLists(ctx context.Context) ([]ListShoppingListsRow
 			&i.PaidOn,
 			&i.PaidMethod,
 			&i.PaidWith,
+			&i.GroupID,
 			&i.ItemCount,
 			&i.PickedCount,
 		); err != nil {

@@ -15,7 +15,7 @@ const createFinancing = `-- name: CreateFinancing :one
 INSERT INTO financings (name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid,
                         initial_balance_cents, start_month, created_by, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid, initial_balance_cents, start_month, created_by, created_at, updated_at
+RETURNING id, name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid, initial_balance_cents, start_month, created_by, created_at, updated_at, group_id
 `
 
 type CreateFinancingParams struct {
@@ -63,6 +63,7 @@ func (q *Queries) CreateFinancing(ctx context.Context, arg CreateFinancingParams
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -108,7 +109,7 @@ func (q *Queries) DeleteFinancing(ctx context.Context, id int64) error {
 }
 
 const getFinancing = `-- name: GetFinancing :one
-SELECT id, name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid, initial_balance_cents, start_month, created_by, created_at, updated_at
+SELECT id, name, category_id, account_id, due_day, installment_cents, total_installments, initial_paid, initial_balance_cents, start_month, created_by, created_at, updated_at, group_id
 FROM financings
 WHERE id = ?
 `
@@ -130,6 +131,7 @@ func (q *Queries) GetFinancing(ctx context.Context, id int64) (Financing, error)
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GroupID,
 	)
 	return i, err
 }
@@ -195,7 +197,7 @@ func (q *Queries) ListFinancingEvents(ctx context.Context) ([]ListFinancingEvent
 }
 
 const listFinancings = `-- name: ListFinancings :many
-SELECT f.id, f.name, f.category_id, f.account_id, f.due_day, f.installment_cents, f.total_installments, f.initial_paid, f.initial_balance_cents, f.start_month, f.created_by, f.created_at, f.updated_at, a.name AS account_name, c.name AS category_name, coalesce(pc.icon, '') AS category_icon
+SELECT f.id, f.name, f.category_id, f.account_id, f.due_day, f.installment_cents, f.total_installments, f.initial_paid, f.initial_balance_cents, f.start_month, f.created_by, f.created_at, f.updated_at, f.group_id, a.name AS account_name, c.name AS category_name, coalesce(pc.icon, '') AS category_icon
 FROM financings f
 JOIN accounts a ON a.id = f.account_id
 JOIN categories c ON c.id = f.category_id
@@ -217,6 +219,7 @@ type ListFinancingsRow struct {
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	GroupID             sql.NullInt64
 	AccountName         string
 	CategoryName        string
 	CategoryIcon        string
@@ -245,6 +248,7 @@ func (q *Queries) ListFinancings(ctx context.Context) ([]ListFinancingsRow, erro
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.GroupID,
 			&i.AccountName,
 			&i.CategoryName,
 			&i.CategoryIcon,

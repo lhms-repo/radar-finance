@@ -38,3 +38,23 @@ WHERE id = ?;
 SELECT id, name
 FROM persons
 ORDER BY id;
+
+-- name: GetUserPIN :one
+SELECT id, person_id, pin_hash, pin_failures, pin_locked_until
+FROM users
+WHERE id = ?;
+
+-- name: SetUserPIN :exec
+UPDATE users
+SET pin_hash = ?, pin_failures = 0, pin_locked_until = NULL, updated_at = ?
+WHERE id = ?;
+
+-- name: RecordPINFailure :exec
+UPDATE users
+SET pin_failures = ?, pin_locked_until = ?
+WHERE id = ?;
+
+-- name: ClearPINFailures :exec
+UPDATE users
+SET pin_failures = 0, pin_locked_until = NULL
+WHERE id = ?;
