@@ -53,6 +53,7 @@ var (
 	ErrNoOccurrence     = problem.Invalid("income_no_occurrence", "Esta renda não está prevista para o mês escolhido.")
 	ErrAlreadyConfirmed = problem.Conflict("income_already_confirmed", "O recebimento deste mês já foi confirmado.")
 	ErrInUse            = problem.Conflict("income_in_use", "Esta renda já tem recebimentos confirmados. Informe uma data de término para encerrá-la.")
+	ErrConfirmedOutside = problem.Conflict("income_confirmed_outside", "Esta mudança tiraria da renda um mês com recebimento já confirmado. Apague o recebimento desse mês antes de mudar as datas.")
 )
 
 // Income is a registered income with the names resolved for display.
@@ -232,6 +233,9 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Income, error
 		if err := checkRefs(ctx, q, in); err != nil {
 			return err
 		}
+		if err := checkConfirmedMonths(ctx, q, id, in); err != nil {
+			return err
+		}
 		p := toParams(in)
 		p.UpdatedAt, p.ID = s.now().UTC(), id
 		return q.UpdateIncome(ctx, p)
@@ -375,6 +379,28 @@ func (s *Service) Confirm(ctx context.Context, userID int64, c Confirmation) (le
 		return ledger.Entry{}, err
 	}
 	return s.ledger.Entry(ctx, entryID)
+}
+
+// checkConfirmedMonths refuses a change that leaves a confirmed month without an occurrence, which would hide the receipt and allow a second one.
+func checkConfirmedMonths(ctx context.Context, q *store.Queries, id int64, in Input) error {
+	months, err := q.ListIncomeConfirmedMonths(ctx, sql.NullInt64{Int64: id, Valid: true})
+	if err != nil {
+		return err
+	}
+	next := Income{Kind: in.Kind, Day: in.Day, StartMonth: in.StartMonth, EndOn: in.EndOn}
+	if in.Kind == KindEventual {
+		next.ExpectedOn = &in.ExpectedOn
+	}
+	for _, s := range months {
+		m, err := civil.ParseMonth(s)
+		if err != nil {
+			return err
+		}
+		if _, ok := occurrence(next, m); !ok {
+			return ErrConfirmedOutside
+		}
+	}
+	return nil
 }
 
 // occurrence returns the expected date of the income in month m, if it happens that month.

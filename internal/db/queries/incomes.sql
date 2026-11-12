@@ -45,3 +45,8 @@ INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, des
                      created_by, created_at, updated_at)
 VALUES (?, 'income', ?, ?, 1, ?, ?, ?, ?, ?, ?)
 RETURNING id;
+
+-- name: ListIncomeConfirmedMonths :many
+SELECT coalesce(income_month, '') AS month
+FROM entries
+WHERE income_id = ?;

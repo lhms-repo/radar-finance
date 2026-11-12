@@ -224,6 +224,49 @@ func TestConfirm(t *testing.T) {
 	}
 }
 
+// TestUpdateKeepsConfirmedMonths refuses changes that leave a confirmed month outside the income (RF-10, RF-12).
+func TestUpdateKeepsConfirmedMonths(t *testing.T) {
+	ctx := context.Background()
+	thirteenth := func(f fixture) Input {
+		return Input{Kind: KindEventual, Name: "13º salário", PersonID: f.persons[0], AccountID: f.nubank, AmountCents: 100_000, ExpectedOn: date(2026, time.December, 18)}
+	}
+	tests := []struct {
+		name    string
+		base    func(f fixture) Input
+		edit    func(in *Input)
+		wantErr error
+	}{
+		{name: "eventual moved to another month", base: thirteenth, edit: func(in *Input) { in.ExpectedOn = date(2027, time.January, 10) }, wantErr: ErrConfirmedOutside},
+		{name: "eventual moved inside the month", base: thirteenth, edit: func(in *Input) { in.ExpectedOn = date(2026, time.December, 20) }},
+		{name: "eventual amount changed", base: thirteenth, edit: func(in *Input) { in.AmountCents = 120_000 }},
+		{name: "recurring start after the confirmed month", base: fixture.salary, edit: func(in *Input) { in.StartMonth = month(2027, time.January) }, wantErr: ErrConfirmedOutside},
+		{name: "recurring end before the confirmed month", base: fixture.salary, edit: func(in *Input) { in.EndOn = ptr(date(2026, time.November, 30)) }, wantErr: ErrConfirmedOutside},
+		{name: "recurring end after the confirmed day", base: fixture.salary, edit: func(in *Input) { in.EndOn = ptr(date(2026, time.December, 31)) }},
+		{name: "recurring day changed", base: fixture.salary, edit: func(in *Input) { in.Day = 20 }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			in := tt.base(f)
+			inc, err := f.s.Create(ctx, f.userID, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.s.Confirm(ctx, f.userID, Confirmation{IncomeID: inc.ID, Month: month(2026, time.December)}); err != nil {
+				t.Fatal(err)
+			}
+			tt.edit(&in)
+			if _, err := f.s.Update(ctx, inc.ID, in); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			v, _ := f.s.Month(ctx, month(2026, time.December))
+			if v.ReceivedCents != 100_000 && v.ReceivedCents != 450_000 {
+				t.Fatalf("december received = %d, the confirmation was lost", v.ReceivedCents)
+			}
+		})
+	}
+}
+
 // TestMonthIncludesOneOff lists one off incomes with the confirmed ones (RF-13).
 func TestMonthIncludesOneOff(t *testing.T) {
 	f := newFixture(t)
