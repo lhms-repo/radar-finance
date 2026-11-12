@@ -1,7 +1,6 @@
 package card
 
 import (
-	"context"
 	"errors"
 	"math/big"
 	"math/rand/v2"
@@ -14,7 +13,7 @@ import (
 // TestSplitShares works out the share of each person, in equal parts or custom values (RF-24, RF-25).
 func TestSplitShares(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	tests := []struct {
 		name       string
@@ -96,7 +95,7 @@ func TestSplitShares(t *testing.T) {
 // TestInvoiceThirdParty spreads each share over the installments and nets it out of the invoice (RN-03, RN-05).
 func TestInvoiceThirdParty(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	if _, err := f.s.AddPurchase(ctx, f.userID, PurchaseInput{
 		CardID: c.ID, Date: d(2026, time.November, 20), Merchant: "Ar-condicionado", CategoryID: f.delivery, AmountCents: 300_000, Installments: 3,
@@ -144,7 +143,7 @@ func TestInvoiceThirdParty(t *testing.T) {
 // purchase belongs to other people and the cents do not divide evenly (RN-03, RN-05).
 func TestInvoiceCouplePartNeverNegative(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	if _, err := f.s.AddPurchase(ctx, f.userID, PurchaseInput{
 		CardID: c.ID, Date: d(2026, time.November, 20), Merchant: "Loja", CategoryID: f.delivery, AmountCents: 10_000, Installments: 3,
@@ -166,7 +165,7 @@ func TestInvoiceCouplePartNeverNegative(t *testing.T) {
 // TestSplitGuards keeps purchases with a received share from changing.
 func TestSplitGuards(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	split := SplitInput{Mode: SplitEqual, CoupleParts: 1, Parties: []PartyShare{{Name: "João Ficticio"}}}
 	p, err := f.s.AddPurchase(ctx, f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.November, 20), Merchant: "Loja", CategoryID: f.delivery, AmountCents: 20_000, Installments: 2, Split: &split})
@@ -196,7 +195,7 @@ func TestSplitGuards(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Stand-in for a received share, which phase 4.2 records.
-	if _, err := f.conn.Exec(`INSERT INTO entries (account_id, kind, amount_cents, occurred_on, created_by, created_at, updated_at) VALUES (?, 'receivable', 5000, '2026-11-25', ?, ?, ?)`, f.accountID, f.userID, time.Now(), time.Now()); err != nil {
+	if _, err := f.conn.Exec(`INSERT INTO entries (account_id, kind, amount_cents, occurred_on, created_by, created_at, updated_at, group_id) VALUES (?, 'receivable', 5000, '2026-11-25', ?, ?, ?, 1)`, f.accountID, f.userID, time.Now(), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.conn.Exec(`UPDATE split_installments SET entry_id = (SELECT max(id) FROM entries) WHERE number = 1`); err != nil {

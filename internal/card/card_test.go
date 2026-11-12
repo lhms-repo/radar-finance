@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +14,8 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database where today is 2026-11-11, with users, an account and the services.
@@ -32,24 +31,18 @@ type fixture struct {
 	today     *civil.Date
 }
 
-// newFixture opens a fresh database for one test.
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
+// newFixture opens a fresh database for one test, with the group "Casa" of two fictional users.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	if _, err := users.Create(ctx, "bruno", "Bruno Ficticio"); err != nil {
-		t.Fatal(err)
-	}
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	l := ledger.NewService(conn)
 	acc, err := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: persons[0].ID, InitialBalanceCents: 1_000_000})
 	if err != nil {
@@ -73,7 +66,7 @@ func (f *fixture) nubank() CardInput {
 // newCard creates the default card.
 func (f *fixture) newCard(t *testing.T) Card {
 	t.Helper()
-	c, err := f.s.CreateCard(context.Background(), f.userID, f.nubank())
+	c, err := f.s.CreateCard(groupCtx, f.userID, f.nubank())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +76,7 @@ func (f *fixture) newCard(t *testing.T) Card {
 // buy registers a purchase of total cents in n installments on the date.
 func (f *fixture) buy(t *testing.T, cardID int64, on civil.Date, total int64, n int) Purchase {
 	t.Helper()
-	p, err := f.s.AddPurchase(context.Background(), f.userID, PurchaseInput{CardID: cardID, Date: on, Merchant: "Loja Ficticia", CategoryID: f.delivery, AmountCents: total, Installments: n})
+	p, err := f.s.AddPurchase(groupCtx, f.userID, PurchaseInput{CardID: cardID, Date: on, Merchant: "Loja Ficticia", CategoryID: f.delivery, AmountCents: total, Installments: n})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +86,7 @@ func (f *fixture) buy(t *testing.T, cardID int64, on civil.Date, total int64, n 
 // invoice reads the invoice of the month.
 func (f *fixture) invoice(t *testing.T, cardID int64, y int, m time.Month) Invoice {
 	t.Helper()
-	inv, err := f.s.Invoice(context.Background(), cardID, civil.Month{Year: y, Month: m})
+	inv, err := f.s.Invoice(groupCtx, cardID, civil.Month{Year: y, Month: m})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +99,7 @@ func ptr[T any](v T) *T { return &v }
 // TestCreateCard validates the card registration (RF-14).
 func TestCreateCard(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name    string
 		mod     func(*CardInput)
@@ -142,7 +135,7 @@ func TestCreateCard(t *testing.T) {
 // TestAddPurchase spreads installments over consecutive invoices (RF-15, RF-16, RF-18, RN-02, RN-03).
 func TestAddPurchase(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	closed, _ := f.s.CreateCard(ctx, f.userID, CardInput{Name: "Antigo", PersonID: f.persons[0], LimitCents: 1, ClosingDay: 1, DueDay: 8, Color: "graphite", Finish: "metal"})
 	if _, err := f.s.UpdateCard(ctx, closed.ID, CardInput{Name: "Antigo", PersonID: f.persons[0], LimitCents: 1, ClosingDay: 1, DueDay: 8, Color: "graphite", Finish: "metal"}, false); err != nil {
@@ -224,7 +217,7 @@ func TestInvoiceView(t *testing.T) {
 	f := newFixture(t)
 	c := f.newCard(t)
 	buyer := f.persons[1]
-	if _, err := f.s.AddPurchase(context.Background(), f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.October, 25), Merchant: "Mercado Ficticio", CategoryID: f.delivery, AmountCents: 30_000, Installments: 3, BuyerPersonID: &buyer}); err != nil {
+	if _, err := f.s.AddPurchase(groupCtx, f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.October, 25), Merchant: "Mercado Ficticio", CategoryID: f.delivery, AmountCents: 30_000, Installments: 3, BuyerPersonID: &buyer}); err != nil {
 		t.Fatal(err)
 	}
 	f.buy(t, c.ID, d(2026, time.November, 1), 5_000, 1)
@@ -267,7 +260,7 @@ func TestInvoiceView(t *testing.T) {
 // TestCredits lowers the invoice with refunds and other credits (RF-22).
 func TestCredits(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	f.buy(t, c.ID, d(2026, time.November, 5), 20_000, 1)
 	tests := []struct {
@@ -301,7 +294,7 @@ func TestCredits(t *testing.T) {
 // TestRecurrence charges every invoice from the start and keeps closed invoices when the price changes (RF-17).
 func TestRecurrence(t *testing.T) {
 	f := newFixture(t) // today 2026-11-11, current invoice 2026-12
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	r, err := f.s.AddRecurrence(ctx, f.userID, RecurrenceInput{CardID: c.ID, Description: "Streaming de música", CategoryID: f.streaming, AmountCents: 2_190, StartDate: d(2026, time.October, 15)})
 	if err != nil {
@@ -366,7 +359,7 @@ func TestRecurrence(t *testing.T) {
 // TestDeleteRecurrence refuses to rewrite paid invoices.
 func TestDeleteRecurrence(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	r, _ := f.s.AddRecurrence(ctx, f.userID, RecurrenceInput{CardID: c.ID, Description: "Barbearia", CategoryID: f.streaming, AmountCents: 5_000, StartDate: d(2026, time.October, 15)})
 	if _, err := f.s.Pay(ctx, f.userID, Payment{CardID: c.ID, Month: civil.Month{Year: 2026, Month: time.November}, AccountID: f.accountID, Date: d(2026, time.November, 10)}); err != nil {
@@ -384,7 +377,7 @@ func TestDeleteRecurrence(t *testing.T) {
 // TestPay pays the whole invoice from an account without counting it as spending (RF-21, RN-07).
 func TestPay(t *testing.T) {
 	f := newFixture(t) // today 2026-11-11
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	f.buy(t, c.ID, d(2026, time.October, 20), 12_345, 1) // November invoice, closed on Nov 3
 	f.buy(t, c.ID, d(2026, time.November, 5), 1_000, 1)  // December invoice, open
@@ -438,7 +431,7 @@ func TestPay(t *testing.T) {
 // TestLimit counts every unpaid installment, including future ones (RF-20, RN-17).
 func TestLimit(t *testing.T) {
 	f := newFixture(t) // today 2026-11-11, current invoice 2026-12
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t) // limit 5.000,00
 	steps := []struct {
 		name string
@@ -480,7 +473,7 @@ func TestLimit(t *testing.T) {
 // TestForecast sums installments and recurrences of the next invoices (RF-23).
 func TestForecast(t *testing.T) {
 	f := newFixture(t) // current invoice 2026-12
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	f.buy(t, c.ID, d(2026, time.November, 20), 30_000, 3) // Dec, Jan, Feb
 	if _, err := f.s.AddRecurrence(ctx, f.userID, RecurrenceInput{CardID: c.ID, Description: "Streaming", CategoryID: f.streaming, AmountCents: 2_000, StartDate: d(2026, time.December, 20), EndMonth: &civil.Month{Year: 2027, Month: time.February}}); err != nil {
@@ -507,7 +500,7 @@ func TestForecast(t *testing.T) {
 // TestUpdateAndDeletePurchase regenerates the installments and removes purchases.
 func TestUpdateAndDeletePurchase(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c := f.newCard(t)
 	p := f.buy(t, c.ID, d(2026, time.November, 20), 30_000, 3)
 	in := PurchaseInput{CardID: c.ID, Date: d(2026, time.November, 1), Merchant: "Loja Nova", CategoryID: f.delivery, AmountCents: 10_001, Installments: 2}
@@ -531,7 +524,7 @@ func TestUpdateAndDeletePurchase(t *testing.T) {
 
 // TestUpdatePartialImport keeps the schedule of a purchase imported from a middle installment (RF-57).
 func TestUpdatePartialImport(t *testing.T) {
-	ctx := context.Background()
+	ctx := groupCtx
 	carla := &SplitInput{Mode: SplitCustom, Parties: []PartyShare{{Name: "Carla Ficticia", ShareCents: 40_000}}}
 	cases := []struct {
 		name    string
@@ -604,7 +597,7 @@ func TestUpdatePartialImport(t *testing.T) {
 // TestDeleteCard keeps cards with history.
 func TestDeleteCard(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	used := f.newCard(t)
 	f.buy(t, used.ID, d(2026, time.November, 1), 100, 1)
 	in := f.nubank()
@@ -618,5 +611,96 @@ func TestDeleteCard(t *testing.T) {
 	}
 	if !strings.Contains(ErrCardInUse.Message, "Desative") {
 		t.Fatal("message should suggest deactivating")
+	}
+}
+
+// TestGroupIsolation shows that a second group sees nothing of the cards, purchases and shares of the first (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	c := f.newCard(t)
+	p, err := f.s.AddPurchase(groupCtx, f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.November, 1), Merchant: "Loja Ficticia",
+		CategoryID: f.delivery, AmountCents: 10_000, Installments: 2,
+		Split: &SplitInput{Mode: SplitEqual, CoupleParts: 1, Parties: []PartyShare{{Name: "Dora Ficticia"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := f.s.AddRecurrence(groupCtx, f.userID, RecurrenceInput{CardID: c.ID, Description: "Streaming", CategoryID: f.streaming, AmountCents: 2_190, StartDate: d(2026, time.October, 15)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+	nov := civil.Month{Year: 2026, Month: time.November}
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "get card", run: func() error { _, err := f.s.GetCard(other, c.ID); return err }, wantErr: ErrCardNotFound},
+		{name: "update card", run: func() error { _, err := f.s.UpdateCard(other, c.ID, f.nubank(), true); return err }, wantErr: ErrCardNotFound},
+		{name: "delete card", run: func() error { return f.s.DeleteCard(other, c.ID) }, wantErr: ErrCardNotFound},
+		{name: "invoice", run: func() error { _, err := f.s.Invoice(other, c.ID, nov); return err }, wantErr: ErrCardNotFound},
+		{name: "forecast", run: func() error { _, err := f.s.Forecast(other, c.ID, 3); return err }, wantErr: ErrCardNotFound},
+		{name: "pay invoice", run: func() error {
+			_, err := f.s.Pay(other, carla.ID, Payment{CardID: c.ID, Month: nov, AccountID: f.accountID, Date: d(2026, time.November, 20)})
+			return err
+		}, wantErr: ErrCardNotFound},
+		{name: "purchase on card of another group", run: func() error {
+			_, err := f.s.AddPurchase(other, carla.ID, PurchaseInput{CardID: c.ID, Date: d(2026, time.November, 1), Merchant: "X", CategoryID: f.delivery, AmountCents: 100, Installments: 1})
+			return err
+		}, wantErr: ErrCardNotFound},
+		{name: "holder from another group", run: func() error {
+			in := f.nubank()
+			in.Name = "Intruso"
+			_, err := f.s.CreateCard(other, carla.ID, in)
+			return err
+		}, wantErr: ErrPersonNotFound},
+		{name: "get purchase", run: func() error { _, err := f.s.GetPurchase(other, p.ID); return err }, wantErr: ErrPurchaseNotFound},
+		{name: "update purchase", run: func() error {
+			_, err := f.s.UpdatePurchase(other, p.ID, PurchaseInput{CardID: c.ID, Date: d(2026, time.November, 1), Merchant: "X", CategoryID: f.delivery, AmountCents: 100, Installments: 1})
+			return err
+		}, wantErr: ErrPurchaseNotFound},
+		{name: "delete purchase", run: func() error { return f.s.DeletePurchase(other, p.ID) }, wantErr: ErrPurchaseNotFound},
+		{name: "recurrences", run: func() error { _, err := f.s.Recurrences(other, c.ID); return err }, wantErr: ErrCardNotFound},
+		{name: "update recurrence", run: func() error {
+			_, err := f.s.UpdateRecurrence(other, rec.ID, RecurrenceChanges{Description: "X", CategoryID: f.streaming, AmountCents: 1})
+			return err
+		}, wantErr: ErrRecurrenceNotFound},
+		{name: "delete recurrence", run: func() error { return f.s.DeleteRecurrence(other, rec.ID) }, wantErr: ErrRecurrenceNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.ListCards(context.Background()); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	if cards, err := f.s.ListCards(other); err != nil || len(cards) != 0 {
+		t.Fatalf("cards of the other group = %v, %v", cards, err)
+	}
+	if parties, err := f.s.Parties(other); err != nil || len(parties) != 0 {
+		t.Fatalf("parties of the other group = %v, %v", parties, err)
+	}
+	if debt, err := f.s.ClosedDebt(other); err != nil || debt != 0 {
+		t.Fatalf("debt of the other group = %d, %v", debt, err)
+	}
+	// The same name of a party is free in the other group, which has its own list.
+	own, err := f.s.CreateCard(other, carla.ID, CardInput{Name: "Nubank", PersonID: carla.PersonID, LimitCents: 100_000, ClosingDay: 3, DueDay: 10, Color: "purple", Finish: "matte"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cat := f.delivery
+	if _, err := f.s.AddPurchase(other, carla.ID, PurchaseInput{CardID: own.ID, Date: d(2026, time.November, 1), Merchant: "Loja", CategoryID: cat, AmountCents: 5_000, Installments: 1,
+		Split: &SplitInput{Mode: SplitEqual, CoupleParts: 1, Parties: []PartyShare{{Name: "dora ficticia"}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if inv := f.invoice(t, c.ID, 2026, time.November); inv.TotalCents != 5_000+2_190 {
+		t.Fatalf("invoice of the first group = %d, want 7190", inv.TotalCents)
+	}
+	if cards, _ := f.s.ListCards(groupCtx); len(cards) != 1 {
+		t.Fatalf("cards of the first group = %d, want 1", len(cards))
 	}
 }

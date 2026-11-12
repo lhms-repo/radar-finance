@@ -8,6 +8,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // KindInvoicePayment is the entry kind of an invoice payment, which is not spending (RN-07).
@@ -115,7 +116,11 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 		return Invoice{}, err
 	}
 	inv := Invoice{CardID: c.ID, Month: m, ClosingOn: c.Cycle().Closing(m), DueOn: c.Cycle().Due(m), Items: []Item{}}
-	rows, err := q.ListInvoiceInstallments(ctx, store.ListInvoiceInstallmentsParams{CardID: c.ID, InvoiceMonth: m.String()})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Invoice{}, err
+	}
+	rows, err := q.ListInvoiceInstallments(ctx, store.ListInvoiceInstallmentsParams{GroupID: groupID, CardID: c.ID, InvoiceMonth: m.String()})
 	if err != nil {
 		return Invoice{}, fmt.Errorf("list installments: %w", err)
 	}
@@ -171,7 +176,11 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 
 // addShares puts the shares of other people on the lines and in the totals: owed, received and pending (RN-05, RN-06).
 func (s *Service) addShares(ctx context.Context, q *store.Queries, inv *Invoice) error {
-	rows, err := q.ListInvoiceSplitInstallments(ctx, store.ListInvoiceSplitInstallmentsParams{CardID: inv.CardID, InvoiceMonth: inv.Month.String()})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	rows, err := q.ListInvoiceSplitInstallments(ctx, store.ListInvoiceSplitInstallmentsParams{GroupID: groupID, CardID: inv.CardID, InvoiceMonth: inv.Month.String()})
 	if err != nil {
 		return fmt.Errorf("list shares: %w", err)
 	}
@@ -211,7 +220,11 @@ func (s *Service) status(c Card, m civil.Month, paid bool, total int64) Status {
 
 // Pay records the full payment of a closed invoice as an entry in the account (RF-21, RN-07).
 func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, error) {
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Invoice{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		inv, err := s.invoiceTx(ctx, q, p.CardID, p.Month)
 		if err != nil {
 			return err
@@ -238,7 +251,7 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, er
 		e, err := q.CreateEntry(ctx, store.CreateEntryParams{
 			AccountID: p.AccountID, Kind: string(KindInvoicePayment), AmountCents: -inv.TotalCents, OccurredOn: p.Date.String(),
 			Confirmed: true, Description: fmt.Sprintf("%s, fatura %02d/%d", c.Name, p.Month.Month, p.Month.Year),
-			CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create payment entry: %w", err)
@@ -312,7 +325,11 @@ func (s *Service) limitUsed(ctx context.Context, q *store.Queries, c Card) (int6
 // monthTotals returns the invoice total of every month with installments, plus recurrence charges
 // from their start up to their end or one year after the current invoice.
 func (s *Service) monthTotals(ctx context.Context, q *store.Queries, c Card) (map[civil.Month]int64, error) {
-	rows, err := q.SumInstallmentsByMonth(ctx, c.ID)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.SumInstallmentsByMonth(ctx, store.SumInstallmentsByMonthParams{GroupID: groupID, CardID: c.ID})
 	if err != nil {
 		return nil, fmt.Errorf("sum installments: %w", err)
 	}
@@ -343,7 +360,11 @@ func (s *Service) monthTotals(ctx context.Context, q *store.Queries, c Card) (ma
 
 // paymentsByMonth returns the recorded payments of the card keyed by invoice month.
 func paymentsByMonth(ctx context.Context, q *store.Queries, cardID int64) (map[civil.Month]PaymentInfo, error) {
-	rows, err := q.ListCardPayments(ctx, cardID)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.ListCardPayments(ctx, store.ListCardPaymentsParams{GroupID: groupID, CardID: cardID})
 	if err != nil {
 		return nil, fmt.Errorf("list payments: %w", err)
 	}
@@ -365,8 +386,12 @@ func paymentsByMonth(ctx context.Context, q *store.Queries, cardID int64) (map[c
 // ClosedDebt sums what is left to pay on every closed or overdue invoice of every card, for the net worth (RF-62).
 // Open invoices and future installments are not debt yet; they are commitments (RF-60).
 func (s *Service) ClosedDebt(ctx context.Context) (int64, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
 	q := store.New(s.conn)
-	rows, err := q.ListCards(ctx)
+	rows, err := q.ListCards(ctx, groupID)
 	if err != nil {
 		return 0, fmt.Errorf("list cards: %w", err)
 	}
