@@ -3,9 +3,6 @@ package report
 import (
 	"context"
 	"database/sql"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -14,12 +11,13 @@ import (
 	"github.com/italogfx/radar-finance/internal/bill"
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/savings"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // world is a fictional November 2026 touching every source of money, built once per test.
@@ -54,6 +52,9 @@ func newReport(w *world) *Service {
 	return s
 }
 
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
 // newWorld opens a fresh database and registers the fictional month:
 //
 //	card Nubank (closes 3, due 10): November invoice has an air conditioner of 300,00 in 3x split
@@ -65,21 +66,12 @@ func newReport(w *world) *Service {
 //	alelo: purchase of 320,00.
 func newWorld(t *testing.T) *world {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	if _, err := users.Create(ctx, "bruno", "Bruno Ficticio"); err != nil {
-		t.Fatal(err)
-	}
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	w := &world{
 		conn: conn, userID: ana.ID, persons: [2]int64{persons[0].ID, persons[1].ID}, cat: map[string]int64{},
 		ledger: ledger.NewService(conn), cards: card.NewService(conn).WithToday(func() civil.Date { return d(2026, time.November, 11) }),

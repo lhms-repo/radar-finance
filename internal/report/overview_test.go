@@ -1,7 +1,6 @@
 package report
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,7 +10,7 @@ import (
 // TestForecast is the income of the month minus every expected way out, by group (RF-58, RN-13).
 func TestForecast(t *testing.T) {
 	w := newWorld(t)
-	f, err := newReport(w).Forecast(context.Background(), nov)
+	f, err := newReport(w).Forecast(groupCtx, nov)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +45,7 @@ func TestForecast(t *testing.T) {
 // TestHousing measures the share of the income that goes to the house, for the couple and for one person (section 5.3).
 func TestHousing(t *testing.T) {
 	w := newWorld(t)
-	h, err := newReport(w).Housing(context.Background(), nov, w.persons[0])
+	h, err := newReport(w).Housing(groupCtx, nov, w.persons[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +58,7 @@ func TestHousing(t *testing.T) {
 // TestCommitments sums installments and financings of the next months against the expected income (RF-60).
 func TestCommitments(t *testing.T) {
 	w := newWorld(t)
-	got, err := newReport(w).Commitments(context.Background(), civil.Month{Year: 2026, Month: time.December}, 3)
+	got, err := newReport(w).Commitments(groupCtx, civil.Month{Year: 2026, Month: time.December}, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +85,7 @@ func TestCommitments(t *testing.T) {
 // TestClosing sums what came in, what was spent, what was saved and what others owe (RF-61).
 func TestClosing(t *testing.T) {
 	w := newWorld(t)
-	c, err := newReport(w).Closing(context.Background(), nov)
+	c, err := newReport(w).Closing(groupCtx, nov)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +97,7 @@ func TestClosing(t *testing.T) {
 // TestNetWorth is accounts and savings minus financing balances and closed unpaid invoices (RF-62).
 func TestNetWorth(t *testing.T) {
 	w := newWorld(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	s := newReport(w)
 	n, err := s.NetWorth(ctx)
 	if err != nil {

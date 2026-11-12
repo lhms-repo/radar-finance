@@ -1,7 +1,6 @@
 package report
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 // TestBudgets compares the spending of each top level category with its budget, warning at 80% and 100% (RF-51, RF-52).
 func TestBudgets(t *testing.T) {
 	w := newWorld(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	s := NewService(w.conn, w.cards)
 
 	sets := []struct {
