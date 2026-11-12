@@ -23,17 +23,26 @@ volume="radar_radar-data"
 echo "Parando o Radar..."
 docker compose stop radar
 
+# Each restore keeps its own copy of the previous database, with the WAL files that may hold
+# committed transactions, so a second restore never overwrites the first safety copy.
+stamp="$(date +%Y%m%d-%H%M%S)"
+saved="/data/antes-da-restauracao/radar-${stamp}.db"
+
 echo "Restaurando $file no volume $volume..."
 docker run --rm \
   -v "${volume}:/data" \
   -v "${RADAR_BACKUP_HOST_DIR}:/backups:ro" \
   alpine:3 sh -euc "
-    if [ -f /data/radar.db ]; then cp /data/radar.db /data/radar.db.antes-da-restauracao; fi
-    rm -f /data/radar.db-wal /data/radar.db-shm
+    if [ -f /data/radar.db ]; then
+      mkdir -p /data/antes-da-restauracao
+      for ext in '' -wal -shm; do
+        if [ -f /data/radar.db\$ext ]; then mv /data/radar.db\$ext ${saved}\$ext; fi
+      done
+    fi
     cp '/backups/${file}' /data/radar.db
     chown 65532:65532 /data/radar.db
   "
 
 echo "Iniciando o Radar..."
 docker compose start radar
-echo "Pronto. O banco anterior ficou em /data/radar.db.antes-da-restauracao dentro do volume."
+echo "Pronto. O banco anterior ficou em ${saved} dentro do volume."

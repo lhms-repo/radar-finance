@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -65,6 +66,27 @@ func TestNextScheduled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := nextScheduled(tt.now, 3, loc)
 			if !got.Equal(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestNextAfterRun retries soon after a failed copy instead of waiting for the next day (RNF-06).
+func TestNextAfterRun(t *testing.T) {
+	loc := saoPaulo(t)
+	now := time.Date(2026, 11, 10, 3, 0, 30, 0, loc)
+	tests := []struct {
+		name string
+		err  error
+		want time.Time
+	}{
+		{name: "good copy, next day", want: time.Date(2026, 11, 11, 3, 0, 0, 0, loc)},
+		{name: "failed copy, retry soon", err: errors.New("disk unavailable"), want: now.Add(retryDelay)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := nextAfterRun(now, tt.err, 3, loc); !got.Equal(tt.want) {
 				t.Fatalf("got %v, want %v", got, tt.want)
 			}
 		})

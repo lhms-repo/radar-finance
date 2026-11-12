@@ -151,7 +151,8 @@ func (a *API) ListBackups(_ context.Context, _ gen.ListBackupsRequestObject) (ge
 
 // CreateBackup runs a manual backup (RNF-07).
 func (a *API) CreateBackup(ctx context.Context, _ gen.CreateBackupRequestObject) (gen.CreateBackupResponseObject, error) {
-	info, err := a.d.Backups.Run(ctx, backup.KindManual)
+	// A phone leaving the page must not cut the copy halfway.
+	info, err := a.d.Backups.Run(context.WithoutCancel(ctx), backup.KindManual)
 	if err != nil {
 		return gen.CreateBackup500JSONResponse{ServerErrorJSONResponse: gen.ServerErrorJSONResponse{
 			Code: "backup_failed", Message: "Não foi possível gravar o backup. Veja a pasta de backups e os logs.",
