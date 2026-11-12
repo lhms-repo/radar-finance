@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -88,9 +89,41 @@ func UserID(ctx context.Context) int64 {
 	return id
 }
 
+// revokedFor is how long a deleted token stays refused, far longer than any request that loaded it.
+const revokedFor = time.Hour
+
 // SQLiteStore implements scs.Store and scs.CtxStore on the sessions table.
+//
+// With an idle timeout, scs saves the session at the end of every request. A request that loaded the
+// session before a logout and ends after it would write the session back, so deleted tokens are kept
+// for a while and their late commits are dropped (RF-01).
 type SQLiteStore struct {
-	conn *sql.DB
+	conn    *sql.DB
+	mu      sync.Mutex
+	revoked map[string]time.Time
+}
+
+// isRevoked tells whether the token was deleted recently, forgetting entries past revokedFor.
+func (s *SQLiteStore) isRevoked(token string, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for t, at := range s.revoked {
+		if now.Sub(at) > revokedFor {
+			delete(s.revoked, t)
+		}
+	}
+	_, ok := s.revoked[token]
+	return ok
+}
+
+// revoke remembers a deleted token so a late commit cannot bring it back.
+func (s *SQLiteStore) revoke(token string, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.revoked == nil {
+		s.revoked = map[string]time.Time{}
+	}
+	s.revoked[token] = now
 }
 
 // Find returns the session data for a valid, unexpired token.
@@ -115,8 +148,11 @@ func (s *SQLiteStore) Commit(token string, b []byte, expiry time.Time) error {
 	return s.CommitCtx(context.Background(), token, b, expiry)
 }
 
-// CommitCtx saves the session data with its expiry.
+// CommitCtx saves the session data with its expiry; a token deleted by a logout stays deleted.
 func (s *SQLiteStore) CommitCtx(ctx context.Context, token string, b []byte, expiry time.Time) error {
+	if s.isRevoked(token, time.Now()) {
+		return nil
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		return q.UpsertSession(ctx, store.UpsertSessionParams{Token: token, Data: b, ExpiryMs: expiry.UnixMilli()})
 	})
@@ -127,8 +163,9 @@ func (s *SQLiteStore) Delete(token string) error {
 	return s.DeleteCtx(context.Background(), token)
 }
 
-// DeleteCtx removes the session.
+// DeleteCtx removes the session and refuses later commits of its token.
 func (s *SQLiteStore) DeleteCtx(ctx context.Context, token string) error {
+	s.revoke(token, time.Now())
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		return q.DeleteSession(ctx, token)
 	})
