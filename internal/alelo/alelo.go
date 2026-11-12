@@ -18,6 +18,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // GroceriesKey is the system key of Alimentação, Compras para casa (RN-15).
@@ -144,9 +145,13 @@ func NewService(conn *sql.DB) *Service {
 	return &Service{conn: conn, now: time.Now, today: func() civil.Date { return civil.Today(loc) }}
 }
 
-// List returns every card with its current balance, active first.
+// List returns the cards of the active group's members with the current balance, active first (RF-82).
 func (s *Service) List(ctx context.Context) ([]Card, error) {
-	rows, err := store.New(s.conn).ListAleloCards(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListAleloCards(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list alelo cards: %w", err)
 	}
@@ -215,6 +220,10 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Card, error)
 	if err != nil {
 		return Card{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Card{}, err
+	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getCard(ctx, q, id); err != nil {
 			return err
@@ -224,7 +233,7 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Card, error)
 		}
 		return q.UpdateAleloCard(ctx, store.UpdateAleloCardParams{
 			Name: name, PersonID: c.PersonID, MonthlyCreditCents: c.MonthlyCreditCents, CreditDay: int64(c.CreditDay),
-			Style: c.Style, Active: c.Active, UpdatedAt: s.now().UTC(), ID: id,
+			Style: c.Style, Active: c.Active, UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		})
 	})
 	if err != nil {
@@ -235,11 +244,15 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Card, error)
 
 // Delete removes a card without credits or purchases.
 func (s *Service) Delete(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getCard(ctx, q, id); err != nil {
 			return err
 		}
-		if err := q.DeleteAleloCard(ctx, id); err != nil {
+		if err := q.DeleteAleloCard(ctx, store.DeleteAleloCardParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrInUse
 			}
@@ -251,12 +264,16 @@ func (s *Service) Delete(ctx context.Context, id int64) error {
 
 // Month returns the month of a card: balance carried in, credit, purchases and balance carried out (RN-15).
 func (s *Service) Month(ctx context.Context, id int64, m civil.Month) (MonthView, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return MonthView{}, err
+	}
 	q := store.New(s.conn)
 	c, err := getCard(ctx, q, id)
 	if err != nil {
 		return MonthView{}, err
 	}
-	opening, err := q.AleloBalanceBefore(ctx, store.AleloBalanceBeforeParams{Month: m.String(), FirstDay: m.First().String(), AleloID: id})
+	opening, err := q.AleloBalanceBefore(ctx, store.AleloBalanceBeforeParams{GroupID: groupID, Month: m.String(), FirstDay: m.First().String(), AleloID: id})
 	if err != nil {
 		return MonthView{}, fmt.Errorf("alelo opening balance: %w", err)
 	}
@@ -275,7 +292,7 @@ func (s *Service) Month(ctx context.Context, id int64, m civil.Month) (MonthView
 	case !errors.Is(err, sql.ErrNoRows):
 		return MonthView{}, err
 	}
-	rows, err := q.ListAleloPurchases(ctx, store.ListAleloPurchasesParams{AleloID: id, FirstDay: m.First().String(), LastDay: m.Last().String()})
+	rows, err := q.ListAleloPurchases(ctx, store.ListAleloPurchasesParams{GroupID: groupID, AleloID: id, FirstDay: m.First().String(), LastDay: m.Last().String()})
 	if err != nil {
 		return MonthView{}, fmt.Errorf("list alelo purchases: %w", err)
 	}
@@ -369,6 +386,10 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 	if p.Date.IsZero() {
 		return PurchaseItem{}, ledger.ErrDateRequired
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return PurchaseItem{}, err
+	}
 	c, err := getCard(ctx, q, p.AleloID)
 	if err != nil {
 		return PurchaseItem{}, err
@@ -382,7 +403,7 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 	}
 	r, err := q.CreateAleloPurchase(ctx, store.CreateAleloPurchaseParams{
 		AleloID: c.ID, PurchasedOn: p.Date.String(), Description: desc, AmountCents: p.AmountCents, CategoryID: groceries,
-		CreatedBy: userID, CreatedAt: s.now().UTC(),
+		CreatedBy: userID, CreatedAt: s.now().UTC(), GroupID: groupID,
 	})
 	if err != nil {
 		return PurchaseItem{}, fmt.Errorf("create alelo purchase: %w", err)
@@ -392,13 +413,17 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 
 // DeletePurchase removes a purchase.
 func (s *Service) DeletePurchase(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetAleloPurchase(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetAleloPurchase(ctx, store.GetAleloPurchaseParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrPurchaseNotFound
 		} else if err != nil {
 			return err
 		}
-		return q.DeleteAleloPurchase(ctx, id)
+		return q.DeleteAleloPurchase(ctx, store.DeleteAleloPurchaseParams{ID: id, GroupID: groupID})
 	})
 }
 
@@ -418,14 +443,18 @@ func validate(name string, credit int64, day int, style string) (string, error) 
 	return name, ledger.CheckPositive(credit)
 }
 
-// checkRefs ensures the holder exists and the name is free.
+// checkRefs ensures the holder is a member of the active group and the name is free.
 func checkRefs(ctx context.Context, q *store.Queries, name string, personID, self int64) error {
-	if _, err := q.GetPerson(ctx, personID); errors.Is(err, sql.ErrNoRows) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := q.GetGroupPerson(ctx, store.GetGroupPersonParams{ID: personID, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 		return ErrPersonNotFound
 	} else if err != nil {
 		return err
 	}
-	rows, err := q.ListAleloCards(ctx)
+	rows, err := q.ListAleloCards(ctx, groupID)
 	if err != nil {
 		return err
 	}
@@ -439,7 +468,11 @@ func checkRefs(ctx context.Context, q *store.Queries, name string, personID, sel
 
 // getCard reads one card.
 func getCard(ctx context.Context, q *store.Queries, id int64) (Card, error) {
-	r, err := q.GetAleloCard(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Card{}, err
+	}
+	r, err := q.GetAleloCard(ctx, store.GetAleloCardParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Card{}, ErrNotFound
 	}

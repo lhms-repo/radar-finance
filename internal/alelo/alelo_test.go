@@ -4,17 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database where today is 2026-11-11, with two users and the service.
@@ -25,24 +23,17 @@ type fixture struct {
 	persons [2]int64
 }
 
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
 // newFixture opens a fresh database for one test.
 func newFixture(t *testing.T) fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	if _, err := users.Create(ctx, "bruno", "Bruno Ficticio"); err != nil {
-		t.Fatal(err)
-	}
-	persons, _ := users.ListPersons(ctx)
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	s := NewService(conn)
 	s.today = func() civil.Date { return civil.Date{Year: 2026, Month: time.November, Day: 11} }
 	return fixture{s: s, conn: conn, userID: ana.ID, persons: [2]int64{persons[0].ID, persons[1].ID}}
@@ -62,7 +53,7 @@ func (f fixture) card() Input {
 // TestCreate validates the Alelo registration with its starting balance (RF-31).
 func TestCreate(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name    string
 		mod     func(*Input)
@@ -97,7 +88,7 @@ func TestCreate(t *testing.T) {
 // TestBalance carries the unused balance over the months (RF-32 to RF-34, RN-15).
 func TestBalance(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c, _ := f.s.Create(ctx, f.userID, f.card())
 	nov, dec := month(2026, time.November), month(2026, time.December)
 
@@ -152,7 +143,7 @@ func TestBalance(t *testing.T) {
 // TestPurchaseIsGroceries keeps the free description and files the purchase as Alimentação, Compras para casa (RF-33, RN-15).
 func TestPurchaseIsGroceries(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c, _ := f.s.Create(ctx, f.userID, f.card())
 	tests := []struct {
 		name    string
@@ -197,7 +188,7 @@ func TestPurchaseIsGroceries(t *testing.T) {
 // TestCredit confirms, refuses duplicates and undoes the monthly credit (RF-32).
 func TestCredit(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	c, _ := f.s.Create(ctx, f.userID, f.card())
 	nov := month(2026, time.November)
 	tests := []struct {
@@ -231,7 +222,7 @@ func TestCredit(t *testing.T) {
 // TestDelete keeps cards with history and removes purchases.
 func TestDelete(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	used, _ := f.s.Create(ctx, f.userID, f.card())
 	in := f.card()
 	in.Name = "Alelo Bruno"
@@ -248,5 +239,60 @@ func TestDelete(t *testing.T) {
 	}
 	if got, _ := f.s.Get(ctx, used.ID); got.BalanceCents != 12_000 {
 		t.Fatalf("balance after deleting the purchase = %d", got.BalanceCents)
+	}
+}
+
+// TestGroupIsolation shows that a second group sees none of the Alelo cards and purchases of the first (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	c, err := f.s.Create(groupCtx, f.userID, f.card())
+	if err != nil {
+		t.Fatal(err)
+	}
+	nov := month(2026, time.November)
+	p, err := f.s.AddPurchase(groupCtx, f.userID, Purchase{AleloID: c.ID, Date: date(2026, time.November, 11), Description: "Feira", AmountCents: 1_000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "get", run: func() error { _, err := f.s.Get(other, c.ID); return err }, wantErr: ErrNotFound},
+		{name: "update", run: func() error {
+			_, err := f.s.Update(other, c.ID, Changes{Name: "X", PersonID: carla.PersonID, MonthlyCreditCents: 100, CreditDay: 5, Style: "tudo", Active: true})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "delete", run: func() error { return f.s.Delete(other, c.ID) }, wantErr: ErrNotFound},
+		{name: "month", run: func() error { _, err := f.s.Month(other, c.ID, nov); return err }, wantErr: ErrNotFound},
+		{name: "confirm credit", run: func() error {
+			_, err := f.s.ConfirmCredit(other, carla.ID, Credit{AleloID: c.ID, Month: nov})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "purchase on card of another group", run: func() error {
+			_, err := f.s.AddPurchase(other, carla.ID, Purchase{AleloID: c.ID, Date: date(2026, time.November, 11), Description: "X", AmountCents: 100})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "delete purchase", run: func() error { return f.s.DeletePurchase(other, p.ID) }, wantErr: ErrPurchaseNotFound},
+		{name: "holder from another group", run: func() error { _, err := f.s.Create(other, carla.ID, f.card()); return err }, wantErr: ErrPersonNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.List(context.Background()); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	if list, err := f.s.List(other); err != nil || len(list) != 0 {
+		t.Fatalf("cards of the other group = %v, %v", list, err)
+	}
+	// The deleted-from-the-other-group purchase is still there.
+	if v, err := f.s.Month(groupCtx, c.ID, nov); err != nil || v.SpentCents != 1_000 {
+		t.Fatalf("month of the first group = %+v, %v", v, err)
 	}
 }
