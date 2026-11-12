@@ -98,7 +98,7 @@ WHERE group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: UpsertMarketSettings :exec
 INSERT INTO market_settings (group_id, max_markets, min_savings_cents, stale_days)
-VALUES (CAST(sqlc.arg(group_id) AS INTEGER), ?, ?, ?)
+VALUES (CAST(sqlc.arg(group_id) AS INTEGER), sqlc.arg(max_markets), sqlc.arg(min_savings_cents), sqlc.arg(stale_days))
 ON CONFLICT (group_id) DO UPDATE SET max_markets = excluded.max_markets,
     min_savings_cents = excluded.min_savings_cents, stale_days = excluded.stale_days;
 
