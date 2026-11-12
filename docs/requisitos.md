@@ -177,7 +177,7 @@ As regras abaixo definem como o sistema calcula e classifica os valores. Elas vi
 | --- | --- |
 | RN-01 | Compras no cartão pertencem ao mês da fatura. A data da compra é guardada apenas como informação. O mês da fatura é o mês do vencimento: a fatura que fecha em 28/11 e vence em 05/12 é a de dezembro. |
 | RN-02 | Compra feita no dia de fechamento ou depois entra na fatura seguinte. |
-| RN-03 | Em compra parcelada, cada parcela cai em uma fatura consecutiva a partir da primeira. Diferenças de centavos na divisão vão para a primeira parcela. |
+| RN-03 | Em compra parcelada, cada parcela cai em uma fatura consecutiva a partir da primeira. Diferenças de centavos na divisão vão para a primeira parcela. Numa compra dividida com outras pessoas, a cota de cada pessoa acompanha o valor de cada parcela, com pelo menos um centavo em cada uma, e as cotas de uma parcela nunca somam mais que ela; assim a parte do casal de um mês nunca fica negativa. Vale para compras lançadas ou editadas a partir de 12/11/2026. |
 | RN-04 | Nas análises e gráficos de gasto, só a cota do casal conta como gasto. A cota de terceiros é valor a receber. |
 | RN-05 | Parte líquida da fatura = total real da fatura menos a soma das cotas de terceiros. |
 | RN-06 | A cota de um terceiro sai de pendente quando marcada como paga, gerando entrada na conta escolhida. |
