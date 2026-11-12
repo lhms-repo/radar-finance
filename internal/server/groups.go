@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/api/gen"
@@ -56,20 +55,14 @@ func (a *API) CreateGroup(ctx context.Context, req gen.CreateGroupRequestObject)
 	return gen.CreateGroup201JSONResponse{Id: g.ID, Name: g.Name, Role: gen.GroupRole(g.Role)}, nil
 }
 
-// AddGroupMember adds a person already registered, by login, to the active group (RF-80).
+// AddGroupMember adds a person already registered to the active group with the PIN of that person as consent (RF-80).
 func (a *API) AddGroupMember(ctx context.Context, req gen.AddGroupMemberRequestObject) (gen.AddGroupMemberResponseObject, error) {
 	groupID, err := a.requireAdmin(ctx)
 	if err != nil {
 		return nil, err
 	}
-	u, err := a.d.Accounts.GetByLogin(ctx, req.Body.Login)
-	if errors.Is(err, account.ErrNotFound) {
-		return nil, errPersonNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	if err := a.d.Accounts.AddMember(ctx, groupID, u.ID, account.Role(req.Body.Role)); err != nil {
+	// The person types the own PIN as consent, so no administrator brings in the login of someone else (RF-80).
+	if _, err := a.d.Accounts.JoinWithPIN(ctx, groupID, req.Body.Login, req.Body.Pin, account.Role(req.Body.Role)); err != nil {
 		return nil, err
 	}
 	g, err := a.groupDetail(ctx, groupID)
@@ -118,11 +111,14 @@ func (a *API) ResetGroupMemberPin(ctx context.Context, req gen.ResetGroupMemberP
 	if err != nil {
 		return nil, err
 	}
-	// Only people of this group: an administrator never reaches the PIN of someone outside it.
+	// Only people of this group, and only when the caller runs every group of theirs: a PIN opens all of them (RF-80).
 	if _, ok, err := a.d.Accounts.Membership(ctx, groupID, req.Id); err != nil {
 		return nil, err
 	} else if !ok {
 		return nil, account.ErrNotMember
+	}
+	if err := a.d.Accounts.CanResetPIN(ctx, auth.UserID(ctx), req.Id); err != nil {
+		return nil, err
 	}
 	if err := a.d.Accounts.SetPIN(ctx, req.Id, req.Body.Pin); err != nil {
 		return nil, err
@@ -130,9 +126,6 @@ func (a *API) ResetGroupMemberPin(ctx context.Context, req gen.ResetGroupMemberP
 	a.d.Log.Info("pin reset", "group", groupID, "user", req.Id, "by", auth.UserID(ctx))
 	return gen.ResetGroupMemberPin204Response{}, nil
 }
-
-// errPersonNotFound answers a login that nobody has.
-var errPersonNotFound = problem.NotFound("person_not_found", "Ninguém com esse login.")
 
 // requireAdmin returns the active group when the caller administers it, or errAdminOnly (RF-80).
 func (a *API) requireAdmin(ctx context.Context) (int64, error) {

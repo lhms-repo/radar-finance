@@ -177,7 +177,7 @@ Módulo em tela própria para descobrir onde a compra do mês sai mais barata, c
 | --- | --- |
 | RF-78 | Cadastrar grupos com nome. Uma pessoa pode pertencer a vários grupos. |
 | RF-79 | Cada membro tem papel, administrador ou membro, e peso no grupo, usado no acerto (RF-84). |
-| RF-80 | O administrador do grupo renomeia o grupo, adiciona pessoas já cadastradas, cadastra pessoas novas, define papéis e redefine PINs. O primeiro grupo e o primeiro administrador são criados pelo terminal. |
+| RF-80 | O administrador do grupo renomeia o grupo, cria outros grupos, cadastra pessoas novas com login e PIN e define papéis. Para adicionar uma pessoa já cadastrada, a própria pessoa digita o PIN dela, como consentimento; login ou PIN errado dão a mesma resposta. O administrador só redefine o PIN de quem pertence apenas a grupos que ele administra; os demais PINs, só pelo terminal. O primeiro grupo e o primeiro administrador são criados pelo terminal. Regras de consentimento e de PIN decididas em 12/11/2026. |
 | RF-81 | Quem está em vários grupos troca o grupo ativo por um seletor, sem entrar de novo. Todas as telas mostram só os dados do grupo ativo. |
 | RF-82 | Contas bancárias, cartões de crédito e cartões Alelo pertencem à pessoa e aparecem nos grupos de que ela faz parte. |
 | RF-83 | Cada lançamento, compra no cartão, conta fixa, financiamento, renda e caixinha é pessoal ou de um grupo. O pessoal é visível só para quem o criou. |

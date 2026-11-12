@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 )
@@ -30,8 +31,8 @@ func TestGroupRoutes(t *testing.T) {
 		{name: "admin renames", client: ana, method: http.MethodPut, path: "/api/group", body: `{"name":"Lar"}`, wantStatus: http.StatusOK},
 		{name: "admin registers Carla", client: ana, method: http.MethodPost, path: "/api/group/people", body: `{"login":"carla","name":"Carla Ficticia","pin":"9264","role":"member"}`, wantStatus: http.StatusOK},
 		{name: "login already taken", client: ana, method: http.MethodPost, path: "/api/group/people", body: `{"login":"bruno","name":"Outro","pin":"1234","role":"member"}`, wantStatus: http.StatusConflict, wantCode: "login_taken"},
-		{name: "existing person twice", client: ana, method: http.MethodPost, path: "/api/group/members", body: `{"login":"bruno","role":"member"}`, wantStatus: http.StatusConflict, wantCode: "group_already_member"},
-		{name: "unknown login", client: ana, method: http.MethodPost, path: "/api/group/members", body: `{"login":"zeca","role":"member"}`, wantStatus: http.StatusNotFound},
+		{name: "existing person twice", client: ana, method: http.MethodPost, path: "/api/group/members", body: `{"login":"bruno","pin":"7351","role":"member"}`, wantStatus: http.StatusConflict, wantCode: "group_already_member"},
+		{name: "unknown login looks like a wrong PIN", client: ana, method: http.MethodPost, path: "/api/group/members", body: `{"login":"zeca","pin":"1234","role":"member"}`, wantStatus: http.StatusBadRequest, wantCode: "login_or_pin_wrong"},
 		{name: "admin promotes Bruno", client: ana, method: http.MethodPut, path: "/api/group/members/2", body: `{"role":"admin"}`, wantStatus: http.StatusOK},
 		{name: "admin resets the PIN of Bruno", client: ana, method: http.MethodPut, path: "/api/group/members/2/pin", body: `{"pin":"2468"}`, wantStatus: http.StatusNoContent},
 		{name: "short PIN", client: ana, method: http.MethodPut, path: "/api/group/members/2/pin", body: `{"pin":"12"}`, wantStatus: http.StatusBadRequest},
@@ -91,5 +92,62 @@ func TestGroupRoutes(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&me)
 	if len(me.Groups) != 2 || me.Groups[1].Name != "Praia" || me.Groups[1].Role != "admin" {
 		t.Fatalf("groups of ana = %+v", me.Groups)
+	}
+}
+
+// TestNoTakeoverAcrossGroups keeps an administrator of one group from reaching the login a person uses in another:
+// joining needs the PIN of the person, and only whoever runs every group of the person resets it (RF-80).
+func TestNoTakeoverAcrossGroups(t *testing.T) {
+	srv, _ := testServer(t)
+	ana := newClient(t)
+	signIn(t, ana, srv, "ana")
+	if resp := send(t, ana, srv, http.MethodPost, "/api/group/people", `{"login":"carla","name":"Carla Ficticia","pin":"9264","role":"member"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("register carla = %d", resp.StatusCode)
+	}
+	carla := newClient(t)
+	if resp := postJSON(t, carla, srv, "/api/auth/login", `{"groupId":1,"userId":3,"pin":"9264"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("carla login = %d", resp.StatusCode)
+	}
+	// A member of Casa cannot create groups from it.
+	if resp := send(t, carla, srv, http.MethodPost, "/api/groups", `{"name":"Praia"}`); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member creates group = %d", resp.StatusCode)
+	}
+	// Ana creates the beach group and Carla joins it as administrator, typing her own PIN.
+	resp := send(t, ana, srv, http.MethodPost, "/api/groups", `{"name":"Praia"}`)
+	var beach struct{ ID int64 }
+	_ = json.NewDecoder(resp.Body).Decode(&beach)
+	if resp := send(t, ana, srv, http.MethodPut, "/api/me/group", fmt.Sprintf(`{"groupId":%d}`, beach.ID)); resp.StatusCode != http.StatusOK {
+		t.Fatalf("switch = %d", resp.StatusCode)
+	}
+	if resp := send(t, ana, srv, http.MethodPost, "/api/group/members", `{"login":"carla","pin":"9264","role":"admin"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("carla joins the beach = %d", resp.StatusCode)
+	}
+	if resp := send(t, carla, srv, http.MethodPut, "/api/me/group", fmt.Sprintf(`{"groupId":%d}`, beach.ID)); resp.StatusCode != http.StatusOK {
+		t.Fatalf("carla switches = %d", resp.StatusCode)
+	}
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		body       string
+		wantStatus int
+		wantCode   string
+	}{
+		{name: "bringing Bruno without his PIN", method: http.MethodPost, path: "/api/group/members", body: `{"login":"bruno","pin":"0000","role":"member"}`, wantStatus: http.StatusBadRequest, wantCode: "login_or_pin_wrong"},
+		{name: "resetting the PIN of Ana, who is also in Casa", method: http.MethodPut, path: "/api/group/members/1/pin", body: `{"pin":"1111"}`, wantStatus: http.StatusForbidden, wantCode: "pin_reset_other_groups"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := send(t, carla, srv, tt.method, tt.path, tt.body)
+			var e struct{ Code string }
+			_ = json.NewDecoder(resp.Body).Decode(&e)
+			if resp.StatusCode != tt.wantStatus || e.Code != tt.wantCode {
+				t.Fatalf("status = %d %s, want %d %s", resp.StatusCode, e.Code, tt.wantStatus, tt.wantCode)
+			}
+		})
+	}
+	// Ana still enters Casa with her own PIN.
+	if resp := postJSON(t, newClient(t), srv, "/api/auth/login", `{"groupId":1,"userId":1,"pin":"4821"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("ana login after the attempts = %d", resp.StatusCode)
 	}
 }

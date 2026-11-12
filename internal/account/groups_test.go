@@ -153,6 +153,88 @@ func TestCreateMember(t *testing.T) {
 	}
 }
 
+// TestJoinWithPIN brings a person already registered into another group only with that person's PIN, and never
+// tells whether a login exists (RF-80, RN-27).
+func TestJoinWithPIN(t *testing.T) {
+	s, _ := newGroupService(t)
+	ctx := context.Background()
+	ana, _ := s.Create(ctx, "ana", "Ana Ficticia")
+	carla, _ := s.Create(ctx, "carla", "Carla Ficticia")
+	_ = s.SetPIN(ctx, ana.ID, "4821")
+	home, _ := s.CreateGroup(ctx, "Casa", ana.ID)
+	beach, _ := s.CreateGroup(ctx, "Praia", carla.ID)
+
+	tests := []struct {
+		name    string
+		login   string
+		pin     string
+		wantErr error
+	}{
+		{name: "unknown login", login: "zeca", pin: "4821", wantErr: ErrLoginOrPIN},
+		{name: "wrong PIN", login: "ana", pin: "0000", wantErr: ErrLoginOrPIN},
+		{name: "person without a PIN", login: "carla", pin: "1234", wantErr: ErrLoginOrPIN},
+		{name: "right PIN", login: "ANA", pin: "4821"},
+		{name: "already in the group", login: "ana", pin: "4821", wantErr: ErrAlreadyMember},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := s.JoinWithPIN(ctx, beach.ID, tt.login, tt.pin, RoleMember); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	if _, ok, _ := s.Membership(ctx, beach.ID, ana.ID); !ok {
+		t.Fatal("Ana did not join the beach group")
+	}
+	// Wrong PINs through this door count for the lock like at the entry.
+	for range 4 {
+		_, _ = s.JoinWithPIN(ctx, home.ID, "carla", "0000", RoleMember)
+	}
+	_ = s.SetPIN(ctx, carla.ID, "9264")
+	for range 5 {
+		_, _ = s.JoinWithPIN(ctx, home.ID, "carla", "0000", RoleMember)
+	}
+	if _, err := s.JoinWithPIN(ctx, home.ID, "carla", "9264", RoleMember); !errors.Is(err, ErrLocked) {
+		t.Fatalf("after five wrong PINs: %v, want ErrLocked", err)
+	}
+}
+
+// TestCanResetPIN lets an administrator reset only the PIN of someone whose every group the administrator runs (RF-80).
+func TestCanResetPIN(t *testing.T) {
+	s, _ := newGroupService(t)
+	ctx := context.Background()
+	ana, _ := s.Create(ctx, "ana", "Ana Ficticia")
+	bruno, _ := s.Create(ctx, "bruno", "Bruno Ficticio")
+	carla, _ := s.Create(ctx, "carla", "Carla Ficticia")
+	home, _ := s.CreateGroup(ctx, "Casa", ana.ID)
+	_ = s.AddMember(ctx, home.ID, bruno.ID, RoleMember)
+	beach, _ := s.CreateGroup(ctx, "Praia", carla.ID)
+	_ = s.AddMember(ctx, beach.ID, bruno.ID, RoleMember)
+
+	tests := []struct {
+		name    string
+		caller  int64
+		target  int64
+		wantErr error
+	}{
+		{name: "Bruno is also in a group Ana does not run", caller: ana.ID, target: bruno.ID, wantErr: ErrResetOutsideGroups},
+		{name: "a member is no administrator", caller: bruno.ID, target: ana.ID, wantErr: ErrResetOutsideGroups},
+		{name: "own groups only", caller: carla.ID, target: carla.ID},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := s.CanResetPIN(ctx, tt.caller, tt.target); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	// Once Ana also runs the beach group, she may reset the PIN of Bruno.
+	_ = s.AddMember(ctx, beach.ID, ana.ID, RoleAdmin)
+	if err := s.CanResetPIN(ctx, ana.ID, bruno.ID); err != nil {
+		t.Fatalf("admin of every group of Bruno: %v", err)
+	}
+}
+
 // TestAuthenticate checks the PIN of a member and locks the person out after five wrong ones (RF-01, RN-27).
 func TestAuthenticate(t *testing.T) {
 	s, now := newGroupService(t)

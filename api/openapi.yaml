@@ -423,7 +423,7 @@ paths:
     post:
       operationId: addGroupMember
       tags: [groups]
-      summary: Adds a person already registered, by login, to the active group; administrators only (RF-80).
+      summary: Adds a person already registered to the active group with the PIN of that person as consent; administrators only (RF-80).
       requestBody:
         required: true
         content:
@@ -502,7 +502,7 @@ paths:
     put:
       operationId: resetGroupMemberPin
       tags: [groups]
-      summary: Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27).
+      summary: Sets a new PIN for a member when the caller administers every group of that member, and lifts any lock (RF-80, RN-27).
       parameters:
         - $ref: "#/components/parameters/Id"
       requestBody:
@@ -3192,12 +3192,17 @@ components:
 
     GroupMemberAdd:
       type: object
-      required: [login, role]
+      required: [login, pin, role]
       properties:
         login:
           type: string
           minLength: 1
           maxLength: 64
+        pin:
+          type: string
+          description: The PIN of the person being added, typed by that person as consent (RF-80).
+          minLength: 1
+          maxLength: 12
         role:
           $ref: "#/components/schemas/GroupRole"
 

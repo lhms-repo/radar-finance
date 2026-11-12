@@ -279,18 +279,26 @@ function PersonDialog({ open, onClose }: { open: boolean; onClose: () => void })
 /** Adds a person already registered, by login, to the group (RF-80). */
 function ExistingDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const add = useAddMember();
-  const schema = z.object({ login: z.string().trim().min(1, "Informe o login."), admin: z.boolean() });
-  const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { login: "", admin: false } });
+  const schema = z.object({ login: z.string().trim().min(1, "Informe o login."), pin: pinField, admin: z.boolean() });
+  const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { login: "", pin: "", admin: false } });
   /** Clears the mutation and closes. */
   const close = () => {
     add.reset();
     onClose();
   };
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()} title="Adicionar pessoa já cadastrada" description="Ela entra no grupo com o login e o PIN que já usa.">
-      <form onSubmit={form.handleSubmit((v) => add.mutate({ login: v.login, role: v.admin ? "admin" : "member" }, { onSuccess: close }))} className="flex flex-col gap-4" noValidate>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => !o && close()}
+      title="Adicionar pessoa já cadastrada"
+      description="A própria pessoa digita o PIN dela para concordar. Ela entra no grupo com o login e o PIN que já usa."
+    >
+      <form onSubmit={form.handleSubmit((v) => add.mutate({ login: v.login, pin: v.pin, role: v.admin ? "admin" : "member" }, { onSuccess: close }))} className="flex flex-col gap-4" noValidate>
         <Field label="Login" htmlFor="existing-login" error={form.formState.errors.login?.message}>
           <Input id="existing-login" autoComplete="off" autoCapitalize="none" {...form.register("login")} />
+        </Field>
+        <Field label="PIN da pessoa" htmlFor="existing-pin" error={form.formState.errors.pin?.message}>
+          <Input id="existing-pin" type="password" inputMode="numeric" autoComplete="off" maxLength={6} {...form.register("pin")} />
         </Field>
         <label className="flex items-center justify-between gap-3 text-sm">
           Administrador do grupo
