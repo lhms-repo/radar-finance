@@ -4,9 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +11,8 @@ import (
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database with two fictional users and the service.
@@ -27,30 +25,19 @@ type fixture struct {
 	delivery int64
 }
 
-// newFixture opens a fresh migrated database for one test.
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
+// newFixture opens a fresh migrated database for one test, with the group "Casa" of two fictional users.
 func newFixture(t *testing.T) fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	if id, _ := scope.Group(testutil.NewGroup(t, conn, "Casa", ana, bruno)); id != 1 {
+		t.Fatalf("first group id = %d, want 1", id)
 	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	accounts := account.NewService(conn)
-	ana, err := accounts.Create(ctx, "ana", "Ana Ficticia")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := accounts.Create(ctx, "bruno", "Bruno Ficticio"); err != nil {
-		t.Fatal(err)
-	}
-	persons, err := accounts.ListPersons(ctx)
-	if err != nil || len(persons) != 2 {
-		t.Fatalf("persons = %v, %v", persons, err)
-	}
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	f := fixture{s: NewService(conn), conn: conn, userID: ana.ID, persons: [2]int64{persons[0].ID, persons[1].ID}}
 	if err := conn.QueryRow(`SELECT id FROM categories WHERE name = 'Delivery'`).Scan(&f.delivery); err != nil {
 		t.Fatal(err)
@@ -71,7 +58,7 @@ func day(t *testing.T, s string) civil.Date {
 // newAccount creates an account for the first person with the initial balance.
 func (f fixture) newAccount(t *testing.T, name string, initial int64) Account {
 	t.Helper()
-	a, err := f.s.CreateAccount(context.Background(), f.userID, NewAccount{Name: name, PersonID: f.persons[0], InitialBalanceCents: initial})
+	a, err := f.s.CreateAccount(groupCtx, f.userID, NewAccount{Name: name, PersonID: f.persons[0], InitialBalanceCents: initial})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +68,7 @@ func (f fixture) newAccount(t *testing.T, name string, initial int64) Account {
 // balance returns the current balance of an account.
 func (f fixture) balance(t *testing.T, id int64) int64 {
 	t.Helper()
-	a, err := f.s.GetAccount(context.Background(), id)
+	a, err := f.s.GetAccount(groupCtx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +78,8 @@ func (f fixture) balance(t *testing.T, id int64) int64 {
 // insertIncome writes an income entry directly, standing in for the income step (2.3).
 func (f fixture) insertIncome(t *testing.T, accountID, cents int64, on string, confirmed bool) {
 	t.Helper()
-	_, err := f.conn.Exec(`INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, created_by, created_at, updated_at)
-		VALUES (?, 'income', ?, ?, ?, ?, ?, ?)`, accountID, cents, on, confirmed, f.userID, time.Now(), time.Now())
+	_, err := f.conn.Exec(`INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, created_by, created_at, updated_at, group_id)
+		VALUES (?, 'income', ?, ?, ?, ?, ?, ?, 1)`, accountID, cents, on, confirmed, f.userID, time.Now(), time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +91,7 @@ func ptr[T any](v T) *T { return &v }
 // TestCreateAccount covers account registration with holder and initial balance (RF-04).
 func TestCreateAccount(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	f.newAccount(t, "Nubank Ana", 0)
 
 	tests := []struct {
@@ -139,7 +126,7 @@ func TestCreateAccount(t *testing.T) {
 // TestBalance checks that only confirmed entries change the balance (RF-05, RN-13).
 func TestBalance(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a := f.newAccount(t, "Nubank Ana", 100_000)
 
 	steps := []struct {
@@ -176,7 +163,7 @@ func TestBalance(t *testing.T) {
 // TestAdjustBalance records the difference to the informed balance as an adjustment (RF-06).
 func TestAdjustBalance(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a := f.newAccount(t, "Nubank Ana", 100_000)
 	closed := f.newAccount(t, "Antiga", 0)
 	if _, err := f.s.UpdateAccount(ctx, closed.ID, AccountChanges{Active: ptr(false)}); err != nil {
@@ -219,7 +206,7 @@ func TestAdjustBalance(t *testing.T) {
 // TestTransfer moves money between accounts without counting it as spending or income (RF-07, RN-08).
 func TestTransfer(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	from := f.newAccount(t, "Nubank Ana", 100_000)
 	to := f.newAccount(t, "Inter Bruno", 5_000)
 	closed := f.newAccount(t, "Antiga", 0)
@@ -276,7 +263,7 @@ func TestTransfer(t *testing.T) {
 // TestAddExpense covers one off expenses paid straight from an account (section 5.6).
 func TestAddExpense(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a := f.newAccount(t, "Nubank Ana", 100_000)
 	closed := f.newAccount(t, "Antiga", 0)
 	if _, err := f.s.UpdateAccount(ctx, closed.ID, AccountChanges{Active: ptr(false)}); err != nil {
@@ -323,7 +310,7 @@ func TestAddExpense(t *testing.T) {
 // TestMonthFlow counts only real income and spending of the month (RN-08, RN-13).
 func TestMonthFlow(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a := f.newAccount(t, "Nubank Ana", 100_000)
 	b := f.newAccount(t, "Inter Bruno", 0)
 	nov := civil.Month{Year: 2026, Month: time.November}
@@ -359,7 +346,7 @@ func TestMonthFlow(t *testing.T) {
 // TestStatement lists the month of an account with opening and closing balances (RF-03, RF-05).
 func TestStatement(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a := f.newAccount(t, "Nubank Ana", 100_000)
 	b := f.newAccount(t, "Inter Bruno", 0)
 	if _, err := f.s.AddExpense(ctx, f.userID, NewExpense{AccountID: a.ID, AmountCents: 10_000, Date: day(t, "2026-10-20"), CategoryID: f.delivery}); err != nil {
@@ -410,7 +397,7 @@ func TestStatement(t *testing.T) {
 // TestUpdateAndDeleteAccount covers edits, deactivation and deletion of unused accounts.
 func TestUpdateAndDeleteAccount(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	used := f.newAccount(t, "Nubank Ana", 0)
 	unused := f.newAccount(t, "Inter Bruno", 0)
 	if _, err := f.s.AddExpense(ctx, f.userID, NewExpense{AccountID: used.ID, AmountCents: 100, Date: day(t, "2026-11-11"), CategoryID: f.delivery}); err != nil {
@@ -465,7 +452,7 @@ func TestUpdateAndDeleteAccount(t *testing.T) {
 // TestDeleteEntry removes one off entries and refuses unknown ones.
 func TestDeleteEntry(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a := f.newAccount(t, "Nubank Ana", 1_000)
 	e, err := f.s.AddExpense(ctx, f.userID, NewExpense{AccountID: a.ID, AmountCents: 300, Date: day(t, "2026-11-11"), CategoryID: f.delivery})
 	if err != nil {
@@ -482,7 +469,7 @@ func TestDeleteEntry(t *testing.T) {
 // TestAddIncome records one off incomes that raise the balance and count as income (RF-13, RN-08).
 func TestAddIncome(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	a := f.newAccount(t, "Nubank Ana", 1_000)
 	tests := []struct {
 		name    string
@@ -510,5 +497,61 @@ func TestAddIncome(t *testing.T) {
 	}
 	if flow, _ := f.s.MonthFlow(ctx, civil.Month{Year: 2026, Month: time.November}); flow.IncomeCents != 35_000 {
 		t.Fatalf("flow = %+v", flow)
+	}
+}
+
+// TestGroupIsolation shows that a second group sees nothing of the first one (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	a := f.newAccount(t, "Nubank Ana", 1_000)
+	e, err := f.s.AddExpense(groupCtx, f.userID, NewExpense{AccountID: a.ID, AmountCents: 300, Date: day(t, "2026-11-11"), CategoryID: f.delivery})
+	if err != nil {
+		t.Fatal(err)
+	}
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+	name := "Renomeada"
+	nov := civil.Month{Year: 2026, Month: time.November}
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "get account", run: func() error { _, err := f.s.GetAccount(other, a.ID); return err }, wantErr: ErrAccountNotFound},
+		{name: "update account", run: func() error {
+			_, err := f.s.UpdateAccount(other, a.ID, AccountChanges{Name: &name})
+			return err
+		}, wantErr: ErrAccountNotFound},
+		{name: "delete account", run: func() error { return f.s.DeleteAccount(other, a.ID) }, wantErr: ErrAccountNotFound},
+		{name: "statement", run: func() error { _, err := f.s.Statement(other, a.ID, nov); return err }, wantErr: ErrAccountNotFound},
+		{name: "get entry", run: func() error { _, err := f.s.Entry(other, e.ID); return err }, wantErr: ErrEntryNotFound},
+		{name: "delete entry", run: func() error { return f.s.DeleteEntry(other, e.ID) }, wantErr: ErrEntryNotFound},
+		{name: "expense on account of another group", run: func() error {
+			_, err := f.s.AddExpense(other, carla.ID, NewExpense{AccountID: a.ID, AmountCents: 100, Date: day(t, "2026-11-11"), CategoryID: f.delivery})
+			return err
+		}, wantErr: ErrAccountNotFound},
+		{name: "holder from another group", run: func() error {
+			_, err := f.s.CreateAccount(other, carla.ID, NewAccount{Name: "Intrusa", PersonID: f.persons[0]})
+			return err
+		}, wantErr: ErrPersonNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.ListAccounts(context.Background()); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+
+	if list, err := f.s.ListAccounts(other); err != nil || len(list) != 0 {
+		t.Fatalf("accounts of the other group = %v, %v", list, err)
+	}
+	if flow, err := f.s.MonthFlow(other, nov); err != nil || flow != (Flow{}) {
+		t.Fatalf("flow of the other group = %+v, %v", flow, err)
+	}
+	if got := f.balance(t, a.ID); got != 700 {
+		t.Fatalf("balance of the first group = %d, want 700", got)
 	}
 }

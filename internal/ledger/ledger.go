@@ -16,6 +16,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // MaxAmountCents caps any single amount at one billion reais, far above real use.
@@ -163,9 +164,13 @@ func NewService(conn *sql.DB) *Service {
 	return &Service{conn: conn, now: time.Now}
 }
 
-// ListAccounts returns every account with its balance, active ones first.
+// ListAccounts returns the accounts of the active group's members with the balance, active ones first (RF-82).
 func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
-	rows, err := store.New(s.conn).ListAccounts(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListAccounts(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list accounts: %w", err)
 	}
@@ -229,14 +234,18 @@ func (s *Service) CreateAccount(ctx context.Context, userID int64, in NewAccount
 
 // UpdateAccount edits name, holder, initial balance or active state; history stays.
 func (s *Service) UpdateAccount(ctx context.Context, id int64, c AccountChanges) (Account, error) {
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Account{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		cur, err := getAccount(ctx, q, id)
 		if err != nil {
 			return err
 		}
 		next := store.UpdateAccountParams{
 			Name: cur.Name, PersonID: cur.PersonID, InitialBalanceCents: cur.InitialBalanceCents,
-			Active: cur.Active, UpdatedAt: s.now().UTC(), ID: id,
+			Active: cur.Active, UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		}
 		if c.Name != nil {
 			if next.Name, err = cleanAccountName(*c.Name); err != nil {
@@ -271,11 +280,15 @@ func (s *Service) UpdateAccount(ctx context.Context, id int64, c AccountChanges)
 
 // DeleteAccount removes an account without entries; one with history must be deactivated.
 func (s *Service) DeleteAccount(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getAccount(ctx, q, id); err != nil {
 			return err
 		}
-		if err := q.DeleteAccount(ctx, id); err != nil {
+		if err := q.DeleteAccount(ctx, store.DeleteAccountParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrAccountInUse
 			}
@@ -380,7 +393,11 @@ func (s *Service) AdjustBalance(ctx context.Context, userID int64, in Adjustment
 		if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
 			return err
 		}
-		current, err := q.AccountBalance(ctx, in.AccountID)
+		groupID, err := scope.Group(ctx)
+		if err != nil {
+			return err
+		}
+		current, err := q.AccountBalance(ctx, store.AccountBalanceParams{ID: in.AccountID, GroupID: groupID})
 		if err != nil {
 			return fmt.Errorf("read balance: %w", err)
 		}
@@ -455,8 +472,12 @@ func (s *Service) Transfer(ctx context.Context, userID int64, in NewTransfer) (T
 
 // DeleteEntry removes an entry; deleting either side of a transfer removes both.
 func (s *Service) DeleteEntry(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		e, err := q.GetEntry(ctx, id)
+		e, err := q.GetEntry(ctx, store.GetEntryParams{ID: id, GroupID: groupID})
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrEntryNotFound
 		}
@@ -465,11 +486,11 @@ func (s *Service) DeleteEntry(ctx context.Context, id int64) error {
 		}
 		if e.TransferID.Valid {
 			// entries.transfer_id cascades, so both sides go with the transfer.
-			return q.DeleteTransfer(ctx, e.TransferID.Int64)
+			return q.DeleteTransfer(ctx, store.DeleteTransferParams{ID: e.TransferID.Int64, GroupID: groupID})
 		}
 		if e.Kind == savingsDepositKind {
 			// The savings move cascades with the entry, so a deposit already withdrawn would leave the box below zero.
-			balance, err := q.SavingsBalanceWithoutEntry(ctx, id)
+			balance, err := q.SavingsBalanceWithoutEntry(ctx, store.SavingsBalanceWithoutEntryParams{EntryID: id, GroupID: groupID})
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
@@ -477,17 +498,21 @@ func (s *Service) DeleteEntry(ctx context.Context, id int64) error {
 				return ErrSavingsNegative
 			}
 		}
-		return q.DeleteEntry(ctx, id)
+		return q.DeleteEntry(ctx, store.DeleteEntryParams{ID: id, GroupID: groupID})
 	})
 }
 
 // Statement lists the entries of one account in the month, newest first, with balances (RF-05).
 func (s *Service) Statement(ctx context.Context, accountID int64, m civil.Month) (Statement, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Statement{}, err
+	}
 	q := store.New(s.conn)
 	if _, err := getAccount(ctx, q, accountID); err != nil {
 		return Statement{}, err
 	}
-	opening, err := q.AccountBalanceBefore(ctx, store.AccountBalanceBeforeParams{Day: m.First().String(), AccountID: accountID})
+	opening, err := q.AccountBalanceBefore(ctx, store.AccountBalanceBeforeParams{Day: m.First().String(), AccountID: accountID, GroupID: groupID})
 	if err != nil {
 		return Statement{}, fmt.Errorf("opening balance: %w", err)
 	}
@@ -506,15 +531,24 @@ func (s *Service) Statement(ctx context.Context, accountID int64, m civil.Month)
 
 // MonthFlow sums confirmed income and spending of all accounts in the month (RN-08).
 func (s *Service) MonthFlow(ctx context.Context, m civil.Month) (Flow, error) {
-	r, err := store.New(s.conn).MonthFlow(ctx, store.MonthFlowParams{FirstDay: m.First().String(), LastDay: m.Last().String()})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Flow{}, err
+	}
+	r, err := store.New(s.conn).MonthFlow(ctx, store.MonthFlowParams{GroupID: groupID, FirstDay: m.First().String(), LastDay: m.Last().String()})
 	if err != nil {
 		return Flow{}, fmt.Errorf("month flow: %w", err)
 	}
 	return Flow{IncomeCents: r.IncomeCents, ExpenseCents: r.ExpenseCents}, nil
 }
 
-// insert writes an entry stamped with the author and the current time (RF-03).
+// insert writes an entry of the active group stamped with the author and the current time (RF-03).
 func (s *Service) insert(ctx context.Context, q *store.Queries, userID int64, p store.CreateEntryParams) (store.Entry, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return store.Entry{}, err
+	}
+	p.GroupID = groupID
 	now := s.now().UTC()
 	p.CreatedBy, p.CreatedAt, p.UpdatedAt = userID, now, now
 	e, err := q.CreateEntry(ctx, p)
@@ -526,8 +560,12 @@ func (s *Service) insert(ctx context.Context, q *store.Queries, userID int64, p 
 
 // Entry reads one entry with the display names.
 func (s *Service) Entry(ctx context.Context, id int64) (Entry, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Entry{}, err
+	}
 	q := store.New(s.conn)
-	e, err := q.GetEntry(ctx, id)
+	e, err := q.GetEntry(ctx, store.GetEntryParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Entry{}, ErrEntryNotFound
 	}
@@ -552,8 +590,12 @@ func (s *Service) Entry(ctx context.Context, id int64) (Entry, error) {
 
 // list reads the entries of an account in a month.
 func (s *Service) list(ctx context.Context, q *store.Queries, accountID int64, m civil.Month) ([]Entry, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := q.ListAccountEntries(ctx, store.ListAccountEntriesParams{
-		AccountID: accountID, FirstDay: m.First().String(), LastDay: m.Last().String(),
+		GroupID: groupID, AccountID: accountID, FirstDay: m.First().String(), LastDay: m.Last().String(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list entries: %w", err)
@@ -577,7 +619,11 @@ func (s *Service) list(ctx context.Context, q *store.Queries, accountID int64, m
 
 // getAccount reads an account row or returns ErrAccountNotFound.
 func getAccount(ctx context.Context, q *store.Queries, id int64) (store.Account, error) {
-	a, err := q.GetAccount(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return store.Account{}, err
+	}
+	a, err := q.GetAccount(ctx, store.GetAccountParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.Account{}, ErrAccountNotFound
 	}
@@ -599,9 +645,13 @@ func CheckActiveAccount(ctx context.Context, q *store.Queries, id int64) error {
 	return nil
 }
 
-// CheckPerson ensures the holder is one of the couple.
+// CheckPerson ensures the holder is a member of the active group (RF-78).
 func CheckPerson(ctx context.Context, q *store.Queries, id int64) error {
-	if _, err := q.GetPerson(ctx, id); errors.Is(err, sql.ErrNoRows) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := q.GetGroupPerson(ctx, store.GetGroupPersonParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 		return ErrPersonNotFound
 	} else if err != nil {
 		return fmt.Errorf("get person: %w", err)
@@ -611,7 +661,11 @@ func CheckPerson(ctx context.Context, q *store.Queries, id int64) error {
 
 // checkUniqueAccount rejects a name already used by another account, ignoring case.
 func checkUniqueAccount(ctx context.Context, q *store.Queries, name string, self int64) error {
-	rows, err := q.ListAccounts(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	rows, err := q.ListAccounts(ctx, groupID)
 	if err != nil {
 		return err
 	}
