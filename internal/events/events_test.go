@@ -32,6 +32,24 @@ func TestHub(t *testing.T) {
 	}
 }
 
+// TestHubClose ends every open stream when the server shuts down, and later streams end at once.
+func TestHubClose(t *testing.T) {
+	h := NewHub()
+	a, leaveA := h.Subscribe()
+	h.Close()
+	if _, open := <-a; open {
+		t.Fatal("stream still open after Close")
+	}
+	leaveA()
+	b, leaveB := h.Subscribe()
+	defer leaveB()
+	if _, open := <-b; open {
+		t.Fatal("stream opened after Close")
+	}
+	h.Publish(Event{Topic: "market"})
+	h.Close()
+}
+
 // TestTopic takes the area of the API from the path, skipping the ones that do not change shared data.
 func TestTopic(t *testing.T) {
 	tests := []struct{ path, want string }{
