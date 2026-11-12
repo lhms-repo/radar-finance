@@ -243,6 +243,43 @@ func TestWithdraw(t *testing.T) {
 	}
 }
 
+// TestDeleteDepositKeepsBalance refuses to delete a deposit already withdrawn, which would leave the box negative.
+func TestDeleteDepositKeepsBalance(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	b, _ := f.s.Create(ctx, f.userID, Input{Name: "Reserva", TargetCents: 3_000_000, PercentBP: 1_000, InitialBalanceCents: 10_000})
+	nov := month(2026, time.November)
+	on := date(2026, time.November, 11)
+	if _, err := f.s.Deposit(ctx, f.userID, Move{BoxID: b.ID, Month: nov, AmountCents: 50_000, AccountID: f.accountID, Date: on}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.Deposit(ctx, f.userID, Move{BoxID: b.ID, Month: nov, AmountCents: 5_000, AccountID: f.accountID, Date: on}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.Withdraw(ctx, f.userID, Move{BoxID: b.ID, AmountCents: 60_000, AccountID: f.accountID, Date: on, Reason: "Viagem"}); err != nil {
+		t.Fatal(err)
+	}
+	var big, small int64
+	for _, mv := range f.box(t, b.ID, nov).Moves {
+		switch {
+		case mv.Kind == KindDeposit && mv.AmountCents == 50_000:
+			big = mv.EntryID
+		case mv.Kind == KindDeposit && mv.AmountCents == 5_000:
+			small = mv.EntryID
+		}
+	}
+	if err := f.ledger.DeleteEntry(ctx, big); !errors.Is(err, ledger.ErrSavingsNegative) {
+		t.Fatalf("delete big deposit: %v, want ErrSavingsNegative", err)
+	}
+	// Balance 5.000 without the small one: still zero or more.
+	if err := f.ledger.DeleteEntry(ctx, small); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.box(t, b.ID, nov); got.BalanceCents != 0 {
+		t.Fatalf("balance = %d", got.BalanceCents)
+	}
+}
+
 // TestDone finishes the box when the target is reached and keeps it in the history (RF-49, RN-12).
 func TestDone(t *testing.T) {
 	f := newFixture(t)
