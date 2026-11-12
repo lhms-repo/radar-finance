@@ -1,15 +1,18 @@
 import { expect, type Page } from "@playwright/test";
 
-/** Fictional users created by e2e/server.sh. */
+/** Fictional users created by e2e/server.sh in the group "Casa", with their fictional PINs. */
 export const USERS = [
-  { login: "ana", name: "Ana Ficticia" },
-  { login: "bruno", name: "Bruno Ficticio" },
+  { login: "ana", name: "Ana Ficticia", pin: "4821" },
+  { login: "bruno", name: "Bruno Ficticio", pin: "7351" },
 ];
 
-/** Picks a user on the "who is using" screen and waits for the app shell. */
+/** Enters as a member of the only group: the group step is skipped, then the person and the PIN (RF-01). */
 export async function login(page: Page, name = USERS[0]!.name) {
+  const user = USERS.find((u) => u.name === name)!;
   await page.goto("/login");
   await page.getByRole("button", { name }).click();
+  await page.getByLabel("PIN").fill(user.pin);
+  await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page).toHaveURL(/\/$/);
 }
 
