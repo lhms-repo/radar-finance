@@ -11,6 +11,24 @@ import (
 	"time"
 )
 
+const categoryInUse = `-- name: CategoryInUse :one
+SELECT CAST(EXISTS (SELECT 1 FROM entries e WHERE e.category_id = ?1)
+    OR EXISTS (SELECT 1 FROM purchases p WHERE p.category_id = ?1)
+    OR EXISTS (SELECT 1 FROM recurrences r WHERE r.category_id = ?1)
+    OR EXISTS (SELECT 1 FROM bills b WHERE b.category_id = ?1)
+    OR EXISTS (SELECT 1 FROM financings f WHERE f.category_id = ?1)
+    OR EXISTS (SELECT 1 FROM alelo_purchases ap WHERE ap.category_id = ?1)
+    OR EXISTS (SELECT 1 FROM alias_rules ar WHERE ar.category_id = ?1) AS INTEGER) AS in_use
+`
+
+// Whether anything registered points to the category, which then must stay a subcategory.
+func (q *Queries) CategoryInUse(ctx context.Context, id sql.NullInt64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, categoryInUse, id)
+	var in_use int64
+	err := row.Scan(&in_use)
+	return in_use, err
+}
+
 const countCategoryChildren = `-- name: CountCategoryChildren :one
 SELECT count(*)
 FROM categories
