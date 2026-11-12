@@ -7,6 +7,7 @@ import (
 
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/db/store"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Source tells where a line of the search comes from.
@@ -48,8 +49,12 @@ type Line struct {
 
 // Search finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
 func (s *Service) Search(ctx context.Context, f Filter) ([]Line, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := store.New(s.conn).SearchEntries(ctx, store.SearchEntriesParams{
-		FirstDay: f.From.String(), LastDay: f.To.String(), CategoryID: f.CategoryID, AccountID: f.AccountID,
+		GroupID: groupID, FirstDay: f.From.String(), LastDay: f.To.String(), CategoryID: f.CategoryID, AccountID: f.AccountID,
 		CardID: f.CardID, PersonID: f.PersonID, Text: strings.TrimSpace(f.Text),
 	})
 	if err != nil {

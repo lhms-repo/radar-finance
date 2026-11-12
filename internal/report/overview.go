@@ -12,6 +12,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/savings"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // HousingKey is the system key of the Moradia category.
@@ -138,7 +139,11 @@ func (s *Service) Forecast(ctx context.Context, m civil.Month) (Forecast, error)
 		sums[groupOf(housing, fins[it.FinancingID])] += it.AmountCents
 	}
 
-	day, err := store.New(s.conn).DayToDaySpending(ctx, store.DayToDaySpendingParams{FirstDay: m.First().String(), LastDay: m.Last().String()})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Forecast{}, err
+	}
+	day, err := store.New(s.conn).DayToDaySpending(ctx, store.DayToDaySpendingParams{GroupID: groupID, FirstDay: m.First().String(), LastDay: m.Last().String()})
 	if err != nil {
 		return Forecast{}, fmt.Errorf("day to day spending: %w", err)
 	}
@@ -233,7 +238,11 @@ func (s *Service) Housing(ctx context.Context, m civil.Month, personID int64) (H
 // installments already owed, against the expected income of each month (RF-60).
 func (s *Service) Commitments(ctx context.Context, first civil.Month, n int) ([]Commitment, error) {
 	last := first.Add(n - 1)
-	rows, err := store.New(s.conn).CardInstallmentsByMonth(ctx, store.CardInstallmentsByMonthParams{FirstMonth: first.String(), LastMonth: last.String()})
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).CardInstallmentsByMonth(ctx, store.CardInstallmentsByMonthParams{GroupID: groupID, FirstMonth: first.String(), LastMonth: last.String()})
 	if err != nil {
 		return nil, fmt.Errorf("card installments: %w", err)
 	}
@@ -268,10 +277,13 @@ func (s *Service) Commitments(ctx context.Context, first civil.Month, n int) ([]
 // Closing sums the month (RF-61): income that came in by date, couple spending (RN-04), net
 // savings and what other people owe and paid back.
 func (s *Service) Closing(ctx context.Context, m civil.Month) (Closing, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Closing{}, err
+	}
 	q := store.New(s.conn)
-	days := store.SavedInPeriodParams{FirstDay: m.First().String(), LastDay: m.Last().String()}
+	days := store.SavedInPeriodParams{GroupID: groupID, FirstDay: m.First().String(), LastDay: m.Last().String()}
 	c := Closing{Month: m}
-	var err error
 	if c.IncomeCents, err = q.IncomeInPeriod(ctx, store.IncomeInPeriodParams(days)); err != nil {
 		return Closing{}, fmt.Errorf("income of the month: %w", err)
 	}
@@ -299,8 +311,11 @@ func (s *Service) Closing(ctx context.Context, m civil.Month) (Closing, error) {
 // NetWorth returns accounts and savings minus financing balances and closed unpaid invoices (RF-62).
 func (s *Service) NetWorth(ctx context.Context) (NetWorth, error) {
 	var n NetWorth
-	var err error
-	if n.AccountsCents, err = store.New(s.conn).AccountsTotal(ctx); err != nil {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return NetWorth{}, err
+	}
+	if n.AccountsCents, err = store.New(s.conn).AccountsTotal(ctx, groupID); err != nil {
 		return NetWorth{}, fmt.Errorf("accounts total: %w", err)
 	}
 	boxes, err := savings.NewService(s.conn).Month(ctx, s.today().MonthOf())

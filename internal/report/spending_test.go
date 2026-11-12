@@ -1,7 +1,6 @@
 package report
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 func TestSpending(t *testing.T) {
 	w := newWorld(t)
 	s := NewService(w.conn, w.cards)
-	got, err := s.Spending(context.Background(), nov, nov)
+	got, err := s.Spending(groupCtx, nov, nov)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +53,7 @@ func TestSpending(t *testing.T) {
 func TestSpendingEvolution(t *testing.T) {
 	w := newWorld(t)
 	s := NewService(w.conn, w.cards)
-	got, err := s.Spending(context.Background(), civil.Month{Year: 2026, Month: time.October}, civil.Month{Year: 2026, Month: time.December})
+	got, err := s.Spending(groupCtx, civil.Month{Year: 2026, Month: time.October}, civil.Month{Year: 2026, Month: time.December})
 	if err != nil {
 		t.Fatal(err)
 	}

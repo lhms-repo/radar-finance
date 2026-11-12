@@ -1,7 +1,6 @@
 package report
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -31,7 +30,7 @@ func TestSearch(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := s.Search(context.Background(), tt.in)
+			got, err := s.Search(groupCtx, tt.in)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,7 +39,7 @@ func TestSearch(t *testing.T) {
 			}
 		})
 	}
-	got, _ := s.Search(context.Background(), Filter{From: oct.First(), To: oct.Last(), CardID: w.cardID})
+	got, _ := s.Search(groupCtx, Filter{From: oct.First(), To: oct.Last(), CardID: w.cardID})
 	if got[0].Source != SourceCard || got[0].CardName != "Nubank" || got[0].Description != "Crédito de anuidade" || got[0].AmountCents != 500 {
 		t.Fatalf("first card line = %+v", got[0])
 	}

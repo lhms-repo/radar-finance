@@ -16,6 +16,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db/store"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // UncategorizedName labels credits on the card without a category.
@@ -70,6 +71,10 @@ func NewService(conn *sql.DB, cards *card.Service) *Service {
 // Card lines count in the month of their invoice (RN-01); account expenses and Alelo purchases
 // by date. Invoice payments, transfers, adjustments, savings and receipts are not spending (RN-07, RN-08).
 func (s *Service) Spending(ctx context.Context, first, last civil.Month) ([]MonthSpend, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := store.New(s.conn)
 	type key struct {
 		month civil.Month
@@ -85,7 +90,7 @@ func (s *Service) Spending(ctx context.Context, first, last civil.Month) ([]Mont
 		return nil
 	}
 
-	cardRows, err := q.CardSpendingByMonth(ctx, store.CardSpendingByMonthParams{FirstMonth: first.String(), LastMonth: last.String()})
+	cardRows, err := q.CardSpendingByMonth(ctx, store.CardSpendingByMonthParams{GroupID: groupID, FirstMonth: first.String(), LastMonth: last.String()})
 	if err != nil {
 		return nil, fmt.Errorf("card spending: %w", err)
 	}
@@ -101,7 +106,7 @@ func (s *Service) Spending(ctx context.Context, first, last civil.Month) ([]Mont
 	for _, c := range charges {
 		sums[key{c.Month, c.CategoryID}] += c.Cents
 	}
-	days := store.EntrySpendingByMonthParams{FirstDay: first.First().String(), LastDay: last.Last().String()}
+	days := store.EntrySpendingByMonthParams{GroupID: groupID, FirstDay: first.First().String(), LastDay: last.Last().String()}
 	entryRows, err := q.EntrySpendingByMonth(ctx, days)
 	if err != nil {
 		return nil, fmt.Errorf("entry spending: %w", err)

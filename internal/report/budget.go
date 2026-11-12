@@ -11,6 +11,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Thresholds of the budget alerts in basis points (RF-52).
@@ -44,13 +45,17 @@ type BudgetStatus struct {
 	Level  Level
 }
 
-// SetBudget sets the monthly budget of a top level category; zero removes it (RF-51).
+// SetBudget sets the monthly budget of a top level category of the active group; zero removes it (RF-51).
 func (s *Service) SetBudget(ctx context.Context, userID, categoryID, cents int64) error {
 	if cents < 0 {
 		return ledger.ErrAmountRequired
 	}
 	if cents > ledger.MaxAmountCents {
 		return ledger.ErrAmountTooLarge
+	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
 	}
 	q := store.New(s.conn)
 	c, err := q.GetCategory(ctx, categoryID)
@@ -61,14 +66,18 @@ func (s *Service) SetBudget(ctx context.Context, userID, categoryID, cents int64
 		return err
 	}
 	if cents == 0 {
-		return q.DeleteBudget(ctx, categoryID)
+		return q.DeleteBudget(ctx, store.DeleteBudgetParams{GroupID: groupID, CategoryID: categoryID})
 	}
-	return q.UpsertBudget(ctx, store.UpsertBudgetParams{CategoryID: categoryID, AmountCents: cents, CreatedBy: userID, UpdatedAt: s.now().UTC()})
+	return q.UpsertBudget(ctx, store.UpsertBudgetParams{GroupID: groupID, CategoryID: categoryID, AmountCents: cents, CreatedBy: userID, UpdatedAt: s.now().UTC()})
 }
 
 // Budgets compares each budget with the spending of the month, the most critical first (RF-52).
 func (s *Service) Budgets(ctx context.Context, m civil.Month) ([]BudgetStatus, error) {
-	rows, err := store.New(s.conn).ListBudgets(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListBudgets(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list budgets: %w", err)
 	}
