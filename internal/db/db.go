@@ -51,15 +51,25 @@ func Open(path string) (*sql.DB, error) {
 
 // Migrate applies every pending migration embedded in the binary (RNF-19).
 func Migrate(ctx context.Context, conn *sql.DB, log *slog.Logger) error {
+	return MigrateTo(ctx, conn, log, 0)
+}
+
+// MigrateTo applies the pending migrations up to version, or all of them when version is zero.
+func MigrateTo(ctx context.Context, conn *sql.DB, log *slog.Logger, version int64) error {
 	sub, err := fs.Sub(migrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("migrations folder: %w", err)
 	}
-	provider, err := goose.NewProvider(goose.DialectSQLite3, conn, sub)
+	provider, err := goose.NewProvider(goose.DialectSQLite3, conn, sub, goose.WithGoMigrations(groupMigrations()...))
 	if err != nil {
 		return fmt.Errorf("create migration provider: %w", err)
 	}
-	results, err := provider.Up(ctx)
+	var results []*goose.MigrationResult
+	if version > 0 {
+		results, err = provider.UpTo(ctx, version)
+	} else {
+		results, err = provider.Up(ctx)
+	}
 	for _, r := range results {
 		log.Info("migration applied", "version", r.Source.Version, "file", r.Source.Path, "duration", r.Duration)
 	}
