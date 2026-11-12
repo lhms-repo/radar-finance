@@ -282,6 +282,11 @@ func TestMove(t *testing.T) {
 		t.Fatal(err)
 	}
 	lazer := f.find(t, "", "Lazer")
+	groceries := f.find(t, "Alimentação", "Compras para casa")
+	delivery := f.find(t, "Alimentação", "Delivery")
+	if _, err := f.conn.Exec(`INSERT INTO alias_rules (original, friendly_name, category_id, created_by, created_at) VALUES ('ifood', 'iFood', ?, ?, '2026-11-11')`, delivery.ID, f.userID); err != nil {
+		t.Fatal(err)
+	}
 
 	tests := []struct {
 		name    string
@@ -316,6 +321,9 @@ func TestMove(t *testing.T) {
 				}
 			},
 		},
+		{name: "promote a system subcategory (RN-15, RN-26)", id: groceries.ID, in: Move{Icon: "cart"}, wantErr: ErrCannotPromote},
+		{name: "promote a subcategory in use", id: delivery.ID, in: Move{Icon: "bike"}, wantErr: ErrCannotPromote},
+		{name: "system subcategory to another parent", id: groceries.ID, in: Move{ParentID: &lazer.ID}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

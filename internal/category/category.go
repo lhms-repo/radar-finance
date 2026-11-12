@@ -38,6 +38,7 @@ var (
 	ErrDuplicateName     = problem.Conflict("category_duplicate_name", "Já existe uma categoria com esse nome no mesmo lugar.")
 	ErrHasChildren       = problem.Conflict("category_has_children", "Esta categoria tem subcategorias. Mova ou exclua as subcategorias antes.")
 	ErrSystemCategory    = problem.Conflict("category_system", "Esta categoria é usada pelo Radar em regras fixas, como o Alelo e o card Moradia, e não pode ser excluída. Você pode renomeá-la.")
+	ErrCannotPromote     = problem.Conflict("category_cannot_promote", "Esta subcategoria já é usada em lançamentos, cadastros, regras de apelido ou regras fixas do Radar e não pode virar categoria principal. Mova-a para outra categoria principal.")
 	ErrInUse             = problem.Conflict("category_in_use", "Esta categoria já tem lançamentos e não pode ser excluída. Desative-a para tirá-la das opções.")
 )
 
@@ -201,6 +202,16 @@ func (s *Service) Move(ctx context.Context, id int64, m Move) (Category, error) 
 			return ErrNotFound
 		}
 		next := updateParams(cur, s.now().UTC())
+		if m.ParentID == nil && cur.ParentID.Valid {
+			// Spending, budgets and the fixed rules only read subcategories, so a used one cannot become top level.
+			inUse, err := q.CategoryInUse(ctx, sql.NullInt64{Int64: id, Valid: true})
+			if err != nil {
+				return err
+			}
+			if cur.SystemKey.Valid || inUse != 0 {
+				return ErrCannotPromote
+			}
+		}
 		if m.ParentID == nil {
 			icon := m.Icon
 			if icon == "" {
