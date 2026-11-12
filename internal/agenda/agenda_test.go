@@ -2,9 +2,6 @@ package agenda
 
 import (
 	"context"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -12,25 +9,22 @@ import (
 	"github.com/italogfx/radar-finance/internal/bill"
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
+
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
 
 // TestMonth joins bills, financing installments and card invoices of the month by due date, pending first (RF-38, RF-40).
 func TestMonth(t *testing.T) {
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	testutil.FirstGroup(t, conn, ana)
+	persons := []account.Person{{ID: ana.PersonID}}
 	l := ledger.NewService(conn)
 	acc, _ := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: persons[0].ID, InitialBalanceCents: 1_000_000})
 	var energia, casa, delivery int64
@@ -96,5 +90,36 @@ func TestMonth(t *testing.T) {
 		if got.Days[i] != days[i] {
 			t.Errorf("day %d = %+v, want %+v", i, got.Days[i], days[i])
 		}
+	}
+}
+
+// TestGroupIsolation shows that the agenda of a group lists nothing of another group (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	carla := testutil.NewUser(t, conn, "carla", "Carla Ficticia")
+	first := testutil.FirstGroup(t, conn, ana)
+	other := testutil.NewGroup(t, conn, "Outra", carla)
+	acc, err := ledger.NewService(conn).CreateAccount(first, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: ana.PersonID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var energia int64
+	_ = conn.QueryRow(`SELECT id FROM categories WHERE name = 'Energia'`).Scan(&energia)
+	nov := civil.Month{Year: 2026, Month: time.November}
+	bills := bill.NewService(conn)
+	cards := card.NewService(conn)
+	if _, err := bills.Create(first, ana.ID, bill.Input{Name: "Energia", CategoryID: energia, AccountID: acc.ID, DueDay: 15, ExpectedCents: 18_000, StartMonth: nov}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cards.CreateCard(first, ana.ID, card.CardInput{Name: "Nubank", PersonID: ana.PersonID, LimitCents: 500_000, ClosingDay: 3, DueDay: 10, Color: "purple", Finish: "matte"}); err != nil {
+		t.Fatal(err)
+	}
+	s := NewService(bills, financing.NewService(conn), cards)
+	if got, err := s.Month(first, nov); err != nil || got.Count != 1 {
+		t.Fatalf("agenda of the first group = %+v, %v", got, err)
+	}
+	if got, err := s.Month(other, nov); err != nil || got.Count != 0 || got.TotalCents != 0 || len(got.Items) != 0 {
+		t.Fatalf("agenda of the other group = %+v, %v", got, err)
 	}
 }
