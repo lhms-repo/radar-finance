@@ -16,6 +16,7 @@ import { BudgetsPage } from "@/pages/BudgetsPage";
 import { CardsPage } from "@/pages/CardsPage";
 import { CashFlowPage } from "@/pages/CashFlowPage";
 import { CategoriesPage } from "@/pages/CategoriesPage";
+import { GroupPage } from "@/pages/GroupPage";
 import { ImportPage } from "@/pages/ImportPage";
 import { IncomesPage } from "@/pages/IncomesPage";
 import { ReceivablesPage } from "@/pages/ReceivablesPage";
@@ -58,6 +59,7 @@ const router = createBrowserRouter([
       { path: "settings/budgets", element: <BudgetsPage /> },
       { path: "settings/import", element: <ImportPage /> },
       { path: "settings/rules", element: <RulesPage /> },
+      { path: "settings/group", element: <GroupPage /> },
       { path: "*", element: <OverviewPage /> },
     ],
   },
