@@ -171,11 +171,12 @@ const receiptSchema = z.object({
 function ReceiptDialog({ open, person, itemIds, onClose, onDone }: { open: boolean; person: ReceivablePerson; itemIds: number[]; onClose: () => void; onDone: () => void }) {
   const accounts = useAccounts();
   const mark = useMarkReceived();
-  const form = useForm<z.infer<typeof receiptSchema>>({ resolver: zodResolver(receiptSchema), values: { accountId: 0, date: todayISO() } });
+  const form = useForm<z.infer<typeof receiptSchema>>({ resolver: zodResolver(receiptSchema), resetOptions: { keepDirtyValues: true }, values: { accountId: 0, date: todayISO() } });
   const errors = form.formState.errors;
 
   /** Clears the mutation state and closes. */
   const close = () => {
+    form.reset();
     mark.reset();
     onClose();
   };

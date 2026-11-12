@@ -74,6 +74,7 @@ export function CardFormDialog({ open, card, onClose }: { open: boolean; card?: 
   const mutation = card ? update : create;
   const form = useForm<CardValues>({
     resolver: zodResolver(cardSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       name: card?.name ?? "",
       personId: card?.personId ?? 0,
@@ -231,6 +232,7 @@ export function PurchaseDialog({
     : EMPTY_SPLIT;
   const form = useForm<PurchaseValues>({
     resolver: zodResolver(purchaseSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       merchant: item?.merchant ?? "",
       amountCents: item?.purchaseTotalCents ?? 0,
@@ -348,6 +350,7 @@ export function CreditDialog({ open, card, onClose }: { open: boolean; card: Car
   const add = useAddCredit();
   const form = useForm<z.infer<typeof creditSchema>>({
     resolver: zodResolver(creditSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { merchant: "", amountCents: 0, categoryId: 0, date: todayISO(), description: "" },
   });
   const errors = form.formState.errors;
@@ -408,6 +411,7 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   const mutation = recurrence ? update : add;
   const form = useForm<z.infer<typeof recurrenceSchema>>({
     resolver: zodResolver(recurrenceSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       description: recurrence?.description ?? "",
       amountCents: recurrence?.amountCents ?? 0,
@@ -479,12 +483,13 @@ const paySchema = z.object({ accountId: z.number().int().positive("Escolha a con
 export function PayDialog({ open, card, invoice, onClose }: { open: boolean; card: Card; invoice: Invoice; onClose: () => void }) {
   const accounts = useAccounts();
   const pay = usePayInvoice();
-  const form = useForm<z.infer<typeof paySchema>>({ resolver: zodResolver(paySchema), values: { accountId: 0, date: todayISO() } });
+  const form = useForm<z.infer<typeof paySchema>>({ resolver: zodResolver(paySchema), resetOptions: { keepDirtyValues: true }, values: { accountId: 0, date: todayISO() } });
   const errors = form.formState.errors;
   const [y, m] = invoice.month.split("-").map(Number);
 
   /** Clears the mutation state and closes. */
   const close = () => {
+    form.reset();
     pay.reset();
     onClose();
   };

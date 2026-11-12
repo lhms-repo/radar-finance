@@ -243,6 +243,7 @@ function BoxFormDialog({ state, onClose }: { state: { box?: SavingsBox } | null;
   const mutation = box ? update : create;
   const form = useForm<z.infer<typeof boxSchema>>({
     resolver: zodResolver(boxSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { name: box?.name ?? "", targetCents: box?.targetCents ?? 0, percentBp: box?.percentBp ?? 1000, initialBalanceCents: 0 },
   });
   const errors = form.formState.errors;
@@ -351,6 +352,7 @@ function MoveDialog({
   const mutation = isDeposit ? deposit : withdraw;
   const form = useForm<z.infer<typeof moveSchema>>({
     resolver: zodResolver(moveSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { amountCents: isDeposit ? (state?.box.suggestedCents ?? 0) : 0, accountId: 0, date: todayISO(), reason: "" },
   });
   const errors = form.formState.errors;

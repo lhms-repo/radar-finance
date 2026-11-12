@@ -96,6 +96,7 @@ export function AccountFormDialog({ open, onClose, account }: { open: boolean; o
   const mutation = account ? update : create;
   const form = useForm<AccountValues>({
     resolver: zodResolver(accountSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       name: account?.name ?? "",
       personId: account?.personId ?? 0,

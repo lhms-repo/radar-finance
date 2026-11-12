@@ -275,10 +275,12 @@ function AdjustDialog({ open, account, onClose }: { open: boolean; account: Acco
   const adjust = useAdjustBalance();
   const form = useForm<z.infer<typeof adjustSchema>>({
     resolver: zodResolver(adjustSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { balanceCents: account.balanceCents, date: todayISO(), description: "" },
   });
   /** Clears the mutation state and closes. */
   const close = () => {
+    form.reset();
     adjust.reset();
     onClose();
   };
@@ -326,6 +328,7 @@ function TransferDialog({ open, account, onClose }: { open: boolean; account: Ac
   const transfer = useTransfer();
   const form = useForm<z.infer<typeof transferSchema>>({
     resolver: zodResolver(transferSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { toAccountId: 0, amountCents: 0, date: todayISO(), description: "" },
   });
   const errors = form.formState.errors;
@@ -386,6 +389,7 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
   const add = useAddExpense();
   const form = useForm<z.infer<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { amountCents: 0, categoryId: 0, date: todayISO(), description: "" },
   });
   const errors = form.formState.errors;
