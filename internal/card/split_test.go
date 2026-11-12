@@ -138,6 +138,29 @@ func TestInvoiceThirdParty(t *testing.T) {
 	}
 }
 
+// TestInvoiceCouplePartNeverNegative keeps the couple part of every invoice at zero or more when the whole
+// purchase belongs to other people and the cents do not divide evenly (RN-03, RN-05).
+func TestInvoiceCouplePartNeverNegative(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	c := f.newCard(t)
+	if _, err := f.s.AddPurchase(ctx, f.userID, PurchaseInput{
+		CardID: c.ID, Date: d(2026, time.November, 20), Merchant: "Loja", CategoryID: f.delivery, AmountCents: 10_000, Installments: 3,
+		Split: &SplitInput{Mode: SplitEqual, CoupleParts: 0, Parties: []PartyShare{{Name: "João Ficticio"}, {Name: "Maria Ficticia"}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []struct {
+		y  int
+		mo time.Month
+	}{{2026, time.December}, {2027, time.January}, {2027, time.February}} {
+		inv := f.invoice(t, c.ID, m.y, m.mo)
+		if inv.NetCents != 0 || inv.ThirdPartyCents != inv.TotalCents {
+			t.Fatalf("%d-%02d: total %d, third %d, couple %d; the couple keeps nothing of this purchase", m.y, m.mo, inv.TotalCents, inv.ThirdPartyCents, inv.NetCents)
+		}
+	}
+}
+
 // TestSplitGuards keeps purchases with a received share from changing.
 func TestSplitGuards(t *testing.T) {
 	f := newFixture(t)
@@ -182,5 +205,96 @@ func TestSplitGuards(t *testing.T) {
 	}
 	if err := f.s.DeletePurchase(ctx, p.ID); !errors.Is(err, ErrSplitReceived) {
 		t.Fatalf("delete with a received share: %v", err)
+	}
+}
+
+// TestSpreadShares spreads each share over the installments following the installment amounts, so the shares
+// never add up to more than an installment and the couple part of a month is never negative (RN-03, RN-04, RN-05).
+func TestSpreadShares(t *testing.T) {
+	tests := []struct {
+		name   string
+		total  int64
+		n      int
+		shares []int64
+		want   [][]int64
+	}{
+		{
+			// R$ 100,00 in 3x, all of it for two other people: 33,34 / 33,33 / 33,33.
+			name: "whole purchase for two people", total: 10_000, n: 3, shares: []int64{5_000, 5_000},
+			want: [][]int64{{1_667, 1_667, 1_666}, {1_667, 1_666, 1_667}},
+		},
+		{name: "one installment", total: 10_000, n: 1, shares: []int64{3_000}, want: [][]int64{{3_000}}},
+		{name: "even split", total: 9_000, n: 3, shares: []int64{3_000, 1_500}, want: [][]int64{{1_000, 1_000, 1_000}, {500, 500, 500}}},
+		{name: "one cent per installment each", total: 6, n: 3, shares: []int64{3, 3}, want: [][]int64{{1, 1, 1}, {1, 1, 1}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := spreadShares(Split(tt.total, tt.n), tt.shares)
+			for p := range tt.want {
+				for i := range tt.want[p] {
+					if got[p][i] != tt.want[p][i] {
+						t.Fatalf("got %v, want %v", got, tt.want)
+					}
+				}
+			}
+		})
+	}
+}
+
+// TestSpreadSharesInvariants checks many purchases: each share adds up exactly, no installment carries more
+// in shares than its amount and every person has at least one cent per installment.
+func TestSpreadSharesInvariants(t *testing.T) {
+	for _, total := range []int64{7, 100, 1_001, 10_000, 99_999, 100_000_000_000} {
+		for n := 1; n <= 12; n++ {
+			if total < int64(n) {
+				continue
+			}
+			for _, people := range [][]int64{{1}, {1, 1}, {1, 2, 3}, {5, 5}, {1, 1, 1, 1}} {
+				// Turn the weights into shares that use the whole purchase, the hardest case.
+				var weight int64
+				for _, w := range people {
+					weight += w
+				}
+				shares := make([]int64, len(people))
+				var used int64
+				for p, w := range people {
+					shares[p] = total * w / weight
+					used += shares[p]
+				}
+				shares[0] += total - used
+				ok := true
+				for _, s := range shares {
+					if s < int64(n) {
+						ok = false
+					}
+				}
+				if !ok {
+					continue
+				}
+				inst := Split(total, n)
+				got := spreadShares(inst, shares)
+				for p, s := range shares {
+					var sum int64
+					for i, a := range got[p] {
+						if a < 1 {
+							t.Fatalf("total %d n %d shares %v: person %d has %d in installment %d", total, n, shares, p, a, i)
+						}
+						sum += a
+					}
+					if sum != s {
+						t.Fatalf("total %d n %d shares %v: person %d adds %d, want %d", total, n, shares, p, sum, s)
+					}
+				}
+				for i, amount := range inst {
+					var col int64
+					for p := range shares {
+						col += got[p][i]
+					}
+					if col > amount {
+						t.Fatalf("total %d n %d shares %v: installment %d carries %d of %d", total, n, shares, i, col, amount)
+					}
+				}
+			}
+		}
 	}
 }

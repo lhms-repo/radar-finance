@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"strings"
 	"unicode/utf8"
 
@@ -143,9 +144,15 @@ func resolveShares(total int64, installments int, in *SplitInput) ([]PartyShare,
 	return out, nil
 }
 
-// writeSplits stores the shares and spreads each one over the installments of the purchase (RN-03).
+// writeSplits stores the shares and spreads each one over the installments of the purchase, following the
+// installment amounts (RN-03).
 func (s *Service) writeSplits(ctx context.Context, q *store.Queries, userID, purchaseID int64, p Purchase, shares []PartyShare) error {
-	for _, sh := range shares {
+	amounts := make([]int64, len(shares))
+	for k, sh := range shares {
+		amounts[k] = sh.ShareCents
+	}
+	spread := spreadShares(Split(p.TotalCents, p.Installments), amounts)
+	for k, sh := range shares {
 		partyID, err := s.partyID(ctx, q, userID, sh.Name)
 		if err != nil {
 			return err
@@ -154,7 +161,7 @@ func (s *Service) writeSplits(ctx context.Context, q *store.Queries, userID, pur
 		if err != nil {
 			return fmt.Errorf("create split: %w", err)
 		}
-		for i, amount := range Split(sh.ShareCents, p.Installments) {
+		for i, amount := range spread[k] {
 			if err := q.CreateSplitInstallment(ctx, store.CreateSplitInstallmentParams{
 				SplitID: splitID, Number: int64(i + 1), CardID: p.CardID, InvoiceMonth: p.FirstInvoice.Add(i).String(), AmountCents: amount,
 			}); err != nil {
@@ -191,4 +198,57 @@ func checkNoReceived(ctx context.Context, q *store.Queries, purchaseID int64) er
 		return ErrSplitReceived
 	}
 	return nil
+}
+
+// spreadShares spreads each share over the installments so that the shares follow the installment amounts:
+// every person gets at least one cent per installment, the shares of an installment never add up to more
+// than it, so the couple part of a month is never negative, and the cents left over go, one at a time, to the
+// installments with the largest remainder that still have room (RN-03, RN-04, RN-05). It needs, as
+// resolveShares ensures, each share of at least one cent per installment and all shares within the total.
+func spreadShares(installments, shares []int64) [][]int64 {
+	n, people := len(installments), int64(len(shares))
+	// Room in each installment after one cent per person, and their sum.
+	room := make([]int64, n)
+	var totalRoom int64
+	for i, amount := range installments {
+		room[i] = amount - people
+		totalRoom += room[i]
+	}
+	// First every whole part, rest * room / totalRoom, exact since both factors can reach the 1e11 cents cap.
+	out := make([][]int64, len(shares))
+	remainders := make([][]*big.Int, len(shares))
+	left := make([]int64, len(shares))
+	free := append([]int64(nil), installments...)
+	for p, share := range shares {
+		out[p] = make([]int64, n)
+		remainders[p] = make([]*big.Int, n)
+		rest := share - int64(n)
+		left[p] = rest
+		for i := range installments {
+			whole, r := new(big.Int), new(big.Int)
+			if totalRoom > 0 {
+				whole.QuoRem(new(big.Int).Mul(big.NewInt(rest), big.NewInt(room[i])), big.NewInt(totalRoom), r)
+			}
+			out[p][i] = 1 + whole.Int64()
+			remainders[p][i] = r
+			left[p] -= whole.Int64()
+			free[i] -= out[p][i]
+		}
+	}
+	// Then the cents left over: the whole parts never fill an installment past its amount, and together they
+	// leave at least as much room as the cents still to place, so a free installment always exists.
+	for p := range shares {
+		for ; left[p] > 0; left[p]-- {
+			best := -1
+			for i := range installments {
+				if free[i] > 0 && (best < 0 || remainders[p][i].Cmp(remainders[p][best]) > 0) {
+					best = i
+				}
+			}
+			out[p][best]++
+			free[best]--
+			remainders[p][best] = big.NewInt(-1)
+		}
+	}
+	return out
 }
