@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MotionConfig, useReducedMotion } from "motion/react";
+import { MotionConfig } from "motion/react";
 import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { MonthProvider } from "@/lib/month";
+import { usePrefersReducedMotion } from "@/lib/motion";
 import { PreferencesProvider, usePreferences } from "@/lib/preferences";
 import { AccountDetailPage } from "@/pages/AccountDetailPage";
 import { AccountsPage } from "@/pages/AccountsPage";
@@ -64,7 +65,7 @@ const router = createBrowserRouter([
 
 /** Turns every Motion animation off when the system asks for less motion: reducedMotion="user" alone only stops transforms and layout, while sizes and paths kept moving. */
 function Motion({ children }: { children: ReactNode }) {
-  const reduced = useReducedMotion() ?? false;
+  const reduced = usePrefersReducedMotion();
   return (
     <MotionConfig reducedMotion="user" skipAnimations={reduced}>
       {children}
