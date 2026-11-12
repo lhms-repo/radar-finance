@@ -796,7 +796,7 @@ func (q *Queries) UpsertLink(ctx context.Context, arg UpsertLinkParams) error {
 
 const upsertMarketSettings = `-- name: UpsertMarketSettings :exec
 INSERT INTO market_settings (group_id, max_markets, min_savings_cents, stale_days)
-VALUES (CAST(?4 AS INTEGER), ?, ?, ?)
+VALUES (CAST(?1 AS INTEGER), ?2, ?3, ?4)
 ON CONFLICT (group_id) DO UPDATE SET max_markets = excluded.max_markets,
     min_savings_cents = excluded.min_savings_cents, stale_days = excluded.stale_days
 `

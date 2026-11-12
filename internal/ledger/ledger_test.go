@@ -34,9 +34,7 @@ func newFixture(t *testing.T) fixture {
 	conn := testutil.OpenDB(t)
 	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
 	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
-	if id, _ := scope.Group(testutil.NewGroup(t, conn, "Casa", ana, bruno)); id != 1 {
-		t.Fatalf("first group id = %d, want 1", id)
-	}
+	testutil.FirstGroup(t, conn, ana, bruno)
 	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	f := fixture{s: NewService(conn), conn: conn, userID: ana.ID, persons: [2]int64{persons[0].ID, persons[1].ID}}
 	if err := conn.QueryRow(`SELECT id FROM categories WHERE name = 'Delivery'`).Scan(&f.delivery); err != nil {
