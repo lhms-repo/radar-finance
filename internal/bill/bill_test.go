@@ -257,6 +257,11 @@ func TestSetActual(t *testing.T) {
 		{name: "negative", bill: power.ID, month: nov, cents: -1, wantErr: ledger.ErrAmountRequired},
 		{name: "month without the bill", bill: power.ID, month: month(2026, time.October), cents: 1, wantErr: ErrNoOccurrence},
 		{name: "missing bill", bill: 999, month: nov, cents: 1, wantErr: ErrNotFound},
+		// The paid amount is the real one; changing it would make the forecast differ from the money that left.
+		{name: "month already paid", bill: power.ID, month: month(2026, time.December), cents: 1, wantErr: ErrAlreadyPaid},
+	}
+	if _, err := f.s.Pay(ctx, f.userID, Payment{BillID: power.ID, Month: month(2026, time.December)}); err != nil {
+		t.Fatal(err)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -239,6 +239,16 @@ func (s *Service) SetActual(ctx context.Context, billID int64, m civil.Month, ce
 		if _, ok := dueOn(b, m); !ok {
 			return ErrNoOccurrence
 		}
+		// Once paid, the paid amount is the real one of the month (RF-37).
+		paid, err := q.ListBillPayments(ctx, sql.NullString{String: m.String(), Valid: true})
+		if err != nil {
+			return err
+		}
+		for _, p := range paid {
+			if p.BillID.Int64 == billID {
+				return ErrAlreadyPaid
+			}
+		}
 		if cents == 0 {
 			return q.DeleteBillAmount(ctx, store.DeleteBillAmountParams{BillID: billID, Month: m.String()})
 		}
