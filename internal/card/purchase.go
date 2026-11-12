@@ -14,6 +14,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Purchase kinds.
@@ -83,6 +84,10 @@ func (s *Service) AddPurchase(ctx context.Context, userID int64, in PurchaseInpu
 
 // AddPurchaseTx registers the purchase inside a transaction of the caller and returns its id.
 func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID int64, in PurchaseInput) (int64, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
 	p, err := s.preparePurchase(ctx, q, in)
 	if err != nil {
 		return 0, err
@@ -92,6 +97,7 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 		CardID: p.CardID, Kind: kindPurchase, PurchasedOn: p.Date.String(), Merchant: p.Merchant, Description: p.Description,
 		CategoryID: nullID(p.CategoryID), BuyerPersonID: nullID(p.BuyerPersonID), TotalCents: p.TotalCents,
 		InstallmentCount: int64(p.Installments), FirstInvoice: p.FirstInvoice.String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+		GroupID: groupID,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("create purchase: %w", err)
@@ -104,7 +110,11 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 
 // UpdatePurchase replaces a purchase and regenerates its installments and shares; the card stays the same.
 func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput) (Purchase, error) {
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Purchase{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		cur, err := s.getPurchase(ctx, q, id)
 		if err != nil {
 			return err
@@ -125,12 +135,12 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 			return err
 		}
 		if first > 1 {
-			return updatePartialImport(ctx, q, cur, p, in.Split, s.now().UTC())
+			return updatePartialImport(ctx, q, groupID, cur, p, in.Split, s.now().UTC())
 		}
 		if err := q.UpdatePurchase(ctx, store.UpdatePurchaseParams{
 			PurchasedOn: p.Date.String(), Merchant: p.Merchant, Description: p.Description, CategoryID: nullID(p.CategoryID),
 			BuyerPersonID: nullID(p.BuyerPersonID), TotalCents: p.TotalCents, InstallmentCount: int64(p.Installments),
-			FirstInvoice: p.FirstInvoice.String(), UpdatedAt: s.now().UTC(), ID: id,
+			FirstInvoice: p.FirstInvoice.String(), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		}); err != nil {
 			return fmt.Errorf("update purchase: %w", err)
 		}
@@ -153,14 +163,14 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 
 // updatePartialImport changes only the texts, category and buyer of a purchase imported from a middle installment,
 // keeping its installments and shares, since the earlier installments are not in the Radar (RF-57).
-func updatePartialImport(ctx context.Context, q *store.Queries, cur, p Purchase, split *SplitInput, now time.Time) error {
+func updatePartialImport(ctx context.Context, q *store.Queries, groupID int64, cur, p Purchase, split *SplitInput, now time.Time) error {
 	if p.TotalCents != cur.TotalCents || p.Installments != cur.Installments || p.Date != cur.Date || !sameShares(cur.Splits, split) {
 		return ErrPartialImport
 	}
 	if err := q.UpdatePurchase(ctx, store.UpdatePurchaseParams{
 		PurchasedOn: cur.Date.String(), Merchant: p.Merchant, Description: p.Description, CategoryID: nullID(p.CategoryID),
 		BuyerPersonID: nullID(p.BuyerPersonID), TotalCents: cur.TotalCents, InstallmentCount: int64(cur.Installments),
-		FirstInvoice: cur.FirstInvoice.String(), UpdatedAt: now, ID: cur.ID,
+		FirstInvoice: cur.FirstInvoice.String(), UpdatedAt: now, ID: cur.ID, GroupID: groupID,
 	}); err != nil {
 		return fmt.Errorf("update purchase: %w", err)
 	}
@@ -192,8 +202,12 @@ func sameShares(cur []SplitShare, in *SplitInput) bool {
 
 // AddCredit registers a refund or credit as a negative amount on the invoice of its date (RF-22).
 func (s *Service) AddCredit(ctx context.Context, userID int64, in CreditInput) (Purchase, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Purchase{}, err
+	}
 	var id int64
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		c, err := activeCard(ctx, q, in.CardID)
 		if err != nil {
 			return err
@@ -219,7 +233,7 @@ func (s *Service) AddCredit(ctx context.Context, userID int64, in CreditInput) (
 		row, err := q.CreatePurchase(ctx, store.CreatePurchaseParams{
 			CardID: c.ID, Kind: kindCredit, PurchasedOn: in.Date.String(), Merchant: merchant, Description: desc,
 			CategoryID: nullID(in.CategoryID), TotalCents: in.AmountCents, InstallmentCount: 1,
-			FirstInvoice: p.FirstInvoice.String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			FirstInvoice: p.FirstInvoice.String(), CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create credit: %w", err)
@@ -240,6 +254,10 @@ func (s *Service) GetPurchase(ctx context.Context, id int64) (Purchase, error) {
 
 // DeletePurchase removes a purchase or credit with its installments.
 func (s *Service) DeletePurchase(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := s.getPurchase(ctx, q, id); err != nil {
 			return err
@@ -247,7 +265,7 @@ func (s *Service) DeletePurchase(ctx context.Context, id int64) error {
 		if err := checkNoReceived(ctx, q, id); err != nil {
 			return err
 		}
-		return q.DeletePurchase(ctx, id)
+		return q.DeletePurchase(ctx, store.DeletePurchaseParams{ID: id, GroupID: groupID})
 	})
 }
 
@@ -315,7 +333,11 @@ func writeInstallments(ctx context.Context, q *store.Queries, purchaseID int64, 
 
 // getPurchase reads a purchase or returns ErrPurchaseNotFound.
 func (s *Service) getPurchase(ctx context.Context, q *store.Queries, id int64) (Purchase, error) {
-	r, err := q.GetPurchase(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Purchase{}, err
+	}
+	r, err := q.GetPurchase(ctx, store.GetPurchaseParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Purchase{}, ErrPurchaseNotFound
 	}
@@ -379,6 +401,10 @@ type ImportedLine struct {
 // ImportLine records a CSV line inside the caller's transaction and returns the purchase id.
 // A "Parcela N/M" line creates only installments N to M, from the chosen invoice on (RF-57).
 func (s *Service) ImportLine(ctx context.Context, q *store.Queries, userID int64, in ImportedLine) (int64, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
 	c, err := activeCard(ctx, q, in.CardID)
 	if err != nil {
 		return 0, err
@@ -424,7 +450,7 @@ func (s *Service) ImportLine(ctx context.Context, q *store.Queries, userID int64
 	row, err := q.CreatePurchase(ctx, store.CreatePurchaseParams{
 		CardID: c.ID, Kind: kind, PurchasedOn: in.Date.String(), Merchant: merchant, CategoryID: nullID(in.CategoryID),
 		TotalCents: in.AmountCents * int64(m), InstallmentCount: int64(m), FirstInvoice: first.String(),
-		CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+		CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("create imported purchase: %w", err)

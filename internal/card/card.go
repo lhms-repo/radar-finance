@@ -18,6 +18,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Limits of the card fields.
@@ -115,10 +116,14 @@ func NewService(conn *sql.DB) *Service {
 	return &Service{conn: conn, now: time.Now, today: func() civil.Date { return civil.Today(loc) }}
 }
 
-// ListCards returns every card with its limit use, active ones first.
+// ListCards returns the cards of the active group's members with the limit use, active ones first (RF-82).
 func (s *Service) ListCards(ctx context.Context) ([]Card, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := store.New(s.conn)
-	rows, err := q.ListCards(ctx)
+	rows, err := q.ListCards(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list cards: %w", err)
 	}
@@ -189,6 +194,10 @@ func (s *Service) UpdateCard(ctx context.Context, id int64, in CardInput, active
 	if err != nil {
 		return Card{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Card{}, err
+	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getCard(ctx, q, id); err != nil {
 			return err
@@ -198,7 +207,7 @@ func (s *Service) UpdateCard(ctx context.Context, id int64, in CardInput, active
 		}
 		return q.UpdateCard(ctx, store.UpdateCardParams{
 			Name: in.Name, PersonID: in.PersonID, LimitCents: in.LimitCents, ClosingDay: int64(in.ClosingDay), DueDay: int64(in.DueDay),
-			LastDigits: nullString(in.LastDigits), Color: in.Color, Finish: in.Finish, Active: active, UpdatedAt: s.now().UTC(), ID: id,
+			LastDigits: nullString(in.LastDigits), Color: in.Color, Finish: in.Finish, Active: active, UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		})
 	})
 	if err != nil {
@@ -209,11 +218,15 @@ func (s *Service) UpdateCard(ctx context.Context, id int64, in CardInput, active
 
 // DeleteCard removes a card without purchases, recurrences or payments.
 func (s *Service) DeleteCard(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := getCard(ctx, q, id); err != nil {
 			return err
 		}
-		if err := q.DeleteCard(ctx, id); err != nil {
+		if err := q.DeleteCard(ctx, store.DeleteCardParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrCardInUse
 			}
@@ -248,7 +261,11 @@ func checkCardRefs(ctx context.Context, q *store.Queries, in CardInput, self int
 	if err := checkPerson(ctx, q, in.PersonID); err != nil {
 		return err
 	}
-	rows, err := q.ListCards(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	rows, err := q.ListCards(ctx, groupID)
 	if err != nil {
 		return err
 	}
@@ -260,9 +277,13 @@ func checkCardRefs(ctx context.Context, q *store.Queries, in CardInput, self int
 	return nil
 }
 
-// checkPerson ensures the person is one of the couple.
+// checkPerson ensures the person is a member of the active group (RF-78).
 func checkPerson(ctx context.Context, q *store.Queries, id int64) error {
-	if _, err := q.GetPerson(ctx, id); errors.Is(err, sql.ErrNoRows) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := q.GetGroupPerson(ctx, store.GetGroupPersonParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 		return ErrPersonNotFound
 	} else if err != nil {
 		return err
@@ -272,7 +293,11 @@ func checkPerson(ctx context.Context, q *store.Queries, id int64) error {
 
 // getCard reads a card row or returns ErrCardNotFound.
 func getCard(ctx context.Context, q *store.Queries, id int64) (Card, error) {
-	r, err := q.GetCard(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Card{}, err
+	}
+	r, err := q.GetCard(ctx, store.GetCardParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Card{}, ErrCardNotFound
 	}

@@ -55,3 +55,14 @@ func NewUser(t testing.TB, conn *sql.DB, login, name string) account.User {
 	}
 	return u
 }
+
+// FirstGroup creates the group "Casa" like NewGroup and checks that it got id 1, which the services' tests
+// rely on to use one shared context for the group of a fresh database.
+func FirstGroup(t testing.TB, conn *sql.DB, users ...account.User) context.Context {
+	t.Helper()
+	ctx := NewGroup(t, conn, "Casa", users...)
+	if id, _ := scope.Group(ctx); id != 1 {
+		t.Fatalf("first group id = %d, want 1", id)
+	}
+	return ctx
+}

@@ -13,6 +13,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Recurrence is a charge repeated on every invoice, like a subscription (RF-17).
@@ -81,8 +82,12 @@ func (s *Service) Recurrences(ctx context.Context, cardID int64) ([]Recurrence, 
 
 // AddRecurrence registers a recurrence on a card (RF-17).
 func (s *Service) AddRecurrence(ctx context.Context, userID int64, in RecurrenceInput) (Recurrence, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Recurrence{}, err
+	}
 	var id int64
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		c, err := activeCard(ctx, q, in.CardID)
 		if err != nil {
 			return err
@@ -101,7 +106,7 @@ func (s *Service) AddRecurrence(ctx context.Context, userID int64, in Recurrence
 		now := s.now().UTC()
 		r, err := q.CreateRecurrence(ctx, store.CreateRecurrenceParams{
 			CardID: c.ID, Description: desc, CategoryID: in.CategoryID, StartMonth: start.String(), EndMonth: nullMonth(in.EndMonth),
-			CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create recurrence: %w", err)
@@ -117,7 +122,11 @@ func (s *Service) AddRecurrence(ctx context.Context, userID int64, in Recurrence
 
 // UpdateRecurrence edits a recurrence; a new price starts on the current invoice, so closed invoices keep theirs.
 func (s *Service) UpdateRecurrence(ctx context.Context, id int64, ch RecurrenceChanges) (Recurrence, error) {
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Recurrence{}, err
+	}
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		cur, err := s.recurrenceTx(ctx, q, id)
 		if err != nil {
 			return err
@@ -134,7 +143,7 @@ func (s *Service) UpdateRecurrence(ctx context.Context, id int64, ch RecurrenceC
 			return ErrEndBeforeStart
 		}
 		if err := q.UpdateRecurrence(ctx, store.UpdateRecurrenceParams{
-			Description: desc, CategoryID: ch.CategoryID, EndMonth: nullMonth(ch.EndMonth), UpdatedAt: s.now().UTC(), ID: id,
+			Description: desc, CategoryID: ch.CategoryID, EndMonth: nullMonth(ch.EndMonth), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		}); err != nil {
 			return fmt.Errorf("update recurrence: %w", err)
 		}
@@ -159,12 +168,16 @@ func (s *Service) UpdateRecurrence(ctx context.Context, id int64, ch RecurrenceC
 
 // DeleteRecurrence removes a recurrence that is not on any paid invoice.
 func (s *Service) DeleteRecurrence(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		r, err := s.recurrenceTx(ctx, q, id)
 		if err != nil {
 			return err
 		}
-		payments, err := q.ListCardPayments(ctx, r.CardID)
+		payments, err := q.ListCardPayments(ctx, store.ListCardPaymentsParams{GroupID: groupID, CardID: r.CardID})
 		if err != nil {
 			return err
 		}
@@ -177,7 +190,7 @@ func (s *Service) DeleteRecurrence(ctx context.Context, id int64) error {
 				return ErrRecurrenceInUse
 			}
 		}
-		return q.DeleteRecurrence(ctx, id)
+		return q.DeleteRecurrence(ctx, store.DeleteRecurrenceParams{ID: id, GroupID: groupID})
 	})
 }
 
@@ -188,7 +201,11 @@ func (s *Service) getRecurrence(ctx context.Context, id int64) (Recurrence, erro
 
 // recurrenceTx reads one recurrence with its prices.
 func (s *Service) recurrenceTx(ctx context.Context, q *store.Queries, id int64) (Recurrence, error) {
-	r, err := q.GetRecurrence(ctx, id)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Recurrence{}, err
+	}
+	r, err := q.GetRecurrence(ctx, store.GetRecurrenceParams{ID: id, GroupID: groupID})
 	if errors.Is(err, sql.ErrNoRows) {
 		return Recurrence{}, ErrRecurrenceNotFound
 	}
@@ -213,11 +230,15 @@ func (s *Service) recurrenceTx(ctx context.Context, q *store.Queries, id int64) 
 
 // recurrences reads every recurrence of the card with prices, resolving the current amount.
 func (s *Service) recurrences(ctx context.Context, q *store.Queries, c Card) ([]Recurrence, error) {
-	rows, err := q.ListCardRecurrences(ctx, c.ID)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.ListCardRecurrences(ctx, store.ListCardRecurrencesParams{GroupID: groupID, CardID: c.ID})
 	if err != nil {
 		return nil, fmt.Errorf("list recurrences: %w", err)
 	}
-	prices, err := q.ListRecurrencePrices(ctx, c.ID)
+	prices, err := q.ListRecurrencePrices(ctx, store.ListRecurrencePricesParams{GroupID: groupID, CardID: c.ID})
 	if err != nil {
 		return nil, fmt.Errorf("list recurrence prices: %w", err)
 	}
@@ -299,8 +320,12 @@ type Charge struct {
 
 // RecurrenceCharges lists what every recurrence bills on the invoices from first to last, for the reports (RF-59).
 func (s *Service) RecurrenceCharges(ctx context.Context, first, last civil.Month) ([]Charge, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	q := store.New(s.conn)
-	rows, err := q.ListCards(ctx)
+	rows, err := q.ListCards(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list cards: %w", err)
 	}

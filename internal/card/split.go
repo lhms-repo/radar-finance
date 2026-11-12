@@ -12,6 +12,7 @@ import (
 
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Limits of a split.
@@ -76,9 +77,13 @@ type Party struct {
 	Name string
 }
 
-// Parties lists the names already used, for suggestions (RF-27).
+// Parties lists the names already used in the active group, for suggestions (RF-27).
 func (s *Service) Parties(ctx context.Context) ([]Party, error) {
-	rows, err := store.New(s.conn).ListParties(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListParties(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list parties: %w", err)
 	}
@@ -175,14 +180,18 @@ func (s *Service) writeSplits(ctx context.Context, q *store.Queries, userID, pur
 
 // partyID returns the id of the person with this name, ignoring case, creating it when new (RF-27).
 func (s *Service) partyID(ctx context.Context, q *store.Queries, userID int64, name string) (int64, error) {
-	p, err := q.GetPartyByName(ctx, name)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
+	p, err := q.GetPartyByName(ctx, store.GetPartyByNameParams{GroupID: groupID, Name: name})
 	if err == nil {
 		return p.ID, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return 0, fmt.Errorf("find party: %w", err)
 	}
-	created, err := q.CreateParty(ctx, store.CreatePartyParams{Name: name, CreatedBy: userID, CreatedAt: s.now().UTC()})
+	created, err := q.CreateParty(ctx, store.CreatePartyParams{Name: name, CreatedBy: userID, CreatedAt: s.now().UTC(), GroupID: groupID})
 	if err != nil {
 		return 0, fmt.Errorf("create party: %w", err)
 	}
