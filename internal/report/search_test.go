@@ -25,6 +25,9 @@ func TestSearch(t *testing.T) {
 		{name: "card in October", in: Filter{From: oct.First(), To: oct.Last(), CardID: w.cardID}, want: 3},
 		{name: "person who made it", in: Filter{From: nov.First(), To: nov.Last(), PersonID: w.persons[1]}, want: 0},
 		{name: "text ignoring case", in: Filter{From: nov.First(), To: nov.Last(), Text: "ENER"}, want: 1},
+		// % and _ are plain characters typed by the user, not wildcards.
+		{name: "percent sign is literal", in: Filter{From: nov.First(), To: nov.Last(), Text: "%"}, want: 0},
+		{name: "underscore is literal", in: Filter{From: nov.First(), To: nov.Last(), Text: "_"}, want: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -364,7 +364,7 @@ WHERE occurred_on >= ?1 AND occurred_on <= ?2
   AND (CAST(?4 AS INTEGER) = 0 OR account_id = CAST(?4 AS INTEGER))
   AND (CAST(?5 AS INTEGER) = 0 OR (source = 'card' AND card_id = CAST(?5 AS INTEGER)))
   AND (CAST(?6 AS INTEGER) = 0 OR person_id = CAST(?6 AS INTEGER))
-  AND (CAST(?7 AS TEXT) = '' OR description LIKE '%' || CAST(?7 AS TEXT) || '%')
+  AND (CAST(?7 AS TEXT) = '' OR instr(lower(description), lower(CAST(?7 AS TEXT))) > 0)
 ORDER BY occurred_on DESC, source, id DESC
 LIMIT 500
 `

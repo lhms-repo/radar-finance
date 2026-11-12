@@ -125,6 +125,6 @@ WHERE occurred_on >= sqlc.arg(first_day) AND occurred_on <= sqlc.arg(last_day)
   AND (CAST(sqlc.arg(account_id) AS INTEGER) = 0 OR account_id = CAST(sqlc.arg(account_id) AS INTEGER))
   AND (CAST(sqlc.arg(card_id) AS INTEGER) = 0 OR (source = 'card' AND card_id = CAST(sqlc.arg(card_id) AS INTEGER)))
   AND (CAST(sqlc.arg(person_id) AS INTEGER) = 0 OR person_id = CAST(sqlc.arg(person_id) AS INTEGER))
-  AND (CAST(sqlc.arg(text) AS TEXT) = '' OR description LIKE '%' || CAST(sqlc.arg(text) AS TEXT) || '%')
+  AND (CAST(sqlc.arg(text) AS TEXT) = '' OR instr(lower(description), lower(CAST(sqlc.arg(text) AS TEXT))) > 0)
 ORDER BY occurred_on DESC, source, id DESC
 LIMIT 500;
