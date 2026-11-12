@@ -8152,6 +8152,20 @@ func (response SetBillActual404JSONResponse) VisitSetBillActualResponse(w http.R
 	return err
 }
 
+type SetBillActual409JSONResponse struct{ ConflictJSONResponse }
+
+func (response SetBillActual409JSONResponse) VisitSetBillActualResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PayBillRequestObject struct {
 	Id    Id    `json:"id"`
 	Month Month `json:"month"`
