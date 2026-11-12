@@ -215,6 +215,44 @@ func TestFetchGoias(t *testing.T) {
 	}
 }
 
+// TestFetchUpgradesToHTTPS reads an http:// QR code over https when the portal answers there, and keeps
+// http when it does not, so nobody on the way can swap the items and prices (RF-68).
+func TestFetchUpgradesToHTTPS(t *testing.T) {
+	shell, _ := os.ReadFile("testdata/fictional-goias-shell.html")
+	frame, _ := os.ReadFile("testdata/fictional-goias-frame.html")
+	portal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/render/") {
+			_, _ = w.Write(frame)
+			return
+		}
+		_, _ = w.Write(shell)
+	})
+	tests := []struct {
+		name string
+		srv  *httptest.Server
+	}{
+		// A TLS only server fails over plain http, so reading it proves the upgrade.
+		{name: "portal with https", srv: httptest.NewTLSServer(portal)},
+		{name: "portal with http only", srv: httptest.NewServer(portal)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer tt.srv.Close()
+			c := NewClient()
+			c.allowHost = func(string) bool { return true }
+			c.transport = tt.srv.Client().Transport
+			addr := "http://" + tt.srv.Listener.Addr().String() + "/nfeweb/sites/nfce/danfeNFCe?p=x"
+			rec, err := c.Fetch(context.Background(), addr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rec.StoreName != "MERCADO FICTICIO LTDA" {
+				t.Fatalf("receipt = %+v", rec)
+			}
+		})
+	}
+}
+
 // fixtureURL builds a fixture address.
 func fixtureURL(name, key, cnpj string) string {
 	return "https://nfce.fixture.gov.br/?p=" + url.QueryEscape(name+"|"+key+"|"+cnpj)
