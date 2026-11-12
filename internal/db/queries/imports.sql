@@ -57,11 +57,13 @@ SET import_id = ?
 WHERE id = ?;
 
 -- name: CardItemsNear :many
--- Installments of the card whose purchase date is within a day of the given one, for duplicates (RN-20).
+-- One-shot purchases of the card bought within a day of the given date, for duplicates of one-shot CSV lines (RN-20).
+-- Installment purchases are left out: their CSV lines carry Parcela N/M and match by number (RF-57).
 SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 WHERE i.card_id = sqlc.arg(card_id)
+  AND p.installment_count = 1
   AND p.purchased_on >= sqlc.arg(first_day) AND p.purchased_on <= sqlc.arg(last_day)
 ORDER BY i.id;
 

@@ -78,6 +78,7 @@ SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, 
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 WHERE i.card_id = ?1
+  AND p.installment_count = 1
   AND p.purchased_on >= ?2 AND p.purchased_on <= ?3
 ORDER BY i.id
 `
@@ -100,7 +101,8 @@ type CardItemsNearRow struct {
 	InvoiceMonth     string
 }
 
-// Installments of the card whose purchase date is within a day of the given one, for duplicates (RN-20).
+// One-shot purchases of the card bought within a day of the given date, for duplicates of one-shot CSV lines (RN-20).
+// Installment purchases are left out: their CSV lines carry Parcela N/M and match by number (RF-57).
 func (q *Queries) CardItemsNear(ctx context.Context, arg CardItemsNearParams) ([]CardItemsNearRow, error) {
 	rows, err := q.db.QueryContext(ctx, cardItemsNear, arg.CardID, arg.FirstDay, arg.LastDay)
 	if err != nil {

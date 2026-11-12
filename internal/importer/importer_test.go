@@ -307,6 +307,26 @@ func TestPreviewMatchesOnce(t *testing.T) {
 	}
 }
 
+// TestPreviewSingleLineSkipsInstallments keeps a one-shot CSV line from taking an installment of a purchase
+// bought the same day, which left the real installment line to be imported twice (RF-57, RN-20).
+func TestPreviewSingleLineSkipsInstallments(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.November, Day: 10}, Merchant: "Loja", CategoryID: f.cat["Delivery"], AmountCents: 30_000, Installments: 3}); err != nil {
+		t.Fatal(err)
+	}
+	csv := "date,title,amount\n" +
+		"2026-11-10,Outra Loja,\"100,00\"\n" +
+		"2026-11-10,Loja - Parcela 1/3,\"100,00\"\n"
+	lines, err := f.s.Preview(ctx, f.cardID, dec, csv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines[0].Duplicate != nil || lines[1].Duplicate == nil {
+		t.Fatalf("one-shot duplicate = %v, installment duplicate = %v", lines[0].Duplicate != nil, lines[1].Duplicate != nil)
+	}
+}
+
 // TestCommitSplit divides imported lines with other people or leaves them all to one person; on an
 // installment line the share follows only the installments created from the CSV on (RF-24, RF-25, RF-57).
 func TestCommitSplit(t *testing.T) {
