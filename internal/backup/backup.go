@@ -66,6 +66,8 @@ type Service struct {
 	errMu   sync.Mutex
 	lastErr error
 	errAt   time.Time
+	// next is when the schedule fires again, sooner than the daily time after a failure.
+	next time.Time
 }
 
 // New creates the backup service.
@@ -172,6 +174,9 @@ func (s *Service) Status() (Status, error) {
 		st.Last = &list[0]
 	}
 	s.errMu.Lock()
+	if !s.next.IsZero() {
+		st.Next = s.next
+	}
 	if s.lastErr != nil {
 		at := s.errAt
 		st.LastError, st.ErrorAt = s.lastErr.Error(), &at
@@ -195,6 +200,7 @@ func (s *Service) Start(ctx context.Context) {
 		_, err := s.Run(ctx, KindStartup)
 		next = nextAfterRun(s.now(), err, s.opts.Hour, s.opts.Loc)
 	}
+	s.setNext(next)
 	// A one minute tick, instead of a long timer, survives the host sleeping.
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -209,8 +215,16 @@ func (s *Service) Start(ctx context.Context) {
 			}
 			_, err := s.Run(ctx, KindDaily)
 			next = nextAfterRun(s.now(), err, s.opts.Hour, s.opts.Loc)
+			s.setNext(next)
 		}
 	}
+}
+
+// setNext records when the schedule fires again, for the health page.
+func (s *Service) setNext(t time.Time) {
+	s.errMu.Lock()
+	s.next = t
+	s.errMu.Unlock()
 }
 
 // retryDelay is how long the schedule waits before trying again after a failed copy.
@@ -239,12 +253,28 @@ func (s *Service) prune() error {
 	return errors.Join(errs...)
 }
 
-// toPrune returns the copies to delete from a newest first list, keeping keep copies.
+// keepManual is how many manual copies are kept, apart from the daily ones.
+const keepManual = 10
+
+// toPrune returns the copies to delete from a newest first list: daily and startup copies beyond keep
+// (RNF-05), and manual copies beyond keepManual, so tapping the button never pushes out the daily history.
 func toPrune(list []Info, keep int) []Info {
-	if len(list) <= keep {
-		return nil
+	var out []Info
+	var daily, manual int
+	for _, b := range list {
+		if b.Kind == KindManual {
+			manual++
+			if manual > keepManual {
+				out = append(out, b)
+			}
+			continue
+		}
+		daily++
+		if daily > keep {
+			out = append(out, b)
+		}
 	}
-	return list[keep:]
+	return out
 }
 
 // lastScheduled returns the most recent scheduled backup time at or before now.

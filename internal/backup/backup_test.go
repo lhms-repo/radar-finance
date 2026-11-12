@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -150,6 +151,54 @@ func TestFileNameRoundTrip(t *testing.T) {
 	}
 }
 
+// TestToPruneKinds keeps the 30 daily copies whatever the manual ones do, and only the newest manual copies (RNF-05, RNF-07).
+func TestToPruneKinds(t *testing.T) {
+	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
+	// mixed returns the copies newest first: manual taps on top of a month of daily and startup copies.
+	mixed := func(manual, daily int) []Info {
+		var out []Info
+		for i := range manual {
+			out = append(out, Info{Name: fmt.Sprintf("manual-%02d", i), Kind: KindManual, CreatedAt: base.AddDate(0, 2, -i)})
+		}
+		for i := range daily {
+			kind := KindDaily
+			if i%10 == 0 {
+				kind = KindStartup
+			}
+			out = append(out, Info{Name: fmt.Sprintf("daily-%02d", i), Kind: kind, CreatedAt: base.AddDate(0, 0, daily-i)})
+		}
+		return out
+	}
+	tests := []struct {
+		name       string
+		manual     int
+		daily      int
+		wantManual int
+		wantDaily  int
+	}{
+		{name: "many manual taps keep the daily history", manual: 35, daily: 30, wantManual: 25},
+		{name: "few manual copies", manual: 3, daily: 31, wantDaily: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var manual, daily int
+			for _, p := range toPrune(mixed(tt.manual, tt.daily), 30) {
+				if p.Kind == KindManual {
+					manual++
+					if p.Name < fmt.Sprintf("manual-%02d", keepManual) {
+						t.Fatalf("pruned a newest manual copy: %s", p.Name)
+					}
+				} else {
+					daily++
+				}
+			}
+			if manual != tt.wantManual || daily != tt.wantDaily {
+				t.Fatalf("pruned %d manual and %d daily, want %d and %d", manual, daily, tt.wantManual, tt.wantDaily)
+			}
+		})
+	}
+}
+
 // TestToPrune checks that only the newest copies are kept (RNF-05).
 func TestToPrune(t *testing.T) {
 	base := time.Date(2026, 1, 1, 3, 0, 0, 0, time.UTC)
@@ -210,7 +259,7 @@ func TestRunCreatesConsistentCopy(t *testing.T) {
 	svc.now = func() time.Time { return now }
 
 	for i := 0; i < 3; i++ {
-		if _, err := svc.Run(context.Background(), KindManual); err != nil {
+		if _, err := svc.Run(context.Background(), KindDaily); err != nil {
 			t.Fatal(err)
 		}
 		now = now.Add(time.Minute)
