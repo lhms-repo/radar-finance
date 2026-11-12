@@ -107,6 +107,8 @@ func (s *Service) run(ctx context.Context, kind Kind) (Info, error) {
 	tmp := final + ".tmp"
 	_ = os.Remove(tmp)
 	if _, err := s.conn.ExecContext(ctx, "VACUUM INTO ?", tmp); err != nil {
+		// A partial copy has a name no later run reuses, so it would stay in the folder for good.
+		_ = os.Remove(tmp)
 		return Info{}, fmt.Errorf("vacuum into: %w", err)
 	}
 	if err := verify(ctx, tmp); err != nil {
@@ -188,10 +190,11 @@ func (s *Service) Start(ctx context.Context) {
 	if len(list) > 0 {
 		last = &list[0].CreatedAt
 	}
-	if needsCatchUp(s.now(), last, s.opts.Hour, s.opts.Loc) {
-		_, _ = s.Run(ctx, KindStartup)
-	}
 	next := nextScheduled(s.now(), s.opts.Hour, s.opts.Loc)
+	if needsCatchUp(s.now(), last, s.opts.Hour, s.opts.Loc) {
+		_, err := s.Run(ctx, KindStartup)
+		next = nextAfterRun(s.now(), err, s.opts.Hour, s.opts.Loc)
+	}
 	// A one minute tick, instead of a long timer, survives the host sleeping.
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -204,10 +207,21 @@ func (s *Service) Start(ctx context.Context) {
 			if now.Before(next) {
 				continue
 			}
-			_, _ = s.Run(ctx, KindDaily)
-			next = nextScheduled(now, s.opts.Hour, s.opts.Loc)
+			_, err := s.Run(ctx, KindDaily)
+			next = nextAfterRun(s.now(), err, s.opts.Hour, s.opts.Loc)
 		}
 	}
+}
+
+// retryDelay is how long the schedule waits before trying again after a failed copy.
+const retryDelay = 15 * time.Minute
+
+// nextAfterRun returns when the schedule fires again: the next daily time after a good copy, or soon after a failure.
+func nextAfterRun(now time.Time, err error, hour int, loc *time.Location) time.Time {
+	if err != nil {
+		return now.Add(retryDelay)
+	}
+	return nextScheduled(now, hour, loc)
 }
 
 // prune deletes the copies beyond the retention limit.
