@@ -5,9 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/italogfx/radar-finance/internal/auth"
+	"github.com/italogfx/radar-finance/internal/events"
 )
 
 // TestEventsStream sends the change of one user to the open stream of the other, and refuses signed out streams (RF-71).
@@ -62,4 +66,48 @@ func TestEventsStream(t *testing.T) {
 		return
 	}
 	t.Fatalf("no event: %v", lines.Err())
+}
+
+// TestEventsStreamEndsOnHubClose ends an open stream when the hub closes at shutdown, so Shutdown does not
+// wait for the phones that keep the app open (RF-71).
+func TestEventsStreamEndsOnHubClose(t *testing.T) {
+	_, conn := testServer(t)
+	sm := auth.NewSessionManager(conn, auth.SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour})
+	ctx, err := sm.Load(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := auth.SignIn(ctx, sm, 1); err != nil {
+		t.Fatal(err)
+	}
+	token, _, err := sm.Commit(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hub := events.NewHub()
+	srv := httptest.NewServer(eventsHandler(hub, sm))
+	defer srv.Close()
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req.AddCookie(&http.Cookie{Name: sm.Cookie.Name, Value: token})
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	lines := bufio.NewScanner(resp.Body)
+	if !lines.Scan() || lines.Text() != ": connected" {
+		t.Fatalf("first line = %q", lines.Text())
+	}
+	hub.Close()
+	ended := make(chan struct{})
+	go func() {
+		for lines.Scan() {
+		}
+		close(ended)
+	}()
+	select {
+	case <-ended:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream still open after the hub closed")
+	}
 }

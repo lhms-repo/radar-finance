@@ -94,6 +94,36 @@ func TestNextAfterRun(t *testing.T) {
 	}
 }
 
+// TestStatusShowsRetry reports the retry time after a failure instead of the next daily time (RNF-06).
+func TestStatusShowsRetry(t *testing.T) {
+	loc := saoPaulo(t)
+	now := time.Date(2026, 11, 10, 3, 0, 30, 0, loc)
+	svc := New(nil, Options{Dir: t.TempDir(), Keep: 30, Hour: 3, Loc: loc}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc.now = func() time.Time { return now }
+	tests := []struct {
+		name string
+		next time.Time
+		want time.Time
+	}{
+		{name: "schedule not started, next daily time", want: time.Date(2026, 11, 11, 3, 0, 0, 0, loc)},
+		{name: "retrying after a failure", next: now.Add(retryDelay), want: now.Add(retryDelay)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !tt.next.IsZero() {
+				svc.setNext(tt.next)
+			}
+			st, err := svc.Status()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !st.Next.Equal(tt.want) {
+				t.Fatalf("next = %v, want %v", st.Next, tt.want)
+			}
+		})
+	}
+}
+
 // TestNeedsCatchUp checks the startup backup when the scheduled one was missed (RNF-06).
 func TestNeedsCatchUp(t *testing.T) {
 	loc := saoPaulo(t)
