@@ -52,7 +52,7 @@ type Line struct {
 
 var (
 	// installmentPattern matches "Loja - Parcela 3/10" and the Pix in installments, "Pix no Crédito - Fulano - 2/2".
-	installmentPattern = regexp.MustCompile(`(?i)^(.*?)\s*-\s*(?:parcela\s+)?(\d+)\s*/\s*(\d+)\s*$`)
+	installmentPattern = regexp.MustCompile(`(?i)^(.*?)\s*-\s*(parcela\s+)?(\d+)\s*/\s*(\d+)\s*$`)
 	spaces             = regexp.MustCompile(`\s+`)
 	// dotAmount is the older export, 1234.56; brAmount is the current one, 1.234,56, with "- " before credits.
 	dotAmount = regexp.MustCompile(`^(-?)\s*(\d+)(?:\.(\d{1,2}))?$`)
@@ -118,12 +118,17 @@ func parseLine(rec []string) (Line, error) {
 	}
 	l := Line{Date: d, Title: title, Merchant: spaces.ReplaceAllString(title, " "), AmountCents: cents, Kind: LinePurchase}
 	if m := installmentPattern.FindStringSubmatch(title); m != nil {
-		n, _ := strconv.Atoi(m[2])
-		total, _ := strconv.Atoi(m[3])
-		if n < 1 || total < 1 || n > total || total > 48 {
+		n, _ := strconv.Atoi(m[3])
+		total, _ := strconv.Atoi(m[4])
+		valid := n >= 1 && total >= 1 && n <= total && total <= 48
+		switch {
+		case valid:
+			l.Merchant, l.Installment, l.Installments = spaces.ReplaceAllString(m[1], " "), n, total
+		case m[2] != "":
+			// The word "Parcela" makes it an installment for sure, so wrong numbers are an error.
 			return Line{}, errors.New("parcela inválida")
 		}
-		l.Merchant, l.Installment, l.Installments = spaces.ReplaceAllString(m[1], " "), n, total
+		// Without the word, numbers that cannot be an installment, like "- 11/2026", are part of the title.
 	}
 	if cents < 0 {
 		l.AmountCents = -cents

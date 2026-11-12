@@ -21,7 +21,9 @@ func TestParseNubank(t *testing.T) {
 		"2026-11-06,Pagamento recebido,\"- 6.324,93\"\r\n" +
 		"2026-10-30,Pix no Crédito - Fulano Ficticio - 2/2,\"384,22\"\r\n" +
 		"2026-10-30,Loja Ficticia - NuPay - Parcela 4/10,\"1.116,91\"\r\n" +
-		"2026-11-07,Estorno Ficticio,\"-20,45\"\r\n"
+		"2026-11-07,Estorno Ficticio,\"-20,45\"\r\n" +
+		// A title ending in a month, not an installment: without the word, numbers that cannot be one stay in the title.
+		"2026-11-08,Assinatura Ficticia - 11/2026,\"29,90\"\r\n"
 	got, err := ParseNubank(strings.NewReader(csv))
 	if err != nil {
 		t.Fatal(err)
@@ -43,6 +45,7 @@ func TestParseNubank(t *testing.T) {
 		{date: "2026-10-30", title: "Pix no Crédito - Fulano Ficticio - 2/2", merchant: "Pix no Crédito - Fulano Ficticio", cents: 38_422, kind: LinePurchase, n: 2, m: 2},
 		{date: "2026-10-30", title: "Loja Ficticia - NuPay - Parcela 4/10", merchant: "Loja Ficticia - NuPay", cents: 111_691, kind: LinePurchase, n: 4, m: 10},
 		{date: "2026-11-07", title: "Estorno Ficticio", merchant: "Estorno Ficticio", cents: 2_045, kind: LineCredit},
+		{date: "2026-11-08", title: "Assinatura Ficticia - 11/2026", merchant: "Assinatura Ficticia - 11/2026", cents: 2_990, kind: LinePurchase},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("lines = %d, want %d: %+v", len(got), len(want), got)
