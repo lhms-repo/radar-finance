@@ -7,9 +7,10 @@ import (
 	"sync"
 )
 
-// Event says which area of the API changed, who changed it and from which browser tab.
+// Event says which area of the API changed, in which group, who changed it and from which browser tab.
 type Event struct {
 	Topic    string `json:"topic"`
+	GroupID  int64  `json:"groupId"`
 	UserID   int64  `json:"userId"`
 	ClientID string `json:"clientId,omitempty"`
 }
