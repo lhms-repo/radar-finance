@@ -392,7 +392,7 @@ func (s *Service) Undo(ctx context.Context, id int64) error {
 				return err
 			}
 		}
-		return q.DeleteImport(ctx, store.DeleteImportParams{ID: id, CreatedBy: userID})
+		return q.DeleteImport(ctx, store.DeleteImportParams{ID: id, GroupID: groupID, CreatedBy: userID})
 	})
 }
 

@@ -219,6 +219,10 @@ func TestCommit(t *testing.T) {
 	if inv, _ := f.cards.Invoice(ctx, f.cardID, dec); inv.TotalCents != 0 {
 		t.Fatalf("after undo = %d", inv.TotalCents)
 	}
+	// The undone import leaves the history too (RF-57).
+	if left, _ := f.s.Imports(ctx); len(left) != 0 {
+		t.Fatalf("imports after undo = %+v", left)
+	}
 	if _, err := f.s.Commit(ctx, f.userID, f.cardID, dec, "x.csv", nil); !errors.Is(err, ErrNothingToImport) {
 		t.Fatalf("empty commit: %v", err)
 	}
