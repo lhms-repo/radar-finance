@@ -6,6 +6,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("incomes: register, confirm the receipt, undo and one off income (RF-09 to RF-13, RN-13)", async ({ page }, testInfo) => {
+  // A long flow: under three parallel browser engines it gets near the default 30 s.
+  test.slow();
   // Projects share one database, so names carry the project to stay unique.
   const account = `Conta R ${testInfo.project.name}`;
   const salary = `Salário ${testInfo.project.name}`;
