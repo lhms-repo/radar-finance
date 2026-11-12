@@ -1295,8 +1295,11 @@ type GroupMember struct {
 
 // GroupMemberAdd defines model for GroupMemberAdd.
 type GroupMemberAdd struct {
-	Login string    `json:"login"`
-	Role  GroupRole `json:"role"`
+	Login string `json:"login"`
+
+	// Pin The PIN of the person being added, typed by that person as consent (RF-80).
+	Pin  string    `json:"pin"`
+	Role GroupRole `json:"role"`
 }
 
 // GroupName defines model for GroupName.
@@ -2942,13 +2945,13 @@ type ServerInterface interface {
 	// RenameGroup Renames the active group; administrators only (RF-80).
 	// (PUT /group)
 	RenameGroup(w http.ResponseWriter, r *http.Request)
-	// AddGroupMember Adds a person already registered, by login, to the active group; administrators only (RF-80).
+	// AddGroupMember Adds a person already registered to the active group with the PIN of that person as consent; administrators only (RF-80).
 	// (POST /group/members)
 	AddGroupMember(w http.ResponseWriter, r *http.Request)
 	// SetGroupMemberRole Changes the role of a member of the active group, keeping an administrator; administrators only (RF-80).
 	// (PUT /group/members/{id})
 	SetGroupMemberRole(w http.ResponseWriter, r *http.Request, id Id)
-	// ResetGroupMemberPin Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27).
+	// ResetGroupMemberPin Sets a new PIN for a member when the caller administers every group of that member, and lifts any lock (RF-80, RN-27).
 	// (PUT /group/members/{id}/pin)
 	ResetGroupMemberPin(w http.ResponseWriter, r *http.Request, id Id)
 	// CreateGroupPerson Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80).
@@ -14663,13 +14666,13 @@ type StrictServerInterface interface {
 	// RenameGroup Renames the active group; administrators only (RF-80).
 	// (PUT /group)
 	RenameGroup(ctx context.Context, request RenameGroupRequestObject) (RenameGroupResponseObject, error)
-	// AddGroupMember Adds a person already registered, by login, to the active group; administrators only (RF-80).
+	// AddGroupMember Adds a person already registered to the active group with the PIN of that person as consent; administrators only (RF-80).
 	// (POST /group/members)
 	AddGroupMember(ctx context.Context, request AddGroupMemberRequestObject) (AddGroupMemberResponseObject, error)
 	// SetGroupMemberRole Changes the role of a member of the active group, keeping an administrator; administrators only (RF-80).
 	// (PUT /group/members/{id})
 	SetGroupMemberRole(ctx context.Context, request SetGroupMemberRoleRequestObject) (SetGroupMemberRoleResponseObject, error)
-	// ResetGroupMemberPin Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27).
+	// ResetGroupMemberPin Sets a new PIN for a member when the caller administers every group of that member, and lifts any lock (RF-80, RN-27).
 	// (PUT /group/members/{id}/pin)
 	ResetGroupMemberPin(ctx context.Context, request ResetGroupMemberPinRequestObject) (ResetGroupMemberPinResponseObject, error)
 	// CreateGroupPerson Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80).

@@ -293,7 +293,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Adds a person already registered, by login, to the active group; administrators only (RF-80). */
+        /** Adds a person already registered to the active group with the PIN of that person as consent; administrators only (RF-80). */
         post: operations["addGroupMember"];
         delete?: never;
         options?: never;
@@ -343,7 +343,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Sets a new PIN for a member of the active group and lifts any lock; administrators only (RF-80, RN-27). */
+        /** Sets a new PIN for a member when the caller administers every group of that member, and lifts any lock (RF-80, RN-27). */
         put: operations["resetGroupMemberPin"];
         post?: never;
         delete?: never;
@@ -1876,6 +1876,8 @@ export interface components {
         };
         GroupMemberAdd: {
             login: string;
+            /** @description The PIN of the person being added, typed by that person as consent (RF-80). */
+            pin: string;
             role: components["schemas"]["GroupRole"];
         };
         GroupPersonCreate: {
