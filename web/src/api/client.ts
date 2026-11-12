@@ -19,7 +19,21 @@ export function onUnauthorized(fn: () => void) {
   };
 }
 
+/** Id of this browser tab, sent with each write so the live updates skip only the tab that wrote (RF-71). */
+export const clientId = newClientId();
+
+/** Returns a random tab id; randomUUID only exists over HTTPS, and the dev server is also opened by IP over HTTP. */
+function newClientId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 const sessionMiddleware: Middleware = {
+  /** Tags the request with the id of this tab. */
+  onRequest({ request }) {
+    request.headers.set("X-Radar-Client", clientId);
+    return request;
+  },
   /** Notifies listeners when a protected call returns 401. */
   onResponse({ request, response }) {
     if (response.status === 401 && !request.url.endsWith("/auth/login")) {
