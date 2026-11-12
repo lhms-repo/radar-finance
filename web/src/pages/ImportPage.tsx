@@ -120,7 +120,13 @@ export function ImportPage() {
           <label htmlFor={fileId} className={cn("flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-8 text-center transition-colors hover:bg-accent", !chosenCard && "pointer-events-none opacity-50")}>
             <Upload className="size-6 text-primary" />
             <span className="text-sm font-medium">{preview.isPending ? "Lendo o arquivo..." : "Escolher o arquivo CSV"}</span>
-            <input id={fileId} aria-label="Arquivo CSV" type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => void onFile(e.target.files?.[0])} />
+            <input id={fileId} aria-label="Arquivo CSV" type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => {
+                const file = e.target.files?.[0];
+                // Cleared at once, so picking the same file again, after a failed preview, still fires.
+                e.target.value = "";
+                void onFile(file);
+              }}
+            />
           </label>
         ) : (
           <div className="flex items-center justify-between gap-2 rounded-xl bg-muted px-3 py-2 text-sm">
