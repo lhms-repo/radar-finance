@@ -132,7 +132,7 @@ func TestCreateCard(t *testing.T) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
-			if err == nil && (c.LimitFreeCents != in.LimitCents || c.PersonName == "" || c.CurrentInvoice.String() != "2026-12") {
+			if err == nil && (c.LimitFreeCents != in.LimitCents || c.PersonName == "" || c.CurrentInvoice.String() != "2026-12" || c.CurrentInvoiceDueOn.String() != "2026-12-10") {
 				t.Fatalf("card = %+v", c)
 			}
 		})

@@ -300,7 +300,7 @@ func toCard(c card.Card) gen.Card {
 		Id: c.ID, Name: c.Name, PersonId: c.PersonID, PersonName: c.PersonName, LimitCents: c.LimitCents,
 		ClosingDay: c.ClosingDay, DueDay: c.DueDay, LastDigits: optional(c.LastDigits), Color: gen.CardColor(c.Color),
 		Finish: gen.CardFinish(c.Finish), Active: c.Active, LimitUsedCents: c.LimitUsedCents, LimitFreeCents: c.LimitFreeCents,
-		CurrentInvoice: c.CurrentInvoice.String(),
+		CurrentInvoice: c.CurrentInvoice.String(), CurrentInvoiceDueOn: apiDate(c.CurrentInvoiceDueOn),
 	}
 }
 

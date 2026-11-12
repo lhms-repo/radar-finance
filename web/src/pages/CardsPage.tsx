@@ -164,13 +164,6 @@ function cardInput(c: Card) {
   };
 }
 
-/** Day and month of the due date of the current invoice. */
-function dueLabel(c: Card) {
-  const [y, m] = c.currentInvoice.split("-").map(Number);
-  const last = new Date(Date.UTC(y!, m!, 0)).getUTCDate();
-  return `${String(Math.min(c.dueDay, last)).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
-}
-
 /** Horizontal carousel of card drawings; the next card peeks at the edge, as in the reference (section 5.4). */
 function Carousel({ cards, selected, status, onSelect }: { cards: Card[]; selected: Card; status?: InvoiceStatus; onSelect: (c: Card) => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -217,7 +210,7 @@ function Carousel({ cards, selected, status, onSelect }: { cards: Card[]; select
               lastDigits={c.lastDigits}
               color={c.color}
               finish={c.finish}
-              dueLabel={dueLabel(c)}
+              dueLabel={formatDayMonth(c.currentInvoiceDueOn)}
               limitFreeCents={c.limitFreeCents}
               status={active ? status : undefined}
             />

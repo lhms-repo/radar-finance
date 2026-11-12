@@ -80,6 +80,8 @@ type Card struct {
 	LimitFreeCents int64
 	// CurrentInvoice is the invoice a purchase made today would fall into.
 	CurrentInvoice civil.Month
+	// CurrentInvoiceDueOn is the due date of CurrentInvoice, so the screens never work it out (RN-01).
+	CurrentInvoiceDueOn civil.Date
 }
 
 // Cycle returns the closing and due days of the card.
@@ -128,6 +130,7 @@ func (s *Service) ListCards(ctx context.Context) ([]Card, error) {
 			Color: r.Color, Finish: r.Finish, Active: r.Active,
 		}
 		c.CurrentInvoice = c.Cycle().InvoiceFor(s.today())
+		c.CurrentInvoiceDueOn = c.Cycle().Due(c.CurrentInvoice)
 		used, err := s.limitUsed(ctx, q, c)
 		if err != nil {
 			return nil, err
