@@ -534,10 +534,10 @@ func TestUpdatePartialImport(t *testing.T) {
 	ctx := context.Background()
 	carla := &SplitInput{Mode: SplitCustom, Parties: []PartyShare{{Name: "Carla Ficticia", ShareCents: 40_000}}}
 	cases := []struct {
-		name      string
-		split     bool
-		edit      func(in *PurchaseInput)
-		wantErr   error
+		name    string
+		split   bool
+		edit    func(in *PurchaseInput)
+		wantErr error
 	}{
 		{name: "only texts and category", edit: func(in *PurchaseInput) { in.Merchant, in.CategoryID = "Loja Renomeada", 0 }},
 		{name: "same split kept", split: true, edit: func(in *PurchaseInput) { in.Split = carla }},
