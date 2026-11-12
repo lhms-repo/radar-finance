@@ -11,8 +11,8 @@ import (
 )
 
 const createSavingsBox = `-- name: CreateSavingsBox :one
-INSERT INTO savings_boxes (name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO savings_boxes (name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, CAST(?8 AS INTEGER))
 RETURNING id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id
 `
 
@@ -24,6 +24,7 @@ type CreateSavingsBoxParams struct {
 	CreatedBy           int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	GroupID             int64
 }
 
 func (q *Queries) CreateSavingsBox(ctx context.Context, arg CreateSavingsBoxParams) (SavingsBox, error) {
@@ -35,6 +36,7 @@ func (q *Queries) CreateSavingsBox(ctx context.Context, arg CreateSavingsBoxPara
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var i SavingsBox
 	err := row.Scan(
@@ -83,22 +85,32 @@ func (q *Queries) CreateSavingsMove(ctx context.Context, arg CreateSavingsMovePa
 
 const deleteSavingsBox = `-- name: DeleteSavingsBox :exec
 DELETE FROM savings_boxes
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteSavingsBox(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteSavingsBox, id)
+type DeleteSavingsBoxParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteSavingsBox(ctx context.Context, arg DeleteSavingsBoxParams) error {
+	_, err := q.db.ExecContext(ctx, deleteSavingsBox, arg.ID, arg.GroupID)
 	return err
 }
 
 const getSavingsBox = `-- name: GetSavingsBox :one
 SELECT id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id
 FROM savings_boxes
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetSavingsBox(ctx context.Context, id int64) (SavingsBox, error) {
-	row := q.db.QueryRowContext(ctx, getSavingsBox, id)
+type GetSavingsBoxParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetSavingsBox(ctx context.Context, arg GetSavingsBoxParams) (SavingsBox, error) {
+	row := q.db.QueryRowContext(ctx, getSavingsBox, arg.ID, arg.GroupID)
 	var i SavingsBox
 	err := row.Scan(
 		&i.ID,
@@ -117,11 +129,12 @@ func (q *Queries) GetSavingsBox(ctx context.Context, id int64) (SavingsBox, erro
 const listSavingsBoxes = `-- name: ListSavingsBoxes :many
 SELECT id, name, target_cents, percent_bp, initial_balance_cents, created_by, created_at, updated_at, group_id
 FROM savings_boxes
+WHERE group_id = CAST(?1 AS INTEGER)
 ORDER BY id
 `
 
-func (q *Queries) ListSavingsBoxes(ctx context.Context) ([]SavingsBox, error) {
-	rows, err := q.db.QueryContext(ctx, listSavingsBoxes)
+func (q *Queries) ListSavingsBoxes(ctx context.Context, groupID int64) ([]SavingsBox, error) {
+	rows, err := q.db.QueryContext(ctx, listSavingsBoxes, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +173,8 @@ JOIN entries e ON e.id = m.entry_id
 JOIN accounts a ON a.id = e.account_id
 JOIN users u ON u.id = m.created_by
 JOIN persons p ON p.id = u.person_id
+JOIN savings_boxes b ON b.id = m.box_id
+WHERE b.group_id = CAST(?1 AS INTEGER)
 ORDER BY m.box_id, e.occurred_on, m.id
 `
 
@@ -178,8 +193,8 @@ type ListSavingsMovesRow struct {
 	CreatedByName string
 }
 
-func (q *Queries) ListSavingsMoves(ctx context.Context) ([]ListSavingsMovesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listSavingsMoves)
+func (q *Queries) ListSavingsMoves(ctx context.Context, groupID int64) ([]ListSavingsMovesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSavingsMoves, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -219,13 +234,18 @@ SELECT CAST(b.initial_balance_cents + coalesce(sum(CASE m.kind WHEN 'deposit' TH
 FROM savings_moves d
 JOIN savings_boxes b ON b.id = d.box_id
 LEFT JOIN savings_moves m ON m.box_id = d.box_id AND m.entry_id <> d.entry_id
-WHERE d.entry_id = ?
+WHERE d.entry_id = ?1 AND b.group_id = CAST(?2 AS INTEGER)
 GROUP BY b.id
 `
 
+type SavingsBalanceWithoutEntryParams struct {
+	EntryID int64
+	GroupID int64
+}
+
 // Balance of the box of a savings entry as it would be without that entry.
-func (q *Queries) SavingsBalanceWithoutEntry(ctx context.Context, entryID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, savingsBalanceWithoutEntry, entryID)
+func (q *Queries) SavingsBalanceWithoutEntry(ctx context.Context, arg SavingsBalanceWithoutEntryParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, savingsBalanceWithoutEntry, arg.EntryID, arg.GroupID)
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
 	return balance_cents, err
@@ -234,7 +254,7 @@ func (q *Queries) SavingsBalanceWithoutEntry(ctx context.Context, entryID int64)
 const updateSavingsBox = `-- name: UpdateSavingsBox :exec
 UPDATE savings_boxes
 SET name = ?, target_cents = ?, percent_bp = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?5 AND group_id = CAST(?6 AS INTEGER)
 `
 
 type UpdateSavingsBoxParams struct {
@@ -243,6 +263,7 @@ type UpdateSavingsBoxParams struct {
 	PercentBp   int64
 	UpdatedAt   time.Time
 	ID          int64
+	GroupID     int64
 }
 
 func (q *Queries) UpdateSavingsBox(ctx context.Context, arg UpdateSavingsBoxParams) error {
@@ -252,6 +273,7 @@ func (q *Queries) UpdateSavingsBox(ctx context.Context, arg UpdateSavingsBoxPara
 		arg.PercentBp,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }

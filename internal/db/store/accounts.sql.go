@@ -13,14 +13,21 @@ import (
 
 const accountBalance = `-- name: AccountBalance :one
 SELECT CAST(a.initial_balance_cents + coalesce((
-           SELECT sum(e.amount_cents) FROM entries e WHERE e.account_id = a.id AND e.confirmed
+           SELECT sum(e.amount_cents) FROM entries e
+           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(?1 AS INTEGER)
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
-WHERE a.id = ?
+WHERE a.id = ?2
+  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = a.person_id)
 `
 
-func (q *Queries) AccountBalance(ctx context.Context, id int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, accountBalance, id)
+type AccountBalanceParams struct {
+	GroupID int64
+	ID      int64
+}
+
+func (q *Queries) AccountBalance(ctx context.Context, arg AccountBalanceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, accountBalance, arg.GroupID, arg.ID)
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
 	return balance_cents, err
@@ -29,19 +36,21 @@ func (q *Queries) AccountBalance(ctx context.Context, id int64) (int64, error) {
 const accountBalanceBefore = `-- name: AccountBalanceBefore :one
 SELECT CAST(a.initial_balance_cents + coalesce((
            SELECT sum(e.amount_cents) FROM entries e
-           WHERE e.account_id = a.id AND e.confirmed AND e.occurred_on < ?1
+           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(?1 AS INTEGER) AND e.occurred_on < ?2
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
-WHERE a.id = ?2
+WHERE a.id = ?3
+  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = a.person_id)
 `
 
 type AccountBalanceBeforeParams struct {
+	GroupID   int64
 	Day       string
 	AccountID int64
 }
 
 func (q *Queries) AccountBalanceBefore(ctx context.Context, arg AccountBalanceBeforeParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, accountBalanceBefore, arg.Day, arg.AccountID)
+	row := q.db.QueryRowContext(ctx, accountBalanceBefore, arg.GroupID, arg.Day, arg.AccountID)
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
 	return balance_cents, err
@@ -87,8 +96,8 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (A
 
 const createEntry = `-- name: CreateEntry :one
 INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, category_id, description,
-                     transfer_id, created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     transfer_id, created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(?12 AS INTEGER))
 RETURNING id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id
 `
 
@@ -104,6 +113,7 @@ type CreateEntryParams struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     int64
 }
 
 func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry, error) {
@@ -119,6 +129,7 @@ func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var i Entry
 	err := row.Scan(
@@ -182,42 +193,66 @@ func (q *Queries) CreateTransfer(ctx context.Context, arg CreateTransferParams) 
 
 const deleteAccount = `-- name: DeleteAccount :exec
 DELETE FROM accounts
-WHERE id = ?
+WHERE id = ?1
+  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = accounts.person_id)
 `
 
-func (q *Queries) DeleteAccount(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteAccount, id)
+type DeleteAccountParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteAccount(ctx context.Context, arg DeleteAccountParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAccount, arg.ID, arg.GroupID)
 	return err
 }
 
 const deleteEntry = `-- name: DeleteEntry :exec
 DELETE FROM entries
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteEntry(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteEntry, id)
+type DeleteEntryParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteEntry(ctx context.Context, arg DeleteEntryParams) error {
+	_, err := q.db.ExecContext(ctx, deleteEntry, arg.ID, arg.GroupID)
 	return err
 }
 
 const deleteTransfer = `-- name: DeleteTransfer :exec
 DELETE FROM transfers
-WHERE id = ?
+WHERE transfers.id = ?1
+  AND EXISTS (SELECT 1 FROM entries e WHERE e.transfer_id = transfers.id AND e.group_id = CAST(?2 AS INTEGER))
 `
 
-func (q *Queries) DeleteTransfer(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteTransfer, id)
+type DeleteTransferParams struct {
+	ID      int64
+	GroupID int64
+}
+
+// Only a transfer whose entries belong to the group goes away.
+func (q *Queries) DeleteTransfer(ctx context.Context, arg DeleteTransferParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTransfer, arg.ID, arg.GroupID)
 	return err
 }
 
 const getAccount = `-- name: GetAccount :one
-SELECT id, name, person_id, initial_balance_cents, active, created_by, created_at, updated_at
-FROM accounts
-WHERE id = ?
+SELECT a.id, a.name, a.person_id, a.initial_balance_cents, a.active, a.created_by, a.created_at, a.updated_at
+FROM accounts a
+WHERE a.id = ?1
+  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = a.person_id)
 `
 
-func (q *Queries) GetAccount(ctx context.Context, id int64) (Account, error) {
-	row := q.db.QueryRowContext(ctx, getAccount, id)
+type GetAccountParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetAccount(ctx context.Context, arg GetAccountParams) (Account, error) {
+	row := q.db.QueryRowContext(ctx, getAccount, arg.ID, arg.GroupID)
 	var i Account
 	err := row.Scan(
 		&i.ID,
@@ -235,11 +270,16 @@ func (q *Queries) GetAccount(ctx context.Context, id int64) (Account, error) {
 const getEntry = `-- name: GetEntry :one
 SELECT id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id
 FROM entries
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetEntry(ctx context.Context, id int64) (Entry, error) {
-	row := q.db.QueryRowContext(ctx, getEntry, id)
+type GetEntryParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetEntry(ctx context.Context, arg GetEntryParams) (Entry, error) {
+	row := q.db.QueryRowContext(ctx, getEntry, arg.ID, arg.GroupID)
 	var i Entry
 	err := row.Scan(
 		&i.ID,
@@ -263,20 +303,27 @@ func (q *Queries) GetEntry(ctx context.Context, id int64) (Entry, error) {
 	return i, err
 }
 
-const getPerson = `-- name: GetPerson :one
-SELECT id, name
-FROM persons
-WHERE id = ?
+const getGroupPerson = `-- name: GetGroupPerson :one
+SELECT p.id, p.name
+FROM persons p
+JOIN group_members gm ON gm.person_id = p.id
+WHERE p.id = ?1 AND gm.group_id = CAST(?2 AS INTEGER)
 `
 
-type GetPersonRow struct {
+type GetGroupPersonParams struct {
+	ID      int64
+	GroupID int64
+}
+
+type GetGroupPersonRow struct {
 	ID   int64
 	Name string
 }
 
-func (q *Queries) GetPerson(ctx context.Context, id int64) (GetPersonRow, error) {
-	row := q.db.QueryRowContext(ctx, getPerson, id)
-	var i GetPersonRow
+// A person who is a member of the group (RF-78); anyone else counts as missing.
+func (q *Queries) GetGroupPerson(ctx context.Context, arg GetGroupPersonParams) (GetGroupPersonRow, error) {
+	row := q.db.QueryRowContext(ctx, getGroupPerson, arg.ID, arg.GroupID)
+	var i GetGroupPersonRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err
 }
@@ -289,7 +336,7 @@ SELECT e.id, e.account_id, e.kind, e.amount_cents, e.occurred_on, e.confirmed, e
        coalesce(pc.icon, c.icon, '') AS category_icon,
        CAST(coalesce((
            SELECT oa.name FROM entries o JOIN accounts oa ON oa.id = o.account_id
-           WHERE o.transfer_id = e.transfer_id AND o.id <> e.id
+           WHERE o.transfer_id = e.transfer_id AND o.id <> e.id AND o.group_id = CAST(?1 AS INTEGER)
        ), '') AS TEXT) AS counterpart_account_name,
        p.name AS created_by_name
 FROM entries e
@@ -297,12 +344,14 @@ LEFT JOIN categories c ON c.id = e.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
 JOIN users u ON u.id = e.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE e.account_id = ?1
-  AND e.occurred_on >= ?2 AND e.occurred_on <= ?3
+WHERE e.group_id = CAST(?1 AS INTEGER)
+  AND e.account_id = ?2
+  AND e.occurred_on >= ?3 AND e.occurred_on <= ?4
 ORDER BY e.occurred_on DESC, e.id DESC
 `
 
 type ListAccountEntriesParams struct {
+	GroupID   int64
 	AccountID int64
 	FirstDay  string
 	LastDay   string
@@ -327,7 +376,12 @@ type ListAccountEntriesRow struct {
 }
 
 func (q *Queries) ListAccountEntries(ctx context.Context, arg ListAccountEntriesParams) ([]ListAccountEntriesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAccountEntries, arg.AccountID, arg.FirstDay, arg.LastDay)
+	rows, err := q.db.QueryContext(ctx, listAccountEntries,
+		arg.GroupID,
+		arg.AccountID,
+		arg.FirstDay,
+		arg.LastDay,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -368,10 +422,12 @@ func (q *Queries) ListAccountEntries(ctx context.Context, arg ListAccountEntries
 const listAccounts = `-- name: ListAccounts :many
 SELECT a.id, a.name, a.person_id, p.name AS person_name, a.initial_balance_cents, a.active,
        CAST(a.initial_balance_cents + coalesce((
-           SELECT sum(e.amount_cents) FROM entries e WHERE e.account_id = a.id AND e.confirmed
+           SELECT sum(e.amount_cents) FROM entries e
+           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(?1 AS INTEGER)
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
 JOIN persons p ON p.id = a.person_id
+WHERE EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = a.person_id)
 ORDER BY a.active DESC, a.id
 `
 
@@ -385,8 +441,9 @@ type ListAccountsRow struct {
 	BalanceCents        int64
 }
 
-func (q *Queries) ListAccounts(ctx context.Context) ([]ListAccountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAccounts)
+// Accounts held by members of the group, with the balance made of the group's entries only (RF-82).
+func (q *Queries) ListAccounts(ctx context.Context, groupID int64) ([]ListAccountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAccounts, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -420,10 +477,11 @@ const monthFlow = `-- name: MonthFlow :one
 SELECT CAST(coalesce(sum(CASE WHEN kind = 'income' THEN amount_cents END), 0) AS INTEGER) AS income_cents,
        CAST(coalesce(-sum(CASE WHEN kind = 'expense' THEN amount_cents END), 0) AS INTEGER) AS expense_cents
 FROM entries
-WHERE confirmed AND occurred_on >= ?1 AND occurred_on <= ?2
+WHERE group_id = CAST(?1 AS INTEGER) AND confirmed AND occurred_on >= ?2 AND occurred_on <= ?3
 `
 
 type MonthFlowParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
@@ -434,7 +492,7 @@ type MonthFlowRow struct {
 }
 
 func (q *Queries) MonthFlow(ctx context.Context, arg MonthFlowParams) (MonthFlowRow, error) {
-	row := q.db.QueryRowContext(ctx, monthFlow, arg.FirstDay, arg.LastDay)
+	row := q.db.QueryRowContext(ctx, monthFlow, arg.GroupID, arg.FirstDay, arg.LastDay)
 	var i MonthFlowRow
 	err := row.Scan(&i.IncomeCents, &i.ExpenseCents)
 	return i, err
@@ -443,7 +501,8 @@ func (q *Queries) MonthFlow(ctx context.Context, arg MonthFlowParams) (MonthFlow
 const updateAccount = `-- name: UpdateAccount :exec
 UPDATE accounts
 SET name = ?, person_id = ?, initial_balance_cents = ?, active = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?6
+  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?7 AS INTEGER) AND gm.person_id = accounts.person_id)
 `
 
 type UpdateAccountParams struct {
@@ -453,6 +512,7 @@ type UpdateAccountParams struct {
 	Active              bool
 	UpdatedAt           time.Time
 	ID                  int64
+	GroupID             int64
 }
 
 func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) error {
@@ -463,6 +523,7 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) er
 		arg.Active,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }

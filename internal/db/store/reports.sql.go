@@ -11,12 +11,14 @@ import (
 )
 
 const accountsTotal = `-- name: AccountsTotal :one
-SELECT CAST(coalesce(sum(a.initial_balance_cents), 0) + coalesce((SELECT sum(amount_cents) FROM entries WHERE confirmed), 0) AS INTEGER) AS cents
+SELECT CAST(coalesce(sum(a.initial_balance_cents), 0) + coalesce((SELECT sum(amount_cents) FROM entries WHERE confirmed AND group_id = CAST(?1 AS INTEGER)), 0) AS INTEGER) AS cents
 FROM accounts a
+WHERE EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = a.person_id)
 `
 
-func (q *Queries) AccountsTotal(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, accountsTotal)
+// Initial balances of the accounts visible in the group plus the group's confirmed entries.
+func (q *Queries) AccountsTotal(ctx context.Context, groupID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, accountsTotal, groupID)
 	var cents int64
 	err := row.Scan(&cents)
 	return cents, err
@@ -25,11 +27,12 @@ func (q *Queries) AccountsTotal(ctx context.Context) (int64, error) {
 const aleloSpendingByMonth = `-- name: AleloSpendingByMonth :many
 SELECT substr(purchased_on, 1, 7) AS month, category_id, CAST(sum(amount_cents) AS INTEGER) AS cents
 FROM alelo_purchases
-WHERE purchased_on >= ?1 AND purchased_on <= ?2
+WHERE group_id = CAST(?1 AS INTEGER) AND purchased_on >= ?2 AND purchased_on <= ?3
 GROUP BY substr(purchased_on, 1, 7), category_id
 `
 
 type AleloSpendingByMonthParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
@@ -42,7 +45,7 @@ type AleloSpendingByMonthRow struct {
 
 // Alelo purchases by month of the date, always groceries (RN-15).
 func (q *Queries) AleloSpendingByMonth(ctx context.Context, arg AleloSpendingByMonthParams) ([]AleloSpendingByMonthRow, error) {
-	rows, err := q.db.QueryContext(ctx, aleloSpendingByMonth, arg.FirstDay, arg.LastDay)
+	rows, err := q.db.QueryContext(ctx, aleloSpendingByMonth, arg.GroupID, arg.FirstDay, arg.LastDay)
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +74,13 @@ SELECT i.invoice_month AS month,
            WHERE s.purchase_id = i.purchase_id AND si.number = i.number
        ), 0)) AS INTEGER) AS cents
 FROM installments i
-WHERE i.invoice_month >= ?1 AND i.invoice_month <= ?2
+JOIN purchases p ON p.id = i.purchase_id
+WHERE p.group_id = CAST(?1 AS INTEGER) AND i.invoice_month >= ?2 AND i.invoice_month <= ?3
 GROUP BY i.invoice_month
 `
 
 type CardInstallmentsByMonthParams struct {
+	GroupID    int64
 	FirstMonth string
 	LastMonth  string
 }
@@ -87,7 +92,7 @@ type CardInstallmentsByMonthRow struct {
 
 // Couple share of card installments by invoice month, without recurrences (RF-60).
 func (q *Queries) CardInstallmentsByMonth(ctx context.Context, arg CardInstallmentsByMonthParams) ([]CardInstallmentsByMonthRow, error) {
-	rows, err := q.db.QueryContext(ctx, cardInstallmentsByMonth, arg.FirstMonth, arg.LastMonth)
+	rows, err := q.db.QueryContext(ctx, cardInstallmentsByMonth, arg.GroupID, arg.FirstMonth, arg.LastMonth)
 	if err != nil {
 		return nil, err
 	}
@@ -117,11 +122,12 @@ SELECT i.invoice_month AS month, coalesce(p.category_id, 0) AS category_id,
        ), 0)) AS INTEGER) AS cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE i.invoice_month >= ?1 AND i.invoice_month <= ?2
+WHERE p.group_id = CAST(?1 AS INTEGER) AND i.invoice_month >= ?2 AND i.invoice_month <= ?3
 GROUP BY i.invoice_month, p.category_id
 `
 
 type CardSpendingByMonthParams struct {
+	GroupID    int64
 	FirstMonth string
 	LastMonth  string
 }
@@ -134,7 +140,7 @@ type CardSpendingByMonthRow struct {
 
 // Couple share of card installments and credits by invoice month and category (RN-01, RN-04).
 func (q *Queries) CardSpendingByMonth(ctx context.Context, arg CardSpendingByMonthParams) ([]CardSpendingByMonthRow, error) {
-	rows, err := q.db.QueryContext(ctx, cardSpendingByMonth, arg.FirstMonth, arg.LastMonth)
+	rows, err := q.db.QueryContext(ctx, cardSpendingByMonth, arg.GroupID, arg.FirstMonth, arg.LastMonth)
 	if err != nil {
 		return nil, err
 	}
@@ -159,19 +165,20 @@ func (q *Queries) CardSpendingByMonth(ctx context.Context, arg CardSpendingByMon
 const dayToDaySpending = `-- name: DayToDaySpending :one
 SELECT CAST(coalesce(-sum(e.amount_cents), 0) AS INTEGER) AS cents
 FROM entries e
-WHERE e.kind = 'expense' AND e.confirmed AND e.bill_id IS NULL
+WHERE e.group_id = CAST(?1 AS INTEGER) AND e.kind = 'expense' AND e.confirmed AND e.bill_id IS NULL
   AND e.id NOT IN (SELECT entry_id FROM financing_events WHERE entry_id IS NOT NULL)
-  AND e.occurred_on >= ?1 AND e.occurred_on <= ?2
+  AND e.occurred_on >= ?2 AND e.occurred_on <= ?3
 `
 
 type DayToDaySpendingParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
 
 // One off expenses paid from accounts in the period, without bill and financing payments.
 func (q *Queries) DayToDaySpending(ctx context.Context, arg DayToDaySpendingParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, dayToDaySpending, arg.FirstDay, arg.LastDay)
+	row := q.db.QueryRowContext(ctx, dayToDaySpending, arg.GroupID, arg.FirstDay, arg.LastDay)
 	var cents int64
 	err := row.Scan(&cents)
 	return cents, err
@@ -179,22 +186,28 @@ func (q *Queries) DayToDaySpending(ctx context.Context, arg DayToDaySpendingPara
 
 const deleteBudget = `-- name: DeleteBudget :exec
 DELETE FROM budgets
-WHERE category_id = ?
+WHERE group_id = CAST(?1 AS INTEGER) AND category_id = ?2
 `
 
-func (q *Queries) DeleteBudget(ctx context.Context, categoryID int64) error {
-	_, err := q.db.ExecContext(ctx, deleteBudget, categoryID)
+type DeleteBudgetParams struct {
+	GroupID    int64
+	CategoryID int64
+}
+
+func (q *Queries) DeleteBudget(ctx context.Context, arg DeleteBudgetParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBudget, arg.GroupID, arg.CategoryID)
 	return err
 }
 
 const entrySpendingByMonth = `-- name: EntrySpendingByMonth :many
 SELECT substr(occurred_on, 1, 7) AS month, coalesce(category_id, 0) AS category_id, CAST(-sum(amount_cents) AS INTEGER) AS cents
 FROM entries
-WHERE kind = 'expense' AND confirmed AND occurred_on >= ?1 AND occurred_on <= ?2
+WHERE group_id = CAST(?1 AS INTEGER) AND kind = 'expense' AND confirmed AND occurred_on >= ?2 AND occurred_on <= ?3
 GROUP BY substr(occurred_on, 1, 7), category_id
 `
 
 type EntrySpendingByMonthParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
@@ -207,7 +220,7 @@ type EntrySpendingByMonthRow struct {
 
 // Confirmed expenses paid from accounts by month of the date and category.
 func (q *Queries) EntrySpendingByMonth(ctx context.Context, arg EntrySpendingByMonthParams) ([]EntrySpendingByMonthRow, error) {
-	rows, err := q.db.QueryContext(ctx, entrySpendingByMonth, arg.FirstDay, arg.LastDay)
+	rows, err := q.db.QueryContext(ctx, entrySpendingByMonth, arg.GroupID, arg.FirstDay, arg.LastDay)
 	if err != nil {
 		return nil, err
 	}
@@ -232,17 +245,18 @@ func (q *Queries) EntrySpendingByMonth(ctx context.Context, arg EntrySpendingByM
 const incomeInPeriod = `-- name: IncomeInPeriod :one
 SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS cents
 FROM entries
-WHERE kind = 'income' AND confirmed AND occurred_on >= ?1 AND occurred_on <= ?2
+WHERE group_id = CAST(?1 AS INTEGER) AND kind = 'income' AND confirmed AND occurred_on >= ?2 AND occurred_on <= ?3
 `
 
 type IncomeInPeriodParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
 
 // Confirmed income that fell in the period, by date, like the base of the savings (RN-09).
 func (q *Queries) IncomeInPeriod(ctx context.Context, arg IncomeInPeriodParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, incomeInPeriod, arg.FirstDay, arg.LastDay)
+	row := q.db.QueryRowContext(ctx, incomeInPeriod, arg.GroupID, arg.FirstDay, arg.LastDay)
 	var cents int64
 	err := row.Scan(&cents)
 	return cents, err
@@ -251,6 +265,7 @@ func (q *Queries) IncomeInPeriod(ctx context.Context, arg IncomeInPeriodParams) 
 const listBudgets = `-- name: ListBudgets :many
 SELECT category_id, amount_cents
 FROM budgets
+WHERE group_id = CAST(?1 AS INTEGER)
 `
 
 type ListBudgetsRow struct {
@@ -258,8 +273,8 @@ type ListBudgetsRow struct {
 	AmountCents int64
 }
 
-func (q *Queries) ListBudgets(ctx context.Context) ([]ListBudgetsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listBudgets)
+func (q *Queries) ListBudgets(ctx context.Context, groupID int64) ([]ListBudgetsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBudgets, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -284,17 +299,18 @@ func (q *Queries) ListBudgets(ctx context.Context) ([]ListBudgetsRow, error) {
 const receivedInPeriod = `-- name: ReceivedInPeriod :one
 SELECT CAST(coalesce(sum(amount_cents), 0) AS INTEGER) AS cents
 FROM entries
-WHERE kind = 'receivable' AND occurred_on >= ?1 AND occurred_on <= ?2
+WHERE group_id = CAST(?1 AS INTEGER) AND kind = 'receivable' AND occurred_on >= ?2 AND occurred_on <= ?3
 `
 
 type ReceivedInPeriodParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
 
 // Shares paid back by other people in the period, by date (RF-61).
 func (q *Queries) ReceivedInPeriod(ctx context.Context, arg ReceivedInPeriodParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, receivedInPeriod, arg.FirstDay, arg.LastDay)
+	row := q.db.QueryRowContext(ctx, receivedInPeriod, arg.GroupID, arg.FirstDay, arg.LastDay)
 	var cents int64
 	err := row.Scan(&cents)
 	return cents, err
@@ -303,17 +319,18 @@ func (q *Queries) ReceivedInPeriod(ctx context.Context, arg ReceivedInPeriodPara
 const savedInPeriod = `-- name: SavedInPeriod :one
 SELECT CAST(coalesce(-sum(amount_cents), 0) AS INTEGER) AS cents
 FROM entries
-WHERE kind IN ('savings_deposit', 'savings_withdrawal') AND occurred_on >= ?1 AND occurred_on <= ?2
+WHERE group_id = CAST(?1 AS INTEGER) AND kind IN ('savings_deposit', 'savings_withdrawal') AND occurred_on >= ?2 AND occurred_on <= ?3
 `
 
 type SavedInPeriodParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
 
 // Deposits minus withdrawals of the savings boxes in the period, by date (RF-61).
 func (q *Queries) SavedInPeriod(ctx context.Context, arg SavedInPeriodParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, savedInPeriod, arg.FirstDay, arg.LastDay)
+	row := q.db.QueryRowContext(ctx, savedInPeriod, arg.GroupID, arg.FirstDay, arg.LastDay)
 	var cents int64
 	err := row.Scan(&cents)
 	return cents, err
@@ -337,7 +354,7 @@ FROM (
     LEFT JOIN categories pc ON pc.id = c.parent_id
     JOIN users u ON u.id = e.created_by
     JOIN persons pe ON pe.id = u.person_id
-    WHERE e.confirmed
+    WHERE e.group_id = CAST(?1 AS INTEGER) AND e.confirmed
     UNION ALL
     SELECT 'card', p.id, p.purchased_on, p.merchant, CASE WHEN p.kind = 'credit' THEN p.total_cents ELSE -p.total_cents END, p.kind,
            coalesce(p.category_id, 0), coalesce(c.name, ''), coalesce(pc.name, ''), coalesce(c.parent_id, 0),
@@ -348,6 +365,7 @@ FROM (
     LEFT JOIN categories pc ON pc.id = c.parent_id
     JOIN users u ON u.id = p.created_by
     JOIN persons pe ON pe.id = coalesce(p.buyer_person_id, u.person_id)
+    WHERE p.group_id = CAST(?1 AS INTEGER)
     UNION ALL
     SELECT 'alelo', ap.id, ap.purchased_on, ap.description, -ap.amount_cents, 'alelo',
            ap.category_id, coalesce(c.name, ''), coalesce(pc.name, ''), coalesce(c.parent_id, 0),
@@ -358,18 +376,20 @@ FROM (
     LEFT JOIN categories pc ON pc.id = c.parent_id
     JOIN users u ON u.id = ap.created_by
     JOIN persons pe ON pe.id = u.person_id
+    WHERE ap.group_id = CAST(?1 AS INTEGER)
 ) AS x
-WHERE occurred_on >= ?1 AND occurred_on <= ?2
-  AND (CAST(?3 AS INTEGER) = 0 OR category_id = CAST(?3 AS INTEGER) OR category_parent_id = CAST(?3 AS INTEGER))
-  AND (CAST(?4 AS INTEGER) = 0 OR account_id = CAST(?4 AS INTEGER))
-  AND (CAST(?5 AS INTEGER) = 0 OR (source = 'card' AND card_id = CAST(?5 AS INTEGER)))
-  AND (CAST(?6 AS INTEGER) = 0 OR person_id = CAST(?6 AS INTEGER))
-  AND (CAST(?7 AS TEXT) = '' OR instr(lower(description), lower(CAST(?7 AS TEXT))) > 0)
+WHERE occurred_on >= ?2 AND occurred_on <= ?3
+  AND (CAST(?4 AS INTEGER) = 0 OR category_id = CAST(?4 AS INTEGER) OR category_parent_id = CAST(?4 AS INTEGER))
+  AND (CAST(?5 AS INTEGER) = 0 OR account_id = CAST(?5 AS INTEGER))
+  AND (CAST(?6 AS INTEGER) = 0 OR (source = 'card' AND card_id = CAST(?6 AS INTEGER)))
+  AND (CAST(?7 AS INTEGER) = 0 OR person_id = CAST(?7 AS INTEGER))
+  AND (CAST(?8 AS TEXT) = '' OR instr(lower(description), lower(CAST(?8 AS TEXT))) > 0)
 ORDER BY occurred_on DESC, source, id DESC
 LIMIT 500
 `
 
 type SearchEntriesParams struct {
+	GroupID    int64
 	FirstDay   string
 	LastDay    string
 	CategoryID int64
@@ -401,6 +421,7 @@ type SearchEntriesRow struct {
 // Zero and empty filters are off; a top level category matches its subcategories too.
 func (q *Queries) SearchEntries(ctx context.Context, arg SearchEntriesParams) ([]SearchEntriesRow, error) {
 	rows, err := q.db.QueryContext(ctx, searchEntries,
+		arg.GroupID,
 		arg.FirstDay,
 		arg.LastDay,
 		arg.CategoryID,
@@ -447,9 +468,9 @@ func (q *Queries) SearchEntries(ctx context.Context, arg SearchEntriesParams) ([
 }
 
 const upsertBudget = `-- name: UpsertBudget :exec
-INSERT INTO budgets (category_id, amount_cents, created_by, updated_at)
-VALUES (?, ?, ?, ?)
-ON CONFLICT (category_id) DO UPDATE SET amount_cents = excluded.amount_cents, updated_at = excluded.updated_at
+INSERT INTO budgets (category_id, amount_cents, created_by, updated_at, group_id)
+VALUES (?, ?, ?, ?, CAST(?5 AS INTEGER))
+ON CONFLICT (group_id, category_id) DO UPDATE SET amount_cents = excluded.amount_cents, updated_at = excluded.updated_at
 `
 
 type UpsertBudgetParams struct {
@@ -457,6 +478,7 @@ type UpsertBudgetParams struct {
 	AmountCents int64
 	CreatedBy   int64
 	UpdatedAt   time.Time
+	GroupID     int64
 }
 
 func (q *Queries) UpsertBudget(ctx context.Context, arg UpsertBudgetParams) error {
@@ -465,6 +487,7 @@ func (q *Queries) UpsertBudget(ctx context.Context, arg UpsertBudgetParams) erro
 		arg.AmountCents,
 		arg.CreatedBy,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	return err
 }

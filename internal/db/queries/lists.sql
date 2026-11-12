@@ -3,26 +3,27 @@ SELECT l.*,
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id) AS INTEGER) AS item_count,
        CAST((SELECT count(*) FROM list_items i WHERE i.list_id = l.id AND i.picked) AS INTEGER) AS picked_count
 FROM shopping_lists l
+WHERE l.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
 ORDER BY l.status = 'done', l.created_at DESC, l.id DESC;
 
 -- name: GetShoppingList :one
 SELECT *
 FROM shopping_lists
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: CreateShoppingList :one
-INSERT INTO shopping_lists (name, created_by, created_at)
-VALUES (?, ?, ?)
+INSERT INTO shopping_lists (name, created_by, created_at, group_id)
+VALUES (?, ?, ?, CAST(sqlc.arg(group_id) AS INTEGER))
 RETURNING *;
 
 -- name: RenameShoppingList :exec
 UPDATE shopping_lists
 SET name = ?
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: DeleteShoppingList :exec
 DELETE FROM shopping_lists
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: ListItems :many
 SELECT i.*, p.name AS product_name, p.brand, p.by_weight, p.size_milli, p.unit, pe.name AS picked_by_name
@@ -65,4 +66,4 @@ WHERE id = ?;
 -- name: FinishShoppingList :exec
 UPDATE shopping_lists
 SET status = 'done', finished_at = ?, paid_cents = ?, paid_on = ?, paid_method = ?, paid_with = ?
-WHERE id = ? AND status = 'open';
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND status = 'open';

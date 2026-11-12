@@ -14,19 +14,25 @@ import (
 const aleloBalanceBefore = `-- name: AleloBalanceBefore :one
 SELECT CAST(c.initial_balance_cents
             + coalesce((SELECT sum(amount_cents) FROM alelo_credits cr WHERE cr.alelo_id = c.id AND cr.month < ?1), 0)
-            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id AND pu.purchased_on < ?2), 0) AS INTEGER) AS balance_cents
+            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id AND pu.group_id = CAST(?2 AS INTEGER) AND pu.purchased_on < ?3), 0) AS INTEGER) AS balance_cents
 FROM alelo_cards c
-WHERE c.id = ?3
+WHERE c.id = ?4 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = c.person_id)
 `
 
 type AleloBalanceBeforeParams struct {
 	Month    string
+	GroupID  int64
 	FirstDay string
 	AleloID  int64
 }
 
 func (q *Queries) AleloBalanceBefore(ctx context.Context, arg AleloBalanceBeforeParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, aleloBalanceBefore, arg.Month, arg.FirstDay, arg.AleloID)
+	row := q.db.QueryRowContext(ctx, aleloBalanceBefore,
+		arg.Month,
+		arg.GroupID,
+		arg.FirstDay,
+		arg.AleloID,
+	)
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
 	return balance_cents, err
@@ -110,8 +116,8 @@ func (q *Queries) CreateAleloCredit(ctx context.Context, arg CreateAleloCreditPa
 }
 
 const createAleloPurchase = `-- name: CreateAleloPurchase :one
-INSERT INTO alelo_purchases (alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO alelo_purchases (alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, CAST(?8 AS INTEGER))
 RETURNING id, alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at, group_id
 `
 
@@ -123,6 +129,7 @@ type CreateAleloPurchaseParams struct {
 	CategoryID  int64
 	CreatedBy   int64
 	CreatedAt   time.Time
+	GroupID     int64
 }
 
 func (q *Queries) CreateAleloPurchase(ctx context.Context, arg CreateAleloPurchaseParams) (AleloPurchase, error) {
@@ -134,6 +141,7 @@ func (q *Queries) CreateAleloPurchase(ctx context.Context, arg CreateAleloPurcha
 		arg.CategoryID,
 		arg.CreatedBy,
 		arg.CreatedAt,
+		arg.GroupID,
 	)
 	var i AleloPurchase
 	err := row.Scan(
@@ -152,11 +160,16 @@ func (q *Queries) CreateAleloPurchase(ctx context.Context, arg CreateAleloPurcha
 
 const deleteAleloCard = `-- name: DeleteAleloCard :exec
 DELETE FROM alelo_cards
-WHERE id = ?
+WHERE id = ?1 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = alelo_cards.person_id)
 `
 
-func (q *Queries) DeleteAleloCard(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteAleloCard, id)
+type DeleteAleloCardParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteAleloCard(ctx context.Context, arg DeleteAleloCardParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAleloCard, arg.ID, arg.GroupID)
 	return err
 }
 
@@ -180,22 +193,32 @@ func (q *Queries) DeleteAleloCredit(ctx context.Context, arg DeleteAleloCreditPa
 
 const deleteAleloPurchase = `-- name: DeleteAleloPurchase :exec
 DELETE FROM alelo_purchases
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteAleloPurchase(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteAleloPurchase, id)
+type DeleteAleloPurchaseParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteAleloPurchase(ctx context.Context, arg DeleteAleloPurchaseParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAleloPurchase, arg.ID, arg.GroupID)
 	return err
 }
 
 const getAleloCard = `-- name: GetAleloCard :one
-SELECT id, name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month, active, created_by, created_at, updated_at, style
-FROM alelo_cards
-WHERE id = ?
+SELECT c.id, c.name, c.person_id, c.monthly_credit_cents, c.credit_day, c.initial_balance_cents, c.start_month, c.active, c.created_by, c.created_at, c.updated_at, c.style
+FROM alelo_cards c
+WHERE c.id = ?1 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = c.person_id)
 `
 
-func (q *Queries) GetAleloCard(ctx context.Context, id int64) (AleloCard, error) {
-	row := q.db.QueryRowContext(ctx, getAleloCard, id)
+type GetAleloCardParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetAleloCard(ctx context.Context, arg GetAleloCardParams) (AleloCard, error) {
+	row := q.db.QueryRowContext(ctx, getAleloCard, arg.ID, arg.GroupID)
 	var i AleloCard
 	err := row.Scan(
 		&i.ID,
@@ -243,11 +266,16 @@ func (q *Queries) GetAleloCredit(ctx context.Context, arg GetAleloCreditParams) 
 const getAleloPurchase = `-- name: GetAleloPurchase :one
 SELECT id, alelo_id, purchased_on, description, amount_cents, category_id, created_by, created_at, group_id
 FROM alelo_purchases
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetAleloPurchase(ctx context.Context, id int64) (AleloPurchase, error) {
-	row := q.db.QueryRowContext(ctx, getAleloPurchase, id)
+type GetAleloPurchaseParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetAleloPurchase(ctx context.Context, arg GetAleloPurchaseParams) (AleloPurchase, error) {
+	row := q.db.QueryRowContext(ctx, getAleloPurchase, arg.ID, arg.GroupID)
 	var i AleloPurchase
 	err := row.Scan(
 		&i.ID,
@@ -280,9 +308,10 @@ const listAleloCards = `-- name: ListAleloCards :many
 SELECT c.id, c.name, c.person_id, c.monthly_credit_cents, c.credit_day, c.initial_balance_cents, c.start_month, c.active, c.created_by, c.created_at, c.updated_at, c.style, p.name AS person_name,
        CAST(c.initial_balance_cents
             + coalesce((SELECT sum(amount_cents) FROM alelo_credits cr WHERE cr.alelo_id = c.id), 0)
-            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id), 0) AS INTEGER) AS balance_cents
+            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id AND pu.group_id = CAST(?1 AS INTEGER)), 0) AS INTEGER) AS balance_cents
 FROM alelo_cards c
 JOIN persons p ON p.id = c.person_id
+WHERE EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = c.person_id)
 ORDER BY c.active DESC, c.id
 `
 
@@ -303,8 +332,8 @@ type ListAleloCardsRow struct {
 	BalanceCents        int64
 }
 
-func (q *Queries) ListAleloCards(ctx context.Context) ([]ListAleloCardsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAleloCards)
+func (q *Queries) ListAleloCards(ctx context.Context, groupID int64) ([]ListAleloCardsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAleloCards, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -346,11 +375,12 @@ SELECT pu.id, pu.alelo_id, pu.purchased_on, pu.description, pu.amount_cents, pu.
 FROM alelo_purchases pu
 JOIN users u ON u.id = pu.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE pu.alelo_id = ?1 AND pu.purchased_on >= ?2 AND pu.purchased_on <= ?3
+WHERE pu.group_id = CAST(?1 AS INTEGER) AND pu.alelo_id = ?2 AND pu.purchased_on >= ?3 AND pu.purchased_on <= ?4
 ORDER BY pu.purchased_on DESC, pu.id DESC
 `
 
 type ListAleloPurchasesParams struct {
+	GroupID  int64
 	AleloID  int64
 	FirstDay string
 	LastDay  string
@@ -370,7 +400,12 @@ type ListAleloPurchasesRow struct {
 }
 
 func (q *Queries) ListAleloPurchases(ctx context.Context, arg ListAleloPurchasesParams) ([]ListAleloPurchasesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAleloPurchases, arg.AleloID, arg.FirstDay, arg.LastDay)
+	rows, err := q.db.QueryContext(ctx, listAleloPurchases,
+		arg.GroupID,
+		arg.AleloID,
+		arg.FirstDay,
+		arg.LastDay,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +441,7 @@ func (q *Queries) ListAleloPurchases(ctx context.Context, arg ListAleloPurchases
 const updateAleloCard = `-- name: UpdateAleloCard :exec
 UPDATE alelo_cards
 SET name = ?, person_id = ?, monthly_credit_cents = ?, credit_day = ?, style = ?, active = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?8 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?9 AS INTEGER) AND gm.person_id = alelo_cards.person_id)
 `
 
 type UpdateAleloCardParams struct {
@@ -418,6 +453,7 @@ type UpdateAleloCardParams struct {
 	Active             bool
 	UpdatedAt          time.Time
 	ID                 int64
+	GroupID            int64
 }
 
 func (q *Queries) UpdateAleloCard(ctx context.Context, arg UpdateAleloCardParams) error {
@@ -430,6 +466,7 @@ func (q *Queries) UpdateAleloCard(ctx context.Context, arg UpdateAleloCardParams
 		arg.Active,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }

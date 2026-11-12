@@ -117,8 +117,8 @@ func (q *Queries) CreateInvoicePayment(ctx context.Context, arg CreateInvoicePay
 
 const createPurchase = `-- name: CreatePurchase :one
 INSERT INTO purchases (card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id,
-                       total_cents, installment_count, first_invoice, created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       total_cents, installment_count, first_invoice, created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(?14 AS INTEGER))
 RETURNING id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id, group_id
 `
 
@@ -136,6 +136,7 @@ type CreatePurchaseParams struct {
 	CreatedBy        int64
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	GroupID          int64
 }
 
 func (q *Queries) CreatePurchase(ctx context.Context, arg CreatePurchaseParams) (Purchase, error) {
@@ -153,6 +154,7 @@ func (q *Queries) CreatePurchase(ctx context.Context, arg CreatePurchaseParams) 
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var i Purchase
 	err := row.Scan(
@@ -177,8 +179,8 @@ func (q *Queries) CreatePurchase(ctx context.Context, arg CreatePurchaseParams) 
 }
 
 const createRecurrence = `-- name: CreateRecurrence :one
-INSERT INTO recurrences (card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO recurrences (card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(?9 AS INTEGER))
 RETURNING id, card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at, group_id
 `
 
@@ -191,6 +193,7 @@ type CreateRecurrenceParams struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     int64
 }
 
 func (q *Queries) CreateRecurrence(ctx context.Context, arg CreateRecurrenceParams) (Recurrence, error) {
@@ -203,6 +206,7 @@ func (q *Queries) CreateRecurrence(ctx context.Context, arg CreateRecurrencePara
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var i Recurrence
 	err := row.Scan(
@@ -222,11 +226,16 @@ func (q *Queries) CreateRecurrence(ctx context.Context, arg CreateRecurrencePara
 
 const deleteCard = `-- name: DeleteCard :exec
 DELETE FROM cards
-WHERE id = ?
+WHERE id = ?1 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = cards.person_id)
 `
 
-func (q *Queries) DeleteCard(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteCard, id)
+type DeleteCardParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteCard(ctx context.Context, arg DeleteCardParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCard, arg.ID, arg.GroupID)
 	return err
 }
 
@@ -242,21 +251,31 @@ func (q *Queries) DeleteInstallments(ctx context.Context, purchaseID int64) erro
 
 const deletePurchase = `-- name: DeletePurchase :exec
 DELETE FROM purchases
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeletePurchase(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deletePurchase, id)
+type DeletePurchaseParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeletePurchase(ctx context.Context, arg DeletePurchaseParams) error {
+	_, err := q.db.ExecContext(ctx, deletePurchase, arg.ID, arg.GroupID)
 	return err
 }
 
 const deleteRecurrence = `-- name: DeleteRecurrence :exec
 DELETE FROM recurrences
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteRecurrence(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteRecurrence, id)
+type DeleteRecurrenceParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteRecurrence(ctx context.Context, arg DeleteRecurrenceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteRecurrence, arg.ID, arg.GroupID)
 	return err
 }
 
@@ -289,13 +308,18 @@ func (q *Queries) FirstInstallmentNumber(ctx context.Context, purchaseID int64) 
 }
 
 const getCard = `-- name: GetCard :one
-SELECT id, name, person_id, limit_cents, closing_day, due_day, last_digits, color, finish, active, created_by, created_at, updated_at
-FROM cards
-WHERE id = ?
+SELECT c.id, c.name, c.person_id, c.limit_cents, c.closing_day, c.due_day, c.last_digits, c.color, c.finish, c.active, c.created_by, c.created_at, c.updated_at
+FROM cards c
+WHERE c.id = ?1 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = c.person_id)
 `
 
-func (q *Queries) GetCard(ctx context.Context, id int64) (Card, error) {
-	row := q.db.QueryRowContext(ctx, getCard, id)
+type GetCardParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetCard(ctx context.Context, arg GetCardParams) (Card, error) {
+	row := q.db.QueryRowContext(ctx, getCard, arg.ID, arg.GroupID)
 	var i Card
 	err := row.Scan(
 		&i.ID,
@@ -318,11 +342,16 @@ func (q *Queries) GetCard(ctx context.Context, id int64) (Card, error) {
 const getPurchase = `-- name: GetPurchase :one
 SELECT id, card_id, kind, purchased_on, merchant, description, category_id, buyer_person_id, total_cents, installment_count, first_invoice, created_by, created_at, updated_at, import_id, group_id
 FROM purchases
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetPurchase(ctx context.Context, id int64) (Purchase, error) {
-	row := q.db.QueryRowContext(ctx, getPurchase, id)
+type GetPurchaseParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetPurchase(ctx context.Context, arg GetPurchaseParams) (Purchase, error) {
+	row := q.db.QueryRowContext(ctx, getPurchase, arg.ID, arg.GroupID)
 	var i Purchase
 	err := row.Scan(
 		&i.ID,
@@ -348,11 +377,16 @@ func (q *Queries) GetPurchase(ctx context.Context, id int64) (Purchase, error) {
 const getRecurrence = `-- name: GetRecurrence :one
 SELECT id, card_id, description, category_id, start_month, end_month, created_by, created_at, updated_at, group_id
 FROM recurrences
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetRecurrence(ctx context.Context, id int64) (Recurrence, error) {
-	row := q.db.QueryRowContext(ctx, getRecurrence, id)
+type GetRecurrenceParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetRecurrence(ctx context.Context, arg GetRecurrenceParams) (Recurrence, error) {
+	row := q.db.QueryRowContext(ctx, getRecurrence, arg.ID, arg.GroupID)
 	var i Recurrence
 	err := row.Scan(
 		&i.ID,
@@ -374,9 +408,14 @@ SELECT ip.id, ip.invoice_month, ip.entry_id, ip.amount_cents, e.occurred_on, e.a
 FROM invoice_payments ip
 JOIN entries e ON e.id = ip.entry_id
 JOIN accounts a ON a.id = e.account_id
-WHERE ip.card_id = ?
+WHERE e.group_id = CAST(?1 AS INTEGER) AND ip.card_id = ?2
 ORDER BY ip.invoice_month
 `
+
+type ListCardPaymentsParams struct {
+	GroupID int64
+	CardID  int64
+}
 
 type ListCardPaymentsRow struct {
 	ID           int64
@@ -388,8 +427,8 @@ type ListCardPaymentsRow struct {
 	AccountName  string
 }
 
-func (q *Queries) ListCardPayments(ctx context.Context, cardID int64) ([]ListCardPaymentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCardPayments, cardID)
+func (q *Queries) ListCardPayments(ctx context.Context, arg ListCardPaymentsParams) ([]ListCardPaymentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCardPayments, arg.GroupID, arg.CardID)
 	if err != nil {
 		return nil, err
 	}
@@ -425,9 +464,14 @@ SELECT r.id, r.card_id, r.description, r.category_id, r.start_month, r.end_month
 FROM recurrences r
 JOIN categories c ON c.id = r.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
-WHERE r.card_id = ?
+WHERE r.group_id = CAST(?1 AS INTEGER) AND r.card_id = ?2
 ORDER BY r.description COLLATE NOCASE, r.id
 `
+
+type ListCardRecurrencesParams struct {
+	GroupID int64
+	CardID  int64
+}
 
 type ListCardRecurrencesRow struct {
 	ID                 int64
@@ -445,8 +489,8 @@ type ListCardRecurrencesRow struct {
 	CategoryIcon       string
 }
 
-func (q *Queries) ListCardRecurrences(ctx context.Context, cardID int64) ([]ListCardRecurrencesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCardRecurrences, cardID)
+func (q *Queries) ListCardRecurrences(ctx context.Context, arg ListCardRecurrencesParams) ([]ListCardRecurrencesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCardRecurrences, arg.GroupID, arg.CardID)
 	if err != nil {
 		return nil, err
 	}
@@ -486,6 +530,7 @@ const listCards = `-- name: ListCards :many
 SELECT c.id, c.name, c.person_id, c.limit_cents, c.closing_day, c.due_day, c.last_digits, c.color, c.finish, c.active, c.created_by, c.created_at, c.updated_at, p.name AS person_name
 FROM cards c
 JOIN persons p ON p.id = c.person_id
+WHERE EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = c.person_id)
 ORDER BY c.active DESC, c.id
 `
 
@@ -506,8 +551,8 @@ type ListCardsRow struct {
 	PersonName string
 }
 
-func (q *Queries) ListCards(ctx context.Context) ([]ListCardsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCards)
+func (q *Queries) ListCards(ctx context.Context, groupID int64) ([]ListCardsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCards, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -559,11 +604,12 @@ LEFT JOIN categories pc ON pc.id = c.parent_id
 LEFT JOIN persons bp ON bp.id = p.buyer_person_id
 JOIN users u ON u.id = p.created_by
 JOIN persons up ON up.id = u.person_id
-WHERE i.card_id = ? AND i.invoice_month = ?
+WHERE p.group_id = CAST(?1 AS INTEGER) AND i.card_id = ?2 AND i.invoice_month = ?3
 ORDER BY p.purchased_on DESC, i.id DESC
 `
 
 type ListInvoiceInstallmentsParams struct {
+	GroupID      int64
 	CardID       int64
 	InvoiceMonth string
 }
@@ -589,7 +635,7 @@ type ListInvoiceInstallmentsRow struct {
 }
 
 func (q *Queries) ListInvoiceInstallments(ctx context.Context, arg ListInvoiceInstallmentsParams) ([]ListInvoiceInstallmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listInvoiceInstallments, arg.CardID, arg.InvoiceMonth)
+	rows, err := q.db.QueryContext(ctx, listInvoiceInstallments, arg.GroupID, arg.CardID, arg.InvoiceMonth)
 	if err != nil {
 		return nil, err
 	}
@@ -633,12 +679,17 @@ const listRecurrencePrices = `-- name: ListRecurrencePrices :many
 SELECT rp.id, rp.recurrence_id, rp.from_month, rp.amount_cents
 FROM recurrence_prices rp
 JOIN recurrences r ON r.id = rp.recurrence_id
-WHERE r.card_id = ?
+WHERE r.group_id = CAST(?1 AS INTEGER) AND r.card_id = ?2
 ORDER BY rp.recurrence_id, rp.from_month
 `
 
-func (q *Queries) ListRecurrencePrices(ctx context.Context, cardID int64) ([]RecurrencePrice, error) {
-	rows, err := q.db.QueryContext(ctx, listRecurrencePrices, cardID)
+type ListRecurrencePricesParams struct {
+	GroupID int64
+	CardID  int64
+}
+
+func (q *Queries) ListRecurrencePrices(ctx context.Context, arg ListRecurrencePricesParams) ([]RecurrencePrice, error) {
+	rows, err := q.db.QueryContext(ctx, listRecurrencePrices, arg.GroupID, arg.CardID)
 	if err != nil {
 		return nil, err
 	}
@@ -666,20 +717,26 @@ func (q *Queries) ListRecurrencePrices(ctx context.Context, cardID int64) ([]Rec
 }
 
 const sumInstallmentsByMonth = `-- name: SumInstallmentsByMonth :many
-SELECT invoice_month, CAST(sum(amount_cents) AS INTEGER) AS total_cents
-FROM installments
-WHERE card_id = ?
-GROUP BY invoice_month
-ORDER BY invoice_month
+SELECT i.invoice_month, CAST(sum(i.amount_cents) AS INTEGER) AS total_cents
+FROM installments i
+JOIN purchases p ON p.id = i.purchase_id
+WHERE p.group_id = CAST(?1 AS INTEGER) AND i.card_id = ?2
+GROUP BY i.invoice_month
+ORDER BY i.invoice_month
 `
+
+type SumInstallmentsByMonthParams struct {
+	GroupID int64
+	CardID  int64
+}
 
 type SumInstallmentsByMonthRow struct {
 	InvoiceMonth string
 	TotalCents   int64
 }
 
-func (q *Queries) SumInstallmentsByMonth(ctx context.Context, cardID int64) ([]SumInstallmentsByMonthRow, error) {
-	rows, err := q.db.QueryContext(ctx, sumInstallmentsByMonth, cardID)
+func (q *Queries) SumInstallmentsByMonth(ctx context.Context, arg SumInstallmentsByMonthParams) ([]SumInstallmentsByMonthRow, error) {
+	rows, err := q.db.QueryContext(ctx, sumInstallmentsByMonth, arg.GroupID, arg.CardID)
 	if err != nil {
 		return nil, err
 	}
@@ -705,7 +762,7 @@ const updateCard = `-- name: UpdateCard :exec
 UPDATE cards
 SET name = ?, person_id = ?, limit_cents = ?, closing_day = ?, due_day = ?, last_digits = ?, color = ?,
     finish = ?, active = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?11 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?12 AS INTEGER) AND gm.person_id = cards.person_id)
 `
 
 type UpdateCardParams struct {
@@ -720,6 +777,7 @@ type UpdateCardParams struct {
 	Active     bool
 	UpdatedAt  time.Time
 	ID         int64
+	GroupID    int64
 }
 
 func (q *Queries) UpdateCard(ctx context.Context, arg UpdateCardParams) error {
@@ -735,6 +793,7 @@ func (q *Queries) UpdateCard(ctx context.Context, arg UpdateCardParams) error {
 		arg.Active,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }
@@ -743,7 +802,7 @@ const updatePurchase = `-- name: UpdatePurchase :exec
 UPDATE purchases
 SET purchased_on = ?, merchant = ?, description = ?, category_id = ?, buyer_person_id = ?, total_cents = ?,
     installment_count = ?, first_invoice = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?10 AND group_id = CAST(?11 AS INTEGER)
 `
 
 type UpdatePurchaseParams struct {
@@ -757,6 +816,7 @@ type UpdatePurchaseParams struct {
 	FirstInvoice     string
 	UpdatedAt        time.Time
 	ID               int64
+	GroupID          int64
 }
 
 func (q *Queries) UpdatePurchase(ctx context.Context, arg UpdatePurchaseParams) error {
@@ -771,6 +831,7 @@ func (q *Queries) UpdatePurchase(ctx context.Context, arg UpdatePurchaseParams) 
 		arg.FirstInvoice,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }
@@ -778,7 +839,7 @@ func (q *Queries) UpdatePurchase(ctx context.Context, arg UpdatePurchaseParams) 
 const updateRecurrence = `-- name: UpdateRecurrence :exec
 UPDATE recurrences
 SET description = ?, category_id = ?, end_month = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?5 AND group_id = CAST(?6 AS INTEGER)
 `
 
 type UpdateRecurrenceParams struct {
@@ -787,6 +848,7 @@ type UpdateRecurrenceParams struct {
 	EndMonth    sql.NullString
 	UpdatedAt   time.Time
 	ID          int64
+	GroupID     int64
 }
 
 func (q *Queries) UpdateRecurrence(ctx context.Context, arg UpdateRecurrenceParams) error {
@@ -796,6 +858,7 @@ func (q *Queries) UpdateRecurrence(ctx context.Context, arg UpdateRecurrencePara
 		arg.EndMonth,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }

@@ -2,12 +2,13 @@
 SELECT r.*, coalesce(c.name, '') AS category_name
 FROM alias_rules r
 LEFT JOIN categories c ON c.id = r.category_id
+WHERE r.created_by = sqlc.arg(created_by)
 ORDER BY r.original, r.id DESC;
 
 -- name: GetAliasRule :one
 SELECT *
 FROM alias_rules
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
 
 -- name: CreateAliasRule :one
 INSERT INTO alias_rules (original, friendly_name, category_id, created_by, created_at)
@@ -17,11 +18,11 @@ RETURNING *;
 -- name: UpdateAliasRule :exec
 UPDATE alias_rules
 SET original = ?, friendly_name = ?, category_id = ?
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
 
 -- name: DeleteAliasRule :exec
 DELETE FROM alias_rules
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
 
 -- name: CreateImport :one
 INSERT INTO imports (card_id, invoice_month, file_name, line_count, created_by, created_at)
@@ -30,31 +31,33 @@ RETURNING *;
 
 -- name: ListImports :many
 SELECT i.*, c.name AS card_name, p.name AS created_by_name,
-       CAST((SELECT count(*) FROM purchases pu WHERE pu.import_id = i.id) AS INTEGER) AS purchase_count
+       CAST((SELECT count(*) FROM purchases pu WHERE pu.import_id = i.id AND pu.group_id = CAST(sqlc.arg(group_id) AS INTEGER)) AS INTEGER) AS purchase_count
 FROM imports i
 JOIN cards c ON c.id = i.card_id
 JOIN users u ON u.id = i.created_by
 JOIN persons p ON p.id = u.person_id
+WHERE i.created_by = sqlc.arg(created_by) AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND gm.person_id = c.person_id)
 ORDER BY i.id DESC;
 
 -- name: GetImport :one
-SELECT *
-FROM imports
-WHERE id = ?;
+SELECT i.*
+FROM imports i
+JOIN cards c ON c.id = i.card_id
+WHERE i.id = sqlc.arg(id) AND i.created_by = sqlc.arg(created_by) AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND gm.person_id = c.person_id);
 
 -- name: ListImportPurchases :many
 SELECT id
 FROM purchases
-WHERE import_id = ?;
+WHERE group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND import_id = sqlc.arg(import_id);
 
 -- name: DeleteImport :exec
 DELETE FROM imports
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
 
 -- name: SetPurchaseImport :exec
 UPDATE purchases
 SET import_id = ?
-WHERE id = ?;
+WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: CardItemsNear :many
 -- One-shot purchases of the card bought within a day of the given date, for duplicates of one-shot CSV lines (RN-20).
@@ -62,7 +65,8 @@ WHERE id = ?;
 SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE i.card_id = sqlc.arg(card_id)
+WHERE p.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+  AND i.card_id = sqlc.arg(card_id)
   AND p.installment_count = 1
   AND p.purchased_on >= sqlc.arg(first_day) AND p.purchased_on <= sqlc.arg(last_day)
 ORDER BY i.id;
@@ -72,7 +76,8 @@ ORDER BY i.id;
 SELECT i.id AS installment_id, p.merchant, p.purchased_on, i.amount_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE i.card_id = sqlc.arg(card_id)
+WHERE p.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+  AND i.card_id = sqlc.arg(card_id)
   AND i.invoice_month = sqlc.arg(invoice_month)
   AND i.number = sqlc.arg(number)
   AND p.installment_count = sqlc.arg(installment_count)

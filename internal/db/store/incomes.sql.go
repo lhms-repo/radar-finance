@@ -13,8 +13,8 @@ import (
 
 const createIncome = `-- name: CreateIncome :one
 INSERT INTO incomes (kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on,
-                     created_by, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     created_by, created_at, updated_at, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(?13 AS INTEGER))
 RETURNING id, kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on, created_by, created_at, updated_at, group_id
 `
 
@@ -31,6 +31,7 @@ type CreateIncomeParams struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     int64
 }
 
 func (q *Queries) CreateIncome(ctx context.Context, arg CreateIncomeParams) (Income, error) {
@@ -47,6 +48,7 @@ func (q *Queries) CreateIncome(ctx context.Context, arg CreateIncomeParams) (Inc
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var i Income
 	err := row.Scan(
@@ -70,8 +72,8 @@ func (q *Queries) CreateIncome(ctx context.Context, arg CreateIncomeParams) (Inc
 
 const createIncomeEntry = `-- name: CreateIncomeEntry :one
 INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, description, income_id, income_month,
-                     created_by, created_at, updated_at)
-VALUES (?, 'income', ?, ?, 1, ?, ?, ?, ?, ?, ?)
+                     created_by, created_at, updated_at, group_id)
+VALUES (?, 'income', ?, ?, 1, ?, ?, ?, ?, ?, ?, CAST(?10 AS INTEGER))
 RETURNING id
 `
 
@@ -85,6 +87,7 @@ type CreateIncomeEntryParams struct {
 	CreatedBy   int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	GroupID     int64
 }
 
 func (q *Queries) CreateIncomeEntry(ctx context.Context, arg CreateIncomeEntryParams) (int64, error) {
@@ -98,6 +101,7 @@ func (q *Queries) CreateIncomeEntry(ctx context.Context, arg CreateIncomeEntryPa
 		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.GroupID,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -106,22 +110,32 @@ func (q *Queries) CreateIncomeEntry(ctx context.Context, arg CreateIncomeEntryPa
 
 const deleteIncome = `-- name: DeleteIncome :exec
 DELETE FROM incomes
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) DeleteIncome(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteIncome, id)
+type DeleteIncomeParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) DeleteIncome(ctx context.Context, arg DeleteIncomeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteIncome, arg.ID, arg.GroupID)
 	return err
 }
 
 const getIncome = `-- name: GetIncome :one
 SELECT id, kind, name, person_id, account_id, amount_cents, day, start_month, end_on, expected_on, created_by, created_at, updated_at, group_id
 FROM incomes
-WHERE id = ?
+WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
 
-func (q *Queries) GetIncome(ctx context.Context, id int64) (Income, error) {
-	row := q.db.QueryRowContext(ctx, getIncome, id)
+type GetIncomeParams struct {
+	ID      int64
+	GroupID int64
+}
+
+func (q *Queries) GetIncome(ctx context.Context, arg GetIncomeParams) (Income, error) {
+	row := q.db.QueryRowContext(ctx, getIncome, arg.ID, arg.GroupID)
 	var i Income
 	err := row.Scan(
 		&i.ID,
@@ -146,8 +160,13 @@ const listIncomeConfirmations = `-- name: ListIncomeConfirmations :many
 SELECT e.id, e.income_id, e.income_month, e.amount_cents, e.occurred_on, e.account_id, a.name AS account_name
 FROM entries e
 JOIN accounts a ON a.id = e.account_id
-WHERE e.income_id IS NOT NULL AND e.income_month = ?
+WHERE e.group_id = CAST(?1 AS INTEGER) AND e.income_id IS NOT NULL AND e.income_month = ?2
 `
+
+type ListIncomeConfirmationsParams struct {
+	GroupID     int64
+	IncomeMonth sql.NullString
+}
 
 type ListIncomeConfirmationsRow struct {
 	ID          int64
@@ -159,8 +178,8 @@ type ListIncomeConfirmationsRow struct {
 	AccountName string
 }
 
-func (q *Queries) ListIncomeConfirmations(ctx context.Context, incomeMonth sql.NullString) ([]ListIncomeConfirmationsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listIncomeConfirmations, incomeMonth)
+func (q *Queries) ListIncomeConfirmations(ctx context.Context, arg ListIncomeConfirmationsParams) ([]ListIncomeConfirmationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listIncomeConfirmations, arg.GroupID, arg.IncomeMonth)
 	if err != nil {
 		return nil, err
 	}
@@ -193,11 +212,16 @@ func (q *Queries) ListIncomeConfirmations(ctx context.Context, incomeMonth sql.N
 const listIncomeConfirmedMonths = `-- name: ListIncomeConfirmedMonths :many
 SELECT coalesce(income_month, '') AS month
 FROM entries
-WHERE income_id = ?
+WHERE group_id = CAST(?1 AS INTEGER) AND income_id = ?2
 `
 
-func (q *Queries) ListIncomeConfirmedMonths(ctx context.Context, incomeID sql.NullInt64) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listIncomeConfirmedMonths, incomeID)
+type ListIncomeConfirmedMonthsParams struct {
+	GroupID  int64
+	IncomeID sql.NullInt64
+}
+
+func (q *Queries) ListIncomeConfirmedMonths(ctx context.Context, arg ListIncomeConfirmedMonthsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listIncomeConfirmedMonths, arg.GroupID, arg.IncomeID)
 	if err != nil {
 		return nil, err
 	}
@@ -224,6 +248,7 @@ SELECT i.id, i.kind, i.name, i.person_id, i.account_id, i.amount_cents, i.day, i
 FROM incomes i
 JOIN persons p ON p.id = i.person_id
 JOIN accounts a ON a.id = i.account_id
+WHERE i.group_id = CAST(?1 AS INTEGER)
 ORDER BY i.kind DESC, i.person_id, i.name COLLATE NOCASE, i.id
 `
 
@@ -246,8 +271,8 @@ type ListIncomesRow struct {
 	AccountName string
 }
 
-func (q *Queries) ListIncomes(ctx context.Context) ([]ListIncomesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listIncomes)
+func (q *Queries) ListIncomes(ctx context.Context, groupID int64) ([]ListIncomesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listIncomes, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -290,12 +315,13 @@ const listOneOffIncomes = `-- name: ListOneOffIncomes :many
 SELECT e.id, e.amount_cents, e.occurred_on, e.description, e.account_id, a.name AS account_name, a.person_id
 FROM entries e
 JOIN accounts a ON a.id = e.account_id
-WHERE e.kind = 'income' AND e.income_id IS NULL AND e.confirmed
-  AND e.occurred_on >= ?1 AND e.occurred_on <= ?2
+WHERE e.group_id = CAST(?1 AS INTEGER) AND e.kind = 'income' AND e.income_id IS NULL AND e.confirmed
+  AND e.occurred_on >= ?2 AND e.occurred_on <= ?3
 ORDER BY e.occurred_on, e.id
 `
 
 type ListOneOffIncomesParams struct {
+	GroupID  int64
 	FirstDay string
 	LastDay  string
 }
@@ -311,7 +337,7 @@ type ListOneOffIncomesRow struct {
 }
 
 func (q *Queries) ListOneOffIncomes(ctx context.Context, arg ListOneOffIncomesParams) ([]ListOneOffIncomesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listOneOffIncomes, arg.FirstDay, arg.LastDay)
+	rows, err := q.db.QueryContext(ctx, listOneOffIncomes, arg.GroupID, arg.FirstDay, arg.LastDay)
 	if err != nil {
 		return nil, err
 	}
@@ -345,7 +371,7 @@ const updateIncome = `-- name: UpdateIncome :exec
 UPDATE incomes
 SET name = ?, person_id = ?, account_id = ?, amount_cents = ?, day = ?, start_month = ?, end_on = ?,
     expected_on = ?, updated_at = ?
-WHERE id = ?
+WHERE id = ?10 AND group_id = CAST(?11 AS INTEGER)
 `
 
 type UpdateIncomeParams struct {
@@ -359,6 +385,7 @@ type UpdateIncomeParams struct {
 	ExpectedOn  sql.NullString
 	UpdatedAt   time.Time
 	ID          int64
+	GroupID     int64
 }
 
 func (q *Queries) UpdateIncome(ctx context.Context, arg UpdateIncomeParams) error {
@@ -373,6 +400,7 @@ func (q *Queries) UpdateIncome(ctx context.Context, arg UpdateIncomeParams) erro
 		arg.ExpectedOn,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.GroupID,
 	)
 	return err
 }

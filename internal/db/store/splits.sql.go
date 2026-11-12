@@ -26,8 +26,8 @@ func (q *Queries) CountPaidSplitInstallments(ctx context.Context, purchaseID int
 }
 
 const createParty = `-- name: CreateParty :one
-INSERT INTO parties (name, created_by, created_at)
-VALUES (?, ?, ?)
+INSERT INTO parties (name, created_by, created_at, group_id)
+VALUES (?, ?, ?, CAST(?4 AS INTEGER))
 RETURNING id, name
 `
 
@@ -35,6 +35,7 @@ type CreatePartyParams struct {
 	Name      string
 	CreatedBy int64
 	CreatedAt time.Time
+	GroupID   int64
 }
 
 type CreatePartyRow struct {
@@ -43,7 +44,12 @@ type CreatePartyRow struct {
 }
 
 func (q *Queries) CreateParty(ctx context.Context, arg CreatePartyParams) (CreatePartyRow, error) {
-	row := q.db.QueryRowContext(ctx, createParty, arg.Name, arg.CreatedBy, arg.CreatedAt)
+	row := q.db.QueryRowContext(ctx, createParty,
+		arg.Name,
+		arg.CreatedBy,
+		arg.CreatedAt,
+		arg.GroupID,
+	)
 	var i CreatePartyRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err
@@ -105,16 +111,21 @@ func (q *Queries) DeleteSplits(ctx context.Context, purchaseID int64) error {
 const getPartyByName = `-- name: GetPartyByName :one
 SELECT id, name
 FROM parties
-WHERE name = ? COLLATE NOCASE
+WHERE group_id = CAST(?1 AS INTEGER) AND name = ?2 COLLATE NOCASE
 `
+
+type GetPartyByNameParams struct {
+	GroupID int64
+	Name    string
+}
 
 type GetPartyByNameRow struct {
 	ID   int64
 	Name string
 }
 
-func (q *Queries) GetPartyByName(ctx context.Context, name string) (GetPartyByNameRow, error) {
-	row := q.db.QueryRowContext(ctx, getPartyByName, name)
+func (q *Queries) GetPartyByName(ctx context.Context, arg GetPartyByNameParams) (GetPartyByNameRow, error) {
+	row := q.db.QueryRowContext(ctx, getPartyByName, arg.GroupID, arg.Name)
 	var i GetPartyByNameRow
 	err := row.Scan(&i.ID, &i.Name)
 	return i, err
@@ -125,11 +136,13 @@ SELECT si.id, si.number, si.amount_cents, si.entry_id, s.purchase_id, p.name AS 
 FROM split_installments si
 JOIN splits s ON s.id = si.split_id
 JOIN parties p ON p.id = s.party_id
-WHERE si.card_id = ? AND si.invoice_month = ?
+JOIN purchases pu ON pu.id = s.purchase_id
+WHERE pu.group_id = CAST(?1 AS INTEGER) AND si.card_id = ?2 AND si.invoice_month = ?3
 ORDER BY p.name COLLATE NOCASE
 `
 
 type ListInvoiceSplitInstallmentsParams struct {
+	GroupID      int64
 	CardID       int64
 	InvoiceMonth string
 }
@@ -144,7 +157,7 @@ type ListInvoiceSplitInstallmentsRow struct {
 }
 
 func (q *Queries) ListInvoiceSplitInstallments(ctx context.Context, arg ListInvoiceSplitInstallmentsParams) ([]ListInvoiceSplitInstallmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listInvoiceSplitInstallments, arg.CardID, arg.InvoiceMonth)
+	rows, err := q.db.QueryContext(ctx, listInvoiceSplitInstallments, arg.GroupID, arg.CardID, arg.InvoiceMonth)
 	if err != nil {
 		return nil, err
 	}
@@ -176,6 +189,7 @@ func (q *Queries) ListInvoiceSplitInstallments(ctx context.Context, arg ListInvo
 const listParties = `-- name: ListParties :many
 SELECT id, name
 FROM parties
+WHERE group_id = CAST(?1 AS INTEGER)
 ORDER BY name COLLATE NOCASE
 `
 
@@ -184,8 +198,8 @@ type ListPartiesRow struct {
 	Name string
 }
 
-func (q *Queries) ListParties(ctx context.Context) ([]ListPartiesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listParties)
+func (q *Queries) ListParties(ctx context.Context, groupID int64) ([]ListPartiesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listParties, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +275,7 @@ JOIN purchases pu ON pu.id = s.purchase_id
 JOIN cards c ON c.id = si.card_id
 LEFT JOIN entries e ON e.id = si.entry_id
 LEFT JOIN accounts a ON a.id = e.account_id
+WHERE pu.group_id = CAST(?1 AS INTEGER)
 ORDER BY pa.name COLLATE NOCASE, si.invoice_month, pu.merchant COLLATE NOCASE, si.number
 `
 
@@ -283,8 +298,8 @@ type ListReceivablesRow struct {
 	ReceivedIn       string
 }
 
-func (q *Queries) ListReceivables(ctx context.Context) ([]ListReceivablesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listReceivables)
+func (q *Queries) ListReceivables(ctx context.Context, groupID int64) ([]ListReceivablesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listReceivables, groupID)
 	if err != nil {
 		return nil, err
 	}

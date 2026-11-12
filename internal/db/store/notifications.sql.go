@@ -42,12 +42,15 @@ func (q *Queries) ListNotificationReads(ctx context.Context, userID int64) ([]st
 const listRegistrations = `-- name: ListRegistrations :many
 SELECT CAST('bill' AS TEXT) AS kind, b.id, b.created_at
 FROM bills b
+WHERE b.group_id = CAST(?1 AS INTEGER)
 UNION ALL
 SELECT 'financing', f.id, f.created_at
 FROM financings f
+WHERE f.group_id = CAST(?1 AS INTEGER)
 UNION ALL
 SELECT 'invoice', c.id, c.created_at
 FROM cards c
+WHERE EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = c.person_id)
 `
 
 type ListRegistrationsRow struct {
@@ -57,8 +60,8 @@ type ListRegistrationsRow struct {
 }
 
 // When each bill, financing and card was registered, so overdue warnings start there (RF-64).
-func (q *Queries) ListRegistrations(ctx context.Context) ([]ListRegistrationsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listRegistrations)
+func (q *Queries) ListRegistrations(ctx context.Context, groupID int64) ([]ListRegistrationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRegistrations, groupID)
 	if err != nil {
 		return nil, err
 	}
