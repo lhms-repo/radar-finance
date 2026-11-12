@@ -24,9 +24,10 @@ export function MoneyInput({
   ariaLabel?: string;
 }) {
   const fallbackId = useId();
-  // Zero has no sign, so the chosen sign is kept apart while the field is empty.
-  const [signWhenZero, setSignWhenZero] = useState(false);
-  const negative = value === 0 ? allowNegative && signWhenZero : value < 0;
+  // Zero has no sign, so the sign chosen here is kept with the value it was chosen for. A zero that
+  // came from outside, like a form reset after a negative amount, starts positive again.
+  const [chosen, setChosen] = useState({ negative: false, at: 0 });
+  const negative = value === 0 ? allowNegative && chosen.negative && chosen.at === 0 : value < 0;
   return (
     <div
       className={cn(
@@ -38,7 +39,7 @@ export function MoneyInput({
         <button
           type="button"
           onClick={() => {
-            setSignWhenZero(!negative);
+            setChosen({ negative: !negative, at: -value });
             if (value !== 0) onChange(-value);
           }}
           aria-label={negative ? "Tornar positivo" : "Tornar negativo"}
@@ -61,8 +62,9 @@ export function MoneyInput({
         onChange={(e) => {
           const digits = e.target.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, MAX_DIGITS);
           const cents = digits === "" ? 0 : Number(digits);
-          setSignWhenZero(negative);
-          onChange(negative ? -cents : cents);
+          const next = negative ? -cents : cents;
+          setChosen({ negative, at: next });
+          onChange(next);
         }}
       />
     </div>
