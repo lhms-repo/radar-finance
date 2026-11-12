@@ -38,6 +38,9 @@ const (
 	KindTransfer   Kind = "transfer"
 )
 
+// savingsDepositKind mirrors savings.KindDepositEntry, which this package cannot import.
+const savingsDepositKind = "savings_deposit"
+
 // Business errors returned by the service.
 var (
 	ErrAccountNotFound     = problem.NotFound("account_not_found", "Conta não encontrada.")
@@ -54,6 +57,7 @@ var (
 	ErrSameAccount         = problem.Invalid("transfer_same_account", "Escolha contas diferentes para a transferência.")
 	ErrNoChange            = problem.Invalid("adjustment_no_change", "O saldo da conta já é esse valor.")
 	ErrEntryNotFound       = problem.NotFound("entry_not_found", "Lançamento não encontrado.")
+	ErrSavingsNegative     = problem.Conflict("savings_deposit_withdrawn", "Este aporte já foi retirado da caixinha. Apague a retirada antes, senão a caixinha fica com saldo negativo.")
 )
 
 // Account is a bank account with its current balance (RF-05).
@@ -462,6 +466,16 @@ func (s *Service) DeleteEntry(ctx context.Context, id int64) error {
 		if e.TransferID.Valid {
 			// entries.transfer_id cascades, so both sides go with the transfer.
 			return q.DeleteTransfer(ctx, e.TransferID.Int64)
+		}
+		if e.Kind == savingsDepositKind {
+			// The savings move cascades with the entry, so a deposit already withdrawn would leave the box below zero.
+			balance, err := q.SavingsBalanceWithoutEntry(ctx, id)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			if err == nil && balance < 0 {
+				return ErrSavingsNegative
+			}
 		}
 		return q.DeleteEntry(ctx, id)
 	})

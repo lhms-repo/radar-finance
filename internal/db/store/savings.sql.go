@@ -211,6 +211,23 @@ func (q *Queries) ListSavingsMoves(ctx context.Context) ([]ListSavingsMovesRow, 
 	return items, nil
 }
 
+const savingsBalanceWithoutEntry = `-- name: SavingsBalanceWithoutEntry :one
+SELECT CAST(b.initial_balance_cents + coalesce(sum(CASE m.kind WHEN 'deposit' THEN m.amount_cents ELSE -m.amount_cents END), 0) AS INTEGER) AS balance_cents
+FROM savings_moves d
+JOIN savings_boxes b ON b.id = d.box_id
+LEFT JOIN savings_moves m ON m.box_id = d.box_id AND m.entry_id <> d.entry_id
+WHERE d.entry_id = ?
+GROUP BY b.id
+`
+
+// Balance of the box of a savings entry as it would be without that entry.
+func (q *Queries) SavingsBalanceWithoutEntry(ctx context.Context, entryID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, savingsBalanceWithoutEntry, entryID)
+	var balance_cents int64
+	err := row.Scan(&balance_cents)
+	return balance_cents, err
+}
+
 const updateSavingsBox = `-- name: UpdateSavingsBox :exec
 UPDATE savings_boxes
 SET name = ?, target_cents = ?, percent_bp = ?, updated_at = ?
