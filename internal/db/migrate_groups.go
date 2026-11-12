@@ -106,7 +106,7 @@ func rebuildForGroups(ctx context.Context, pool *sql.DB) (err error) {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	// The pragma only works outside a transaction and only on this connection.
 	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
 		return err
@@ -130,16 +130,23 @@ func rebuildForGroups(ctx context.Context, pool *sql.DB) (err error) {
 			return fmt.Errorf("rebuild for groups: %w\n%s", err, stmt)
 		}
 	}
-	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	broken, err := hasBrokenReferences(ctx, tx)
 	if err != nil {
-		return err
-	}
-	broken := rows.Next()
-	if err := rows.Close(); err != nil {
 		return err
 	}
 	if broken {
 		return errors.New("rebuild for groups: foreign key check found broken references")
 	}
 	return tx.Commit()
+}
+
+// hasBrokenReferences tells whether any foreign key of the database points to a missing row.
+func hasBrokenReferences(ctx context.Context, tx *sql.Tx) (bool, error) {
+	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	broken := rows.Next()
+	return broken, rows.Err()
 }

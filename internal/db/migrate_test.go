@@ -126,10 +126,10 @@ func TestMigrateCoupleToGroup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 	if rows.Next() {
 		t.Fatal("foreign key check found broken references")
 	}
-	rows.Close()
 	if n := scalar(t, conn, `SELECT count(*) FROM pragma_foreign_keys`); n != 1 {
 		t.Fatal("foreign keys left off after the migration")
 	}
