@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -200,55 +201,115 @@ func checkNoReceived(ctx context.Context, q *store.Queries, purchaseID int64) er
 	return nil
 }
 
-// spreadShares spreads each share over the installments so that the shares follow the installment amounts:
-// every person gets at least one cent per installment, the shares of an installment never add up to more
-// than it, so the couple part of a month is never negative, and the cents left over go, one at a time, to the
-// installments with the largest remainder that still have room (RN-03, RN-04, RN-05). It needs, as
-// resolveShares ensures, each share of at least one cent per installment and all shares within the total.
+// spreadShares spreads the shares over the installments following their amounts, never past one (RN-03, RN-05).
+//
+// Each person gets one cent per installment and the rest in proportion to the room each installment has
+// after those cents. Every cell ends at the floor or the ceiling of that proportion, the cents left over going
+// first to the largest remainders, so the shares of an installment never add up to more than it and the
+// couple part of a month is never negative. It needs, as resolveShares ensures, each share of at least one
+// cent per installment and all shares within the total.
 func spreadShares(installments, shares []int64) [][]int64 {
+	sp := newSpread(installments, shares)
+	for p := range shares {
+		for ; sp.left[p] > 0; sp.left[p]-- {
+			if !sp.place(p, make([]bool, len(installments))) {
+				// Never expected: proportional rounding always fits. Keep the money exact all the same.
+				sp.placeAnywhere(p)
+			}
+		}
+	}
+	return sp.out
+}
+
+// spread holds the cells being filled and the room left in each installment.
+type spread struct {
+	out        [][]int64
+	extra      [][]bool
+	order      [][]int
+	left, free []int64
+}
+
+// newSpread fills the whole parts and orders the installments of each person by remainder, largest first.
+// The whole part is rest * room / totalRoom, exact since both factors can reach the 1e11 cents cap; only
+// installments with a fraction can take a cent left over.
+func newSpread(installments, shares []int64) *spread {
 	n, people := len(installments), int64(len(shares))
-	// Room in each installment after one cent per person, and their sum.
 	room := make([]int64, n)
 	var totalRoom int64
 	for i, amount := range installments {
 		room[i] = amount - people
 		totalRoom += room[i]
 	}
-	// First every whole part, rest * room / totalRoom, exact since both factors can reach the 1e11 cents cap.
-	out := make([][]int64, len(shares))
-	remainders := make([][]*big.Int, len(shares))
-	left := make([]int64, len(shares))
-	free := append([]int64(nil), installments...)
+	sp := &spread{out: make([][]int64, len(shares)), extra: make([][]bool, len(shares)), order: make([][]int, len(shares)),
+		left: make([]int64, len(shares)), free: append([]int64(nil), installments...)}
 	for p, share := range shares {
-		out[p] = make([]int64, n)
-		remainders[p] = make([]*big.Int, n)
+		sp.out[p], sp.extra[p] = make([]int64, n), make([]bool, n)
 		rest := share - int64(n)
-		left[p] = rest
+		sp.left[p] = rest
+		rems := make([]*big.Int, n)
 		for i := range installments {
 			whole, r := new(big.Int), new(big.Int)
 			if totalRoom > 0 {
 				whole.QuoRem(new(big.Int).Mul(big.NewInt(rest), big.NewInt(room[i])), big.NewInt(totalRoom), r)
 			}
-			out[p][i] = 1 + whole.Int64()
-			remainders[p][i] = r
-			left[p] -= whole.Int64()
-			free[i] -= out[p][i]
-		}
-	}
-	// Then the cents left over: the whole parts never fill an installment past its amount, and together they
-	// leave at least as much room as the cents still to place, so a free installment always exists.
-	for p := range shares {
-		for ; left[p] > 0; left[p]-- {
-			best := -1
-			for i := range installments {
-				if free[i] > 0 && (best < 0 || remainders[p][i].Cmp(remainders[p][best]) > 0) {
-					best = i
-				}
+			sp.out[p][i] = 1 + whole.Int64()
+			sp.left[p] -= whole.Int64()
+			sp.free[i] -= sp.out[p][i]
+			rems[i] = r
+			if r.Sign() > 0 {
+				sp.order[p] = append(sp.order[p], i)
 			}
-			out[p][best]++
-			free[best]--
-			remainders[p][best] = big.NewInt(-1)
+		}
+		order := sp.order[p]
+		sort.SliceStable(order, func(a, b int) bool { return rems[order[a]].Cmp(rems[order[b]]) > 0 })
+	}
+	return sp
+}
+
+// place gives person p one more cent in an installment where p has a fraction and no extra cent yet. When the
+// installment is full, it moves the extra cent of another person to another of their installments, like an
+// augmenting path in a matching, so nobody ends more than a cent away from their proportion.
+func (sp *spread) place(p int, seen []bool) bool {
+	// An installment with room comes first, by largest remainder; moving others only when none has room.
+	for _, i := range sp.order[p] {
+		if !sp.extra[p][i] && !seen[i] && sp.free[i] > 0 {
+			seen[i] = true
+			sp.take(p, i)
+			sp.free[i]--
+			return true
 		}
 	}
-	return out
+	for _, i := range sp.order[p] {
+		if sp.extra[p][i] || seen[i] {
+			continue
+		}
+		seen[i] = true
+		for q := range sp.extra {
+			if q != p && sp.extra[q][i] && sp.place(q, seen) {
+				// q moved its cent to another installment, so p takes the one it left here.
+				sp.extra[q][i] = false
+				sp.out[q][i]--
+				sp.take(p, i)
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// take records one more cent of person p in installment i.
+func (sp *spread) take(p, i int) {
+	sp.extra[p][i] = true
+	sp.out[p][i]++
+}
+
+// placeAnywhere gives person p one more cent in the first installment with room.
+func (sp *spread) placeAnywhere(p int) {
+	for i := range sp.free {
+		if sp.free[i] > 0 {
+			sp.out[p][i]++
+			sp.free[i]--
+			return
+		}
+	}
 }
