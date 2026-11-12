@@ -8,7 +8,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 DEV_ENV := RADAR_DB_PATH=tmp/radar.db RADAR_BACKUP_DIR=tmp/backups RADAR_COOKIE_SECURE=false RADAR_ADDR=:8080
 
 .PHONY: setup generate dev dev-api dev-web test test-go test-web e2e lint build icons \
-        user-add certs deploy deploy-logs deploy-user-add deploy-backup
+        user-add user-pin group-create certs deploy deploy-logs deploy-user-add deploy-user-pin deploy-group-create deploy-backup
 
 ## setup: downloads Go and pnpm dependencies and the Playwright browsers.
 setup:
@@ -33,10 +33,18 @@ dev-api:
 dev-web:
 	cd web && pnpm dev --host 0.0.0.0
 
-## user-add: creates a user in the development database (LOGIN=... NAME=...).
+## user-add: creates a user in the development database (LOGIN=... NAME=..., optional GROUP=...).
 user-add:
 	@mkdir -p tmp
-	$(DEV_ENV) go run ./cmd/radar user add --login "$(LOGIN)" --name "$(NAME)"
+	$(DEV_ENV) go run ./cmd/radar user add --login "$(LOGIN)" --name "$(NAME)" $(if $(GROUP),--group "$(GROUP)")
+
+## user-pin: sets the PIN of a development user, typed at the prompt (LOGIN=...).
+user-pin:
+	$(DEV_ENV) go run ./cmd/radar user pin --login "$(LOGIN)"
+
+## group-create: creates a development group with its first administrator (NAME=... ADMIN=login).
+group-create:
+	$(DEV_ENV) go run ./cmd/radar group create --name "$(NAME)" --admin "$(ADMIN)"
 
 ## test: runs Go tests and the frontend type check.
 test: test-go test-web
@@ -83,9 +91,17 @@ deploy:
 deploy-logs:
 	cd deploy && docker compose logs -f --tail=100
 
-## deploy-user-add: creates a user in production (LOGIN=... NAME=...). Run in WSL2.
+## deploy-user-add: creates a user in production (LOGIN=... NAME=..., optional GROUP=...). Run in WSL2.
 deploy-user-add:
-	cd deploy && docker compose exec radar /radar user add --login "$(LOGIN)" --name "$(NAME)"
+	cd deploy && docker compose exec radar /radar user add --login "$(LOGIN)" --name "$(NAME)" $(if $(GROUP),--group "$(GROUP)")
+
+## deploy-user-pin: sets the PIN of a production user, typed at the prompt (LOGIN=...). Run in WSL2.
+deploy-user-pin:
+	cd deploy && docker compose exec -i radar /radar user pin --login "$(LOGIN)"
+
+## deploy-group-create: creates a production group with its first administrator (NAME=... ADMIN=login). Run in WSL2.
+deploy-group-create:
+	cd deploy && docker compose exec radar /radar group create --name "$(NAME)" --admin "$(ADMIN)"
 
 ## deploy-backup: runs a manual backup in production. Run in WSL2.
 deploy-backup:

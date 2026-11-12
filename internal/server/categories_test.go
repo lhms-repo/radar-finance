@@ -28,7 +28,7 @@ func send(t *testing.T, c *http.Client, srv *httptest.Server, method, path, body
 func TestCategoryRoutes(t *testing.T) {
 	srv, _ := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 
 	resp := get(t, c, srv.URL+"/api/categories")
 	var tree []struct {

@@ -220,6 +220,24 @@ func (e ForecastGroupKey) Valid() bool {
 	}
 }
 
+// Defines values for GroupRole.
+const (
+	Admin  GroupRole = "admin"
+	Member GroupRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the GroupRole enum.
+func (e GroupRole) Valid() bool {
+	switch e {
+	case Admin:
+		return true
+	case Member:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImportCommitLineKind.
 const (
 	ImportCommitLineKindCredit   ImportCommitLineKind = "credit"
@@ -1256,6 +1274,21 @@ type ForecastGroup struct {
 // ForecastGroupKey defines model for ForecastGroup.Key.
 type ForecastGroupKey string
 
+// GroupRole defines model for GroupRole.
+type GroupRole string
+
+// GroupSummary defines model for GroupSummary.
+type GroupSummary struct {
+	Id   int64     `json:"id"`
+	Name string    `json:"name"`
+	Role GroupRole `json:"role"`
+}
+
+// GroupSwitch defines model for GroupSwitch.
+type GroupSwitch struct {
+	GroupId int64 `json:"groupId"`
+}
+
 // Health defines model for Health.
 type Health struct {
 	BackupError   *string    `json:"backupError,omitempty"`
@@ -1652,15 +1685,25 @@ type ListPayment struct {
 	TotalCents Cents `json:"totalCents"`
 }
 
-// LoginRequest defines model for LoginRequest.
-type LoginRequest struct {
-	Login string `json:"login"`
+// LoginGroup defines model for LoginGroup.
+type LoginGroup struct {
+	Id   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
-// LoginUser defines model for LoginUser.
-type LoginUser struct {
-	Login string `json:"login"`
-	Name  string `json:"name"`
+// LoginMember defines model for LoginMember.
+type LoginMember struct {
+	// HasPin False until an administrator or the terminal sets the PIN.
+	HasPin bool   `json:"hasPin"`
+	Name   string `json:"name"`
+	UserId int64  `json:"userId"`
+}
+
+// LoginRequest defines model for LoginRequest.
+type LoginRequest struct {
+	GroupId int64  `json:"groupId"`
+	Pin     string `json:"pin"`
+	UserId  int64  `json:"userId"`
 }
 
 // Market defines model for Market.
@@ -1723,11 +1766,15 @@ type MarketSettings struct {
 
 // Me defines model for Me.
 type Me struct {
-	Haptics bool   `json:"haptics"`
-	Id      int64  `json:"id"`
-	Login   string `json:"login"`
-	Name    string `json:"name"`
-	Theme   Theme  `json:"theme"`
+	Group GroupSummary `json:"group"`
+
+	// Groups Every group of the user, for the selector (RF-81).
+	Groups  []GroupSummary `json:"groups"`
+	Haptics bool           `json:"haptics"`
+	Id      int64          `json:"id"`
+	Login   string         `json:"login"`
+	Name    string         `json:"name"`
+	Theme   Theme          `json:"theme"`
 }
 
 // Month Example: 2026-11
@@ -2605,6 +2652,9 @@ type PreviewReceiptJSONRequestBody = ReceiptPreviewRequest
 // UpdateMarketSettingsJSONRequestBody defines body for UpdateMarketSettings for application/json ContentType.
 type UpdateMarketSettingsJSONRequestBody = MarketSettings
 
+// SwitchGroupJSONRequestBody defines body for SwitchGroup for application/json ContentType.
+type SwitchGroupJSONRequestBody = GroupSwitch
+
 // UpdatePreferencesJSONRequestBody defines body for UpdatePreferences for application/json ContentType.
 type UpdatePreferencesJSONRequestBody = PreferencesUpdate
 
@@ -2706,15 +2756,18 @@ type ServerInterface interface {
 	// UpdateAliasRule Replaces an alias rule.
 	// (PUT /alias-rules/{id})
 	UpdateAliasRule(w http.ResponseWriter, r *http.Request, id Id)
-	// Login Signs in as one of the users, without password (RF-01).
+	// ListLoginGroups Lists the group names, the first step of entering (RF-01).
+	// (GET /auth/groups)
+	ListLoginGroups(w http.ResponseWriter, r *http.Request)
+	// ListLoginMembers Lists the people of one group, the second step of entering (RF-01).
+	// (GET /auth/groups/{id}/members)
+	ListLoginMembers(w http.ResponseWriter, r *http.Request, id Id)
+	// Login Signs in as a member of a group with the PIN (RF-01, RN-27).
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
 	// Logout Ends the current session.
 	// (POST /auth/logout)
 	Logout(w http.ResponseWriter, r *http.Request)
-	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
-	// (GET /auth/users)
-	ListLoginUsers(w http.ResponseWriter, r *http.Request)
 	// ListBills Lists the fixed bills (RF-35).
 	// (GET /bills)
 	ListBills(w http.ResponseWriter, r *http.Request)
@@ -2934,6 +2987,9 @@ type ServerInterface interface {
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// SwitchGroup Makes another group of the user the active one, without entering again (RF-81).
+	// (PUT /me/group)
+	SwitchGroup(w http.ResponseWriter, r *http.Request)
 	// UpdatePreferences Changes theme and haptic feedback (RNF-14, RNF-25).
 	// (PATCH /me/preferences)
 	UpdatePreferences(w http.ResponseWriter, r *http.Request)
@@ -3608,6 +3664,46 @@ func (siw *ServerInterfaceWrapper) UpdateAliasRule(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// ListLoginGroups operation middleware
+func (siw *ServerInterfaceWrapper) ListLoginGroups(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLoginGroups(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListLoginMembers operation middleware
+func (siw *ServerInterfaceWrapper) ListLoginMembers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLoginMembers(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
 
@@ -3627,20 +3723,6 @@ func (siw *ServerInterfaceWrapper) Logout(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.Logout(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListLoginUsers operation middleware
-func (siw *ServerInterfaceWrapper) ListLoginUsers(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListLoginUsers(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5337,6 +5419,20 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 	handler.ServeHTTP(w, r)
 }
 
+// SwitchGroup operation middleware
+func (siw *ServerInterfaceWrapper) SwitchGroup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SwitchGroup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UpdatePreferences operation middleware
 func (siw *ServerInterfaceWrapper) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 
@@ -6170,10 +6266,12 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/ping", wrapper.Ping)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/users", wrapper.ListLoginUsers)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/groups", wrapper.ListLoginGroups)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/groups/{id}/members", wrapper.ListLoginMembers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/login", wrapper.Login)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/group", wrapper.SwitchGroup)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/me/preferences", wrapper.UpdatePreferences)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/system/health", wrapper.GetHealth)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/system/backups", wrapper.ListBackups)
@@ -7706,6 +7804,63 @@ func (response UpdateAliasRule404JSONResponse) VisitUpdateAliasRuleResponse(w ht
 	return err
 }
 
+type ListLoginGroupsRequestObject struct {
+}
+
+type ListLoginGroupsResponseObject interface {
+	VisitListLoginGroupsResponse(w http.ResponseWriter) error
+}
+
+type ListLoginGroups200JSONResponse []LoginGroup
+
+func (response ListLoginGroups200JSONResponse) VisitListLoginGroupsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListLoginMembersRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type ListLoginMembersResponseObject interface {
+	VisitListLoginMembersResponse(w http.ResponseWriter) error
+}
+
+type ListLoginMembers200JSONResponse []LoginMember
+
+func (response ListLoginMembers200JSONResponse) VisitListLoginMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListLoginMembers404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListLoginMembers404JSONResponse) VisitListLoginMembersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LoginRequestObject struct {
 	Body *LoginJSONRequestBody
 }
@@ -7756,6 +7911,20 @@ func (response Login401JSONResponse) VisitLoginResponse(w http.ResponseWriter) e
 	return err
 }
 
+type Login409JSONResponse struct{ ConflictJSONResponse }
+
+func (response Login409JSONResponse) VisitLoginResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type LogoutRequestObject struct {
 }
 
@@ -7769,27 +7938,6 @@ type Logout204Response struct {
 func (response Logout204Response) VisitLogoutResponse(w http.ResponseWriter) error {
 	w.WriteHeader(204)
 	return nil
-}
-
-type ListLoginUsersRequestObject struct {
-}
-
-type ListLoginUsersResponseObject interface {
-	VisitListLoginUsersResponse(w http.ResponseWriter) error
-}
-
-type ListLoginUsers200JSONResponse []LoginUser
-
-func (response ListLoginUsers200JSONResponse) VisitListLoginUsersResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
 }
 
 type ListBillsRequestObject struct {
@@ -12135,6 +12283,56 @@ func (response GetMe401JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	return err
 }
 
+type SwitchGroupRequestObject struct {
+	Body *SwitchGroupJSONRequestBody
+}
+
+type SwitchGroupResponseObject interface {
+	VisitSwitchGroupResponse(w http.ResponseWriter) error
+}
+
+type SwitchGroup200JSONResponse Me
+
+func (response SwitchGroup200JSONResponse) VisitSwitchGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SwitchGroup400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SwitchGroup400JSONResponse) VisitSwitchGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SwitchGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SwitchGroup401JSONResponse) VisitSwitchGroupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type UpdatePreferencesRequestObject struct {
 	Body *UpdatePreferencesJSONRequestBody
 }
@@ -13712,15 +13910,18 @@ type StrictServerInterface interface {
 	// UpdateAliasRule Replaces an alias rule.
 	// (PUT /alias-rules/{id})
 	UpdateAliasRule(ctx context.Context, request UpdateAliasRuleRequestObject) (UpdateAliasRuleResponseObject, error)
-	// Login Signs in as one of the users, without password (RF-01).
+	// ListLoginGroups Lists the group names, the first step of entering (RF-01).
+	// (GET /auth/groups)
+	ListLoginGroups(ctx context.Context, request ListLoginGroupsRequestObject) (ListLoginGroupsResponseObject, error)
+	// ListLoginMembers Lists the people of one group, the second step of entering (RF-01).
+	// (GET /auth/groups/{id}/members)
+	ListLoginMembers(ctx context.Context, request ListLoginMembersRequestObject) (ListLoginMembersResponseObject, error)
+	// Login Signs in as a member of a group with the PIN (RF-01, RN-27).
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
 	// Logout Ends the current session.
 	// (POST /auth/logout)
 	Logout(ctx context.Context, request LogoutRequestObject) (LogoutResponseObject, error)
-	// ListLoginUsers Lists the users for the "who is using" screen (RF-01).
-	// (GET /auth/users)
-	ListLoginUsers(ctx context.Context, request ListLoginUsersRequestObject) (ListLoginUsersResponseObject, error)
 	// ListBills Lists the fixed bills (RF-35).
 	// (GET /bills)
 	ListBills(ctx context.Context, request ListBillsRequestObject) (ListBillsResponseObject, error)
@@ -13940,6 +14141,9 @@ type StrictServerInterface interface {
 	// GetMe Returns the logged in user.
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// SwitchGroup Makes another group of the user the active one, without entering again (RF-81).
+	// (PUT /me/group)
+	SwitchGroup(ctx context.Context, request SwitchGroupRequestObject) (SwitchGroupResponseObject, error)
 	// UpdatePreferences Changes theme and haptic feedback (RNF-14, RNF-25).
 	// (PATCH /me/preferences)
 	UpdatePreferences(ctx context.Context, request UpdatePreferencesRequestObject) (UpdatePreferencesResponseObject, error)
@@ -14735,6 +14939,56 @@ func (sh *strictHandler) UpdateAliasRule(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// ListLoginGroups operation middleware
+func (sh *strictHandler) ListLoginGroups(w http.ResponseWriter, r *http.Request) {
+	var request ListLoginGroupsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListLoginGroups(ctx, request.(ListLoginGroupsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListLoginGroups")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListLoginGroupsResponseObject); ok {
+		if err := validResponse.VisitListLoginGroupsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListLoginMembers operation middleware
+func (sh *strictHandler) ListLoginMembers(w http.ResponseWriter, r *http.Request, id Id) {
+	var request ListLoginMembersRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListLoginMembers(ctx, request.(ListLoginMembersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListLoginMembers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListLoginMembersResponseObject); ok {
+		if err := validResponse.VisitListLoginMembersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Login operation middleware
 func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var request LoginRequestObject
@@ -14783,30 +15037,6 @@ func (sh *strictHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(LogoutResponseObject); ok {
 		if err := validResponse.VisitLogoutResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListLoginUsers operation middleware
-func (sh *strictHandler) ListLoginUsers(w http.ResponseWriter, r *http.Request) {
-	var request ListLoginUsersRequestObject
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListLoginUsers(ctx, request.(ListLoginUsersRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListLoginUsers")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListLoginUsersResponseObject); ok {
-		if err := validResponse.VisitListLoginUsersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -16927,6 +17157,37 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMeResponseObject); ok {
 		if err := validResponse.VisitGetMeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SwitchGroup operation middleware
+func (sh *strictHandler) SwitchGroup(w http.ResponseWriter, r *http.Request) {
+	var request SwitchGroupRequestObject
+
+	var body SwitchGroupJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SwitchGroup(ctx, request.(SwitchGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SwitchGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SwitchGroupResponseObject); ok {
+		if err := validResponse.VisitSwitchGroupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

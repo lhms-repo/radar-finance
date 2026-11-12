@@ -11,7 +11,7 @@ import (
 func TestAccountRoutes(t *testing.T) {
 	srv, conn := testServer(t)
 	c := newClient(t)
-	postJSON(t, c, srv, "/api/auth/login", `{"login":"ana"}`)
+	signIn(t, c, srv, "ana")
 
 	var persons []struct {
 		ID   int64 `json:"id"`

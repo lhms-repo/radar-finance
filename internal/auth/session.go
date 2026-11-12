@@ -14,10 +14,14 @@ import (
 
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // sessionUserKey is the session key that stores the logged in user ID.
 const sessionUserKey = "userID"
+
+// sessionGroupKey is the session key that stores the active group (RF-81).
+const sessionGroupKey = "groupID"
 
 // ctxKey is the private type for values this package stores in a context.
 type ctxKey int
@@ -54,13 +58,19 @@ func NewSessionManager(conn *sql.DB, opts SessionOptions) *scs.SessionManager {
 	return sm
 }
 
-// SignIn renews the session token and binds the session to the user.
-func SignIn(ctx context.Context, sm *scs.SessionManager, userID int64) error {
+// SignIn renews the session token and binds the session to the user and the group chosen at the entry (RF-01).
+func SignIn(ctx context.Context, sm *scs.SessionManager, userID, groupID int64) error {
 	if err := sm.RenewToken(ctx); err != nil {
 		return err
 	}
 	sm.Put(ctx, sessionUserKey, userID)
+	sm.Put(ctx, sessionGroupKey, groupID)
 	return nil
+}
+
+// SwitchGroup changes the active group of the session; the caller checks the membership first (RF-81).
+func SwitchGroup(ctx context.Context, sm *scs.SessionManager, groupID int64) {
+	sm.Put(ctx, sessionGroupKey, groupID)
 }
 
 // SignOut destroys the current session.
@@ -68,21 +78,23 @@ func SignOut(ctx context.Context, sm *scs.SessionManager) error {
 	return sm.Destroy(ctx)
 }
 
-// RequireUser rejects requests without a logged in user, except the public paths.
-func RequireUser(sm *scs.SessionManager, public map[string]bool, next http.Handler) http.Handler {
+// RequireUser rejects requests without a logged in user and an active group, except the public ones, and puts
+// both in the request context. A session from before groups has no group and goes back to the entry.
+func RequireUser(sm *scs.SessionManager, public func(*http.Request) bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if public[r.Method+" "+r.URL.Path] {
+		if public(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
 		id := sm.GetInt64(r.Context(), sessionUserKey)
-		if id == 0 {
+		group := sm.GetInt64(r.Context(), sessionGroupKey)
+		if id == 0 || group == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"code":"unauthenticated","message":"Sua sessão expirou. Entre novamente."}`))
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(WithUserID(r.Context(), id)))
+		next.ServeHTTP(w, r.WithContext(scope.WithGroup(WithUserID(r.Context(), id), group)))
 	})
 }
 
@@ -212,21 +224,26 @@ func CleanupSessions(ctx context.Context, conn *sql.DB, interval time.Duration, 
 	}
 }
 
-// SessionUser reads the user of the session cookie directly, for long lived streams that cannot pass
-// through the buffering session middleware; zero when there is no valid session.
-func SessionUser(sm *scs.SessionManager, r *http.Request) int64 {
+// SessionUser reads the user and the active group of the session cookie directly, for long lived streams that
+// cannot pass through the buffering session middleware; zeros when there is no valid session.
+func SessionUser(sm *scs.SessionManager, r *http.Request) (userID, groupID int64) {
 	c, err := r.Cookie(sm.Cookie.Name)
 	if err != nil || c.Value == "" {
-		return 0
+		return 0, 0
 	}
 	ctx, err := sm.Load(r.Context(), c.Value)
 	if err != nil {
-		return 0
+		return 0, 0
 	}
-	return sm.GetInt64(ctx, sessionUserKey)
+	return sm.GetInt64(ctx, sessionUserKey), sm.GetInt64(ctx, sessionGroupKey)
 }
 
 // CurrentUser returns the user of a session already loaded in the context, zero when signed out.
 func CurrentUser(ctx context.Context, sm *scs.SessionManager) int64 {
 	return sm.GetInt64(ctx, sessionUserKey)
+}
+
+// CurrentGroup returns the active group of a session already loaded in the context, zero when there is none.
+func CurrentGroup(ctx context.Context, sm *scs.SessionManager) int64 {
+	return sm.GetInt64(ctx, sessionGroupKey)
 }
