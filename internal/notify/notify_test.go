@@ -2,9 +2,7 @@ package notify
 
 import (
 	"context"
-	"io"
-	"log/slog"
-	"path/filepath"
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,13 +14,17 @@ import (
 	"github.com/italogfx/radar-finance/internal/bill"
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
+
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
 
 // itoa writes an id as text.
 func itoa(id int64) string { return strconv.FormatInt(id, 10) }
@@ -32,19 +34,12 @@ func d(y int, m time.Month, day int) civil.Date { return civil.Date{Year: y, Mon
 
 // TestNotifications derives every kind of warning from the state on 2026-11-11 and keeps reads per user (RF-52, RF-64).
 func TestNotifications(t *testing.T) {
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	bruno, _ := users.Create(ctx, "bruno", "Bruno Ficticio")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	cat := map[string]int64{}
 	for _, name := range []string{"Água", "Internet", "Energia", "Delivery", "Hobbies", "Alimentação", "Lazer"} {
 		var id int64
@@ -147,18 +142,11 @@ func TestNotifications(t *testing.T) {
 // TestOverdueSinceRegistration warns about every unpaid month since the item was registered, up to
 // 12 months back, and never about months before it (RF-64).
 func TestOverdueSinceRegistration(t *testing.T) {
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	testutil.FirstGroup(t, conn, ana)
+	persons := []account.Person{{ID: ana.PersonID}}
 	var water int64
 	if err := conn.QueryRow(`SELECT id FROM categories WHERE name = ?`, "Água").Scan(&water); err != nil {
 		t.Fatal(err)
@@ -221,5 +209,40 @@ func TestOverdueSinceRegistration(t *testing.T) {
 				t.Fatalf("overdue months = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestGroupIsolation shows that the warnings of one group never reach another group (RF-64, RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	carla := testutil.NewUser(t, conn, "carla", "Carla Ficticia")
+	first := testutil.FirstGroup(t, conn, ana)
+	other := testutil.NewGroup(t, conn, "Outra", carla)
+	var water int64
+	if err := conn.QueryRow(`SELECT id FROM categories WHERE name = ?`, "Água").Scan(&water); err != nil {
+		t.Fatal(err)
+	}
+	acc, err := ledger.NewService(conn).CreateAccount(first, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: ana.PersonID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	today := d(2026, time.November, 11)
+	clock := func() civil.Date { return today }
+	bills := bill.NewService(conn)
+	if _, err := bills.Create(first, ana.ID, bill.Input{Name: "Água", CategoryID: water, AccountID: acc.ID, DueDay: 5, ExpectedCents: 9_000, StartMonth: today.MonthOf()}); err != nil {
+		t.Fatal(err)
+	}
+	cards := card.NewService(conn).WithToday(clock)
+	s := NewService(conn, agenda.NewService(bills, financing.NewService(conn), cards), report.NewService(conn, cards), savings.NewService(conn), income.NewService(conn))
+	s.today = clock
+	if list, err := s.List(first, ana.ID); err != nil || len(list.Items) == 0 {
+		t.Fatalf("notifications of the first group = %+v, %v", list, err)
+	}
+	if list, err := s.List(other, carla.ID); err != nil || len(list.Items) != 0 || list.Unread != 0 {
+		t.Fatalf("notifications of the other group = %+v, %v", list, err)
+	}
+	if _, err := s.List(context.Background(), ana.ID); !errors.Is(err, scope.ErrNoGroup) {
+		t.Fatalf("no group: err = %v", err)
 	}
 }

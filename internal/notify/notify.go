@@ -20,6 +20,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/money"
 	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // dueSoonDays is how many days ahead a payment counts as due soon.
@@ -272,7 +273,11 @@ func dayMonth(d civil.Date) string { return fmt.Sprintf("%02d/%02d", d.Day, d.Mo
 // registrations returns the month each bill, financing and card was registered, keyed by agenda kind and
 // id, and the earliest of them, so no month before the Radar knew about an item is checked (RF-64).
 func (s *Service) registrations(ctx context.Context) (map[string]civil.Month, civil.Month, error) {
-	rows, err := store.New(s.conn).ListRegistrations(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, civil.Month{}, err
+	}
+	rows, err := store.New(s.conn).ListRegistrations(ctx, groupID)
 	if err != nil {
 		return nil, civil.Month{}, fmt.Errorf("list registrations: %w", err)
 	}
