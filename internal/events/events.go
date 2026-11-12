@@ -7,10 +7,11 @@ import (
 	"sync"
 )
 
-// Event says which area of the API changed and who changed it.
+// Event says which area of the API changed, who changed it and from which browser tab.
 type Event struct {
-	Topic  string `json:"topic"`
-	UserID int64  `json:"userId"`
+	Topic    string `json:"topic"`
+	UserID   int64  `json:"userId"`
+	ClientID string `json:"clientId,omitempty"`
 }
 
 // Hub fans events out to every open connection.

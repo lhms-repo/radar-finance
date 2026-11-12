@@ -34,18 +34,29 @@ func TestEventsStream(t *testing.T) {
 	lines := bufio.NewScanner(resp.Body)
 	lines.Scan() // ": connected"
 
-	postJSON(t, bruno, srv, "/api/market/markets", `{"name":"Mercado Ficticio","neighborhood":""}`)
+	// The tab id lets another device of the same person refresh, while the tab that wrote skips the event.
+	write, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/market/markets", strings.NewReader(`{"name":"Mercado Ficticio","neighborhood":""}`))
+	write.Header.Set("Content-Type", "application/json")
+	write.Header.Set("Origin", srv.URL)
+	write.Header.Set("Sec-Fetch-Site", "same-origin")
+	write.Header.Set(clientHeader, "tab-1")
+	if r, err := bruno.Do(write); err != nil {
+		t.Fatal(err)
+	} else {
+		r.Body.Close()
+	}
 	for lines.Scan() {
 		data, ok := strings.CutPrefix(lines.Text(), "data: ")
 		if !ok {
 			continue
 		}
 		var e struct {
-			Topic  string `json:"topic"`
-			UserID int64  `json:"userId"`
+			Topic    string `json:"topic"`
+			UserID   int64  `json:"userId"`
+			ClientID string `json:"clientId"`
 		}
 		_ = json.Unmarshal([]byte(data), &e)
-		if e.Topic != "market" || e.UserID == 0 {
+		if e.Topic != "market" || e.UserID == 0 || e.ClientID != "tab-1" {
 			t.Fatalf("event = %s", data)
 		}
 		return

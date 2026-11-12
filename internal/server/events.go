@@ -58,6 +58,21 @@ func eventsHandler(hub *events.Hub, sm *scs.SessionManager) http.Handler {
 	})
 }
 
+// clientHeader carries the id of the browser tab that writes, so only that tab skips its own event.
+const clientHeader = "X-Radar-Client"
+
+// maxClientID bounds the tab id echoed to every stream.
+const maxClientID = 64
+
+// clientID returns the tab id of the request, or empty when missing or too long.
+func clientID(r *http.Request) string {
+	id := r.Header.Get(clientHeader)
+	if len(id) > maxClientID {
+		return ""
+	}
+	return id
+}
+
 // publishChanges announces every successful write of shared data to the open streams.
 func publishChanges(hub *events.Hub, sm *scs.SessionManager, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +83,7 @@ func publishChanges(hub *events.Hub, sm *scs.SessionManager, next http.Handler) 
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 		if topic := events.Topic(r.URL.Path); topic != "" && rec.status < 400 {
-			hub.Publish(events.Event{Topic: topic, UserID: auth.CurrentUser(r.Context(), sm)})
+			hub.Publish(events.Event{Topic: topic, UserID: auth.CurrentUser(r.Context(), sm), ClientID: clientID(r)})
 		}
 	})
 }
