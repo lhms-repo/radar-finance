@@ -113,7 +113,12 @@ SELECT id, (SELECT id FROM groups WHERE id = 1), card_id, invoice_month, entry_i
 
 // groupMigrations returns the Go migrations of the groups change, registered beside the SQL files.
 func groupMigrations() []*goose.Migration {
-	return []*goose.Migration{goose.NewGoMigration(groupRebuildVersion, &goose.GoFunc{RunDB: rebuildForGroups}, nil)}
+	return []*goose.Migration{goose.NewGoMigration(groupRebuildVersion, &goose.GoFunc{RunDB: rebuildForGroups}, &goose.GoFunc{RunDB: irreversible})}
+}
+
+// irreversible refuses to undo migration 21, so goose never marks it undone while the rebuilt tables stay.
+func irreversible(context.Context, *sql.DB) error {
+	return errors.New("migration 21 is irreversible: restore a backup taken before it (docs/backup.md)")
 }
 
 // rebuildForGroups runs the rebuild on one dedicated connection with foreign keys off, so dropping a parent

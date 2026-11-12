@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useId, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { api, unwrap } from "@/api/client";
-import { ME_KEY, useMeQuery } from "@/app/session";
+import { ME_KEY, announceSessionChange, useMeQuery } from "@/app/session";
 import { Splash } from "@/components/layout/AppShell";
 import { Logo } from "@/components/layout/Logo";
 import { Button } from "@/components/ui/button";
@@ -72,7 +72,10 @@ export function LoginPage() {
     mutationFn: async (pin: string) => unwrap(await api.POST("/auth/login", { body: { groupId: groupId!, userId: pick.userId!, pin } })),
     onSuccess: (user) => {
       writeLastGroup(groupId!);
+      // A new session starts with no data of the previous one, here and in the other tabs.
+      qc.clear();
       qc.setQueryData(ME_KEY, user);
+      announceSessionChange();
       navigate(from === "/login" ? "/" : from, { replace: true });
     },
     onError: () => setAttempt((n) => n + 1),

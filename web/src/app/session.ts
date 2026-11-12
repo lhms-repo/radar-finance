@@ -56,7 +56,27 @@ export function useSwitchGroup() {
     onSuccess: (me) => {
       qc.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
       qc.setQueryData(ME_KEY, me);
+      announceSessionChange();
       navigate("/", { replace: true });
     },
   });
+}
+
+/** Channel the tabs of this browser share to learn that the session changed group or person. */
+const SESSION_CHANNEL = "radar-session";
+
+/** Tells the other tabs that the session now acts on another group or person, so they reload instead of showing old data. */
+export function announceSessionChange() {
+  if (typeof BroadcastChannel === "undefined") return;
+  const channel = new BroadcastChannel(SESSION_CHANNEL);
+  channel.postMessage("changed");
+  channel.close();
+}
+
+/** Calls back when another tab changed the group or the person of the session; returns the remover. */
+export function onSessionChange(fn: () => void) {
+  if (typeof BroadcastChannel === "undefined") return () => {};
+  const channel = new BroadcastChannel(SESSION_CHANNEL);
+  channel.onmessage = () => fn();
+  return () => channel.close();
 }

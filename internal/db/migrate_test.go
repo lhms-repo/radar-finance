@@ -138,8 +138,25 @@ func TestMigrateCoupleToGroup(t *testing.T) {
 	if rows.Next() {
 		t.Fatal("foreign key check found broken references")
 	}
-	if n := scalar(t, conn, `SELECT count(*) FROM pragma_foreign_keys`); n != 1 {
-		t.Fatal("foreign keys left off after the migration")
+	// The rebuild turned foreign keys off on one pooled connection; holding several at once reaches the idle
+	// ones, that one included, so none of them goes back to work with the check off.
+	held := make([]*sql.Conn, 0, 8)
+	for range cap(held) {
+		c, err := conn.Conn(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		held = append(held, c)
+		var on int64
+		if err := c.QueryRowContext(context.Background(), `PRAGMA foreign_keys`).Scan(&on); err != nil {
+			t.Fatal(err)
+		}
+		if on != 1 {
+			t.Fatalf("foreign keys left off on pooled connection %d after the migration", len(held))
+		}
+	}
+	for _, c := range held {
+		_ = c.Close()
 	}
 
 	// A second group may reuse the names and keys of the first, but not repeat them inside itself.
