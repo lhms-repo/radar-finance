@@ -33,13 +33,14 @@ docker run --rm \
   -v "${volume}:/data" \
   -v "${RADAR_BACKUP_HOST_DIR}:/backups:ro" \
   alpine:3 sh -euc "
-    if [ -f /data/radar.db ]; then
-      mkdir -p /data/antes-da-restauracao
-      for ext in '' -wal -shm; do
-        if [ -f /data/radar.db\$ext ]; then mv /data/radar.db\$ext ${saved}\$ext; fi
-      done
-    fi
-    cp '/backups/${file}' /data/radar.db
+    # The copy lands next to the database first, so a failed copy leaves the volume untouched.
+    cp '/backups/${file}' /data/radar.db.restaurando
+    mkdir -p /data/antes-da-restauracao
+    # A WAL left without its database would be replayed onto the restored copy, so each file moves on its own.
+    for ext in '' -wal -shm; do
+      if [ -f /data/radar.db\$ext ]; then mv /data/radar.db\$ext ${saved}\$ext; fi
+    done
+    mv /data/radar.db.restaurando /data/radar.db
     chown 65532:65532 /data/radar.db
   "
 
