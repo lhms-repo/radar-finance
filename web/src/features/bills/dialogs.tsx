@@ -56,6 +56,7 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
   const mutation = bill ? update : create;
   const form = useForm<z.infer<typeof billSchema>>({
     resolver: zodResolver(billSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       name: bill?.name ?? "",
       categoryId: bill?.categoryId ?? 0,
@@ -143,10 +144,11 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
 /** Informs the real amount of a bill in the month; empty goes back to the expected one (RF-36, RN-14). */
 export function ActualDialog({ item, month, onClose }: { item: AgendaItem | null; month: string; onClose: () => void }) {
   const save = useSetBillActual();
-  const form = useForm<{ actualCents: number }>({ values: { actualCents: item?.actualCents ?? 0 } });
+  const form = useForm<{ actualCents: number }>({ resetOptions: { keepDirtyValues: true }, values: { actualCents: item?.actualCents ?? 0 } });
 
   /** Clears the mutation state and closes. */
   const close = () => {
+    form.reset();
     save.reset();
     onClose();
   };
@@ -194,6 +196,7 @@ export function AgendaPayDialog({ item, month, onClose }: { item: AgendaItem | n
   const mutation = item?.kind === "financing" ? payFinancing : item?.kind === "invoice" ? payInvoice : payBill;
   const form = useForm<z.infer<typeof paySchema>>({
     resolver: zodResolver(paySchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       amountCents: item?.amountCents ?? 0,
       accountId: item?.accountId ?? 0,
@@ -205,6 +208,7 @@ export function AgendaPayDialog({ item, month, onClose }: { item: AgendaItem | n
 
   /** Clears the mutation state and closes. */
   const close = () => {
+    form.reset();
     payBill.reset();
     payFinancing.reset();
     payInvoice.reset();
@@ -285,6 +289,7 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
   const mutation = financing ? update : create;
   const form = useForm<z.infer<typeof financingSchema>>({
     resolver: zodResolver(financingSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       name: financing?.name ?? "",
       categoryId: financing?.categoryId ?? 0,
@@ -397,12 +402,14 @@ export function CorrectionDialog({ financing, onClose }: { financing: Financing 
   const correct = useCorrectFinancing();
   const form = useForm<z.infer<typeof correctionSchema>>({
     resolver: zodResolver(correctionSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { balanceCents: financing?.balanceCents ?? 0, installmentCents: financing?.installmentCents ?? 0 },
   });
   const errors = form.formState.errors;
 
   /** Clears the mutation state and closes. */
   const close = () => {
+    form.reset();
     correct.reset();
     onClose();
   };

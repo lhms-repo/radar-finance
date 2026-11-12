@@ -275,6 +275,7 @@ function AleloFormDialog({ state, onClose }: { state: AleloCard | "new" | null; 
   const mutation = editing ? update : create;
   const form = useForm<z.infer<typeof aleloSchema>>({
     resolver: zodResolver(aleloSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       name: editing?.name ?? "",
       personId: editing?.personId ?? 0,
@@ -392,7 +393,7 @@ const purchaseSchema = z.object({
 /** Records a purchase with a free description; it counts as Alimentação, Compras para casa (RF-33, RN-15). */
 function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCard; onClose: () => void }) {
   const add = useAddAleloPurchase();
-  const form = useForm<z.infer<typeof purchaseSchema>>({ resolver: zodResolver(purchaseSchema), values: { description: "", amountCents: 0, date: todayISO() } });
+  const form = useForm<z.infer<typeof purchaseSchema>>({ resolver: zodResolver(purchaseSchema), resetOptions: { keepDirtyValues: true }, values: { description: "", amountCents: 0, date: todayISO() } });
   const errors = form.formState.errors;
 
   /** Clears the mutation state and closes. */

@@ -240,6 +240,7 @@ function CategoryFormDialog({
   const mutation = editing ? update : create;
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { name: editing?.name ?? "", icon: editing?.icon ?? "" },
   });
   const icon = useWatch({ control: form.control, name: "icon" });
@@ -262,6 +263,7 @@ function CategoryFormDialog({
       onOpenChange={(o) => {
         if (!o) {
           mutation.reset();
+          form.reset();
           onClose();
         }
       }}

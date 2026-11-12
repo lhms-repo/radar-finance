@@ -249,6 +249,7 @@ function IncomeFormDialog({ state, onClose }: { state: Income | "new" | null; on
   const thisMonth = todayISO().slice(0, 7);
   const form = useForm<IncomeValues>({
     resolver: zodResolver(incomeSchema),
+    resetOptions: { keepDirtyValues: true },
     values: {
       kind: editing?.kind ?? "recurring",
       name: editing?.name ?? "",
@@ -382,12 +383,14 @@ function ConfirmDialog({ occurrence: o, month, onClose }: { occurrence: IncomeOc
   const confirm = useConfirmIncome();
   const form = useForm<z.infer<typeof confirmSchema>>({
     resolver: zodResolver(confirmSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { amountCents: o?.expectedCents ?? 0, date: o?.expectedOn ?? todayISO(), accountId: o?.accountId ?? 0 },
   });
   const errors = form.formState.errors;
 
   /** Clears the mutation state and closes. */
   const close = () => {
+    form.reset();
     confirm.reset();
     onClose();
   };
@@ -443,6 +446,7 @@ function OneOffDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const add = useAddOneOffIncome();
   const form = useForm<z.infer<typeof oneOffSchema>>({
     resolver: zodResolver(oneOffSchema),
+    resetOptions: { keepDirtyValues: true },
     values: { accountId: 0, amountCents: 0, date: todayISO(), description: "" },
   });
   const errors = form.formState.errors;
