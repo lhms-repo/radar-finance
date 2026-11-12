@@ -16,6 +16,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/money"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // KindReceivable is the entry kind of a share paid back; it is not income (RN-09).
@@ -79,7 +80,11 @@ func NewService(conn *sql.DB) *Service {
 
 // List returns everyone with shares, pending and received, grouped by person in name order (RF-28).
 func (s *Service) List(ctx context.Context) ([]Person, error) {
-	rows, err := store.New(s.conn).ListReceivables(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := store.New(s.conn).ListReceivables(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list receivables: %w", err)
 	}
@@ -109,9 +114,13 @@ func (s *Service) MarkReceived(ctx context.Context, userID int64, r Receipt) (le
 	if len(r.ItemIDs) == 0 {
 		return ledger.Entry{}, ErrNothingChosen
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ledger.Entry{}, err
+	}
 	var entryID int64
-	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		rows, err := q.ListReceivables(ctx)
+	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		rows, err := q.ListReceivables(ctx, groupID)
 		if err != nil {
 			return err
 		}
@@ -155,7 +164,7 @@ func (s *Service) MarkReceived(ctx context.Context, userID int64, r Receipt) (le
 		desc := truncate(fmt.Sprintf("%s: %s", name, strings.Join(merchants, ", ")), 120)
 		e, err := q.CreateEntry(ctx, store.CreateEntryParams{
 			AccountID: r.AccountID, Kind: string(KindReceivable), AmountCents: total, OccurredOn: r.Date.String(), Confirmed: true,
-			Description: desc, CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			Description: desc, CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create receivable entry: %w", err)
