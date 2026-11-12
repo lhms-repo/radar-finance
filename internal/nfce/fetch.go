@@ -29,6 +29,10 @@ var (
 // upgradeTimeout bounds the https attempt of an http:// QR code, so a portal without https costs little.
 const upgradeTimeout = 10 * time.Second
 
+// fetchDeadline bounds a whole reading, both attempts included, below the 60 s write timeout of the server,
+// so a slow portal ends as ErrPortal and not as a dropped connection.
+const fetchDeadline = 50 * time.Second
+
 // Client downloads receipts from the state portals.
 type Client struct {
 	timeout   time.Duration
@@ -72,13 +76,16 @@ func isGovHost(host string) bool {
 	return strings.HasSuffix(host, ".gov.br")
 }
 
-// Fetch downloads and parses the receipt (RF-68). An http:// QR code is read over https first, so nobody
-// on the way can swap the items and prices, and over http only when the portal does not answer there.
+// Fetch downloads and parses the receipt (RF-68). An http:// QR code is read over https first, which keeps
+// the items and prices from being changed on the way whenever the portal answers there. When https fails it
+// falls back to http, since some portals answer only there, so it does not stop someone who can block https.
 func (c *Client) Fetch(ctx context.Context, raw string) (Receipt, error) {
 	u, err := url.Parse(normalize(raw))
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || !c.allowHost(u.Hostname()) {
 		return Receipt{}, ErrNotReceiptURL
 	}
+	ctx, cancel := context.WithTimeout(ctx, fetchDeadline)
+	defer cancel()
 	if u.Scheme == "http" {
 		secure := *u
 		secure.Scheme = "https"
