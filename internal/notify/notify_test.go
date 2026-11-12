@@ -182,6 +182,11 @@ func TestOverdueSinceRegistration(t *testing.T) {
 			want: []string{"2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"},
 		},
 		{
+			// 01:00 UTC on June 1st is still May 31st in São Paulo, so May counts.
+			name: "registration month read in São Paulo", start: civil.Month{Year: 2026, Month: time.January}, registered: "2026-06-01 01:00:00+00:00",
+			want: []string{"2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"},
+		},
+		{
 			name: "registered long ago stops at 12 months", start: civil.Month{Year: 2024, Month: time.January}, registered: "2024-01-10 12:00:00+00:00",
 			want: []string{"2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"},
 		},
