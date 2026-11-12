@@ -4,16 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database where today is 2026-11-11, with an account and the services.
@@ -26,21 +24,18 @@ type fixture struct {
 	today     *civil.Date
 }
 
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
 // newFixture opens a fresh database for one test.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	l := ledger.NewService(conn)
 	acc, err := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: persons[0].ID, InitialBalanceCents: 5_000_000})
 	if err != nil {
@@ -63,7 +58,7 @@ func date(y int, m time.Month, d int) civil.Date { return civil.Date{Year: y, Mo
 // income records a confirmed one off income on the day.
 func (f *fixture) income(t *testing.T, cents int64, on civil.Date) {
 	t.Helper()
-	if _, err := f.ledger.AddIncome(context.Background(), f.userID, ledger.NewIncome{AccountID: f.accountID, AmountCents: cents, Date: on}); err != nil {
+	if _, err := f.ledger.AddIncome(groupCtx, f.userID, ledger.NewIncome{AccountID: f.accountID, AmountCents: cents, Date: on}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -71,7 +66,7 @@ func (f *fixture) income(t *testing.T, cents int64, on civil.Date) {
 // deposit confirms a deposit of the month from the account.
 func (f *fixture) deposit(t *testing.T, boxID, cents int64, m civil.Month, on civil.Date) {
 	t.Helper()
-	if _, err := f.s.Deposit(context.Background(), f.userID, Move{BoxID: boxID, Month: m, AmountCents: cents, AccountID: f.accountID, Date: on}); err != nil {
+	if _, err := f.s.Deposit(groupCtx, f.userID, Move{BoxID: boxID, Month: m, AmountCents: cents, AccountID: f.accountID, Date: on}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -79,7 +74,7 @@ func (f *fixture) deposit(t *testing.T, boxID, cents int64, m civil.Month, on ci
 // box returns the box from the view of the month.
 func (f *fixture) box(t *testing.T, id int64, m civil.Month) Box {
 	t.Helper()
-	v, err := f.s.Month(context.Background(), m)
+	v, err := f.s.Month(groupCtx, m)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +90,7 @@ func (f *fixture) box(t *testing.T, id int64, m civil.Month) Box {
 // TestCreate validates the box registration (RF-43).
 func TestCreate(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name    string
 		in      Input
@@ -121,7 +116,7 @@ func TestCreate(t *testing.T) {
 // TestSuggestion uses the confirmed income of the month, by the day it fell, limited to what is left (RN-09, RN-10, RN-12).
 func TestSuggestion(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	reserve, _ := f.s.Create(ctx, f.userID, Input{Name: "Reserva", TargetCents: 3_000_000, PercentBP: 1_250})
 	almost, _ := f.s.Create(ctx, f.userID, Input{Name: "Viagem", TargetCents: 1_000_000, PercentBP: 5_000, InitialBalanceCents: 980_000})
 	done, _ := f.s.Create(ctx, f.userID, Input{Name: "Celular", TargetCents: 300_000, PercentBP: 1_000, InitialBalanceCents: 300_000})
@@ -173,7 +168,7 @@ func (f *fixture) category(t *testing.T) int64 {
 // TestDeposit takes the money from the account without counting it as spending (RF-46, RN-08).
 func TestDeposit(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	b, _ := f.s.Create(ctx, f.userID, Input{Name: "Reserva", TargetCents: 3_000_000, PercentBP: 1_000})
 	nov := month(2026, time.November)
 	tests := []struct {
@@ -215,7 +210,7 @@ func TestDeposit(t *testing.T) {
 // TestWithdraw puts money back into an account with a reason, never more than the balance (RF-47).
 func TestWithdraw(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	b, _ := f.s.Create(ctx, f.userID, Input{Name: "Reserva", TargetCents: 3_000_000, PercentBP: 1_000, InitialBalanceCents: 100_000})
 	nov := month(2026, time.November)
 	tests := []struct {
@@ -246,7 +241,7 @@ func TestWithdraw(t *testing.T) {
 // TestDeleteDepositKeepsBalance refuses to delete a deposit already withdrawn, which would leave the box negative.
 func TestDeleteDepositKeepsBalance(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	b, _ := f.s.Create(ctx, f.userID, Input{Name: "Reserva", TargetCents: 3_000_000, PercentBP: 1_000, InitialBalanceCents: 10_000})
 	nov := month(2026, time.November)
 	on := date(2026, time.November, 11)
@@ -283,7 +278,7 @@ func TestDeleteDepositKeepsBalance(t *testing.T) {
 // TestDone finishes the box when the target is reached and keeps it in the history (RF-49, RN-12).
 func TestDone(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	b, _ := f.s.Create(ctx, f.userID, Input{Name: "Celular", TargetCents: 300_000, PercentBP: 5_000, InitialBalanceCents: 250_000})
 	f.income(t, 1_000_000, date(2026, time.November, 5))
 	nov := month(2026, time.November)
@@ -302,7 +297,7 @@ func TestDone(t *testing.T) {
 // TestEstimate uses the average deposit of the three months before the current one (RN-11).
 func TestEstimate(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	*f.today = date(2026, time.August, 1)
 	old, _ := f.s.Create(ctx, f.userID, Input{Name: "Reserva", TargetCents: 1_600_000, PercentBP: 1_000})
 	f.deposit(t, old.ID, 100_000, month(2026, time.August), date(2026, time.August, 10))
@@ -338,5 +333,58 @@ func TestEstimate(t *testing.T) {
 	fresh, _ := f.s.Create(ctx, f.userID, Input{Name: "Nova", TargetCents: 100_000, PercentBP: 1_000})
 	if got := f.box(t, fresh.ID, nov); got.EstimatedMonth != nil {
 		t.Fatalf("no deposits, no estimate: %+v", got)
+	}
+}
+
+// TestGroupIsolation shows that a second group sees none of the boxes and moves of the first (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	nov := month(2026, time.November)
+	b, err := f.s.Create(groupCtx, f.userID, Input{Name: "Reserva", TargetCents: 3_000_000, PercentBP: 1_000, InitialBalanceCents: 100_000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.deposit(t, b.ID, 20_000, nov, date(2026, time.November, 11))
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+	mine, err := f.s.Create(other, carla.ID, Input{Name: "Reserva", TargetCents: 1_000_000, PercentBP: 500})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "update", run: func() error {
+			_, err := f.s.Update(other, b.ID, Changes{Name: "X", TargetCents: 100, PercentBP: 100})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "delete", run: func() error { return f.s.Delete(other, b.ID) }, wantErr: ErrNotFound},
+		{name: "deposit", run: func() error {
+			_, err := f.s.Deposit(other, carla.ID, Move{BoxID: b.ID, Month: nov, AmountCents: 100, AccountID: f.accountID, Date: date(2026, time.November, 11)})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "withdraw", run: func() error {
+			_, err := f.s.Withdraw(other, carla.ID, Move{BoxID: b.ID, Month: nov, AmountCents: 100, AccountID: f.accountID, Date: date(2026, time.November, 11), Reason: "Teste"})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "account of another group", run: func() error {
+			_, err := f.s.Deposit(other, carla.ID, Move{BoxID: mine.ID, Month: nov, AmountCents: 100, AccountID: f.accountID, Date: date(2026, time.November, 11)})
+			return err
+		}, wantErr: ledger.ErrAccountNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.Month(context.Background(), nov); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	v, err := f.s.Month(other, nov)
+	if err != nil || len(v.Boxes) != 1 || v.Boxes[0].ID != mine.ID || v.Boxes[0].BalanceCents != 0 {
+		t.Fatalf("month of the other group = %+v, %v", v, err)
 	}
 }

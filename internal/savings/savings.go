@@ -18,6 +18,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/problem"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // Entry kinds of savings moves; neither is spending nor income (RN-08).
@@ -143,10 +144,14 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Box, erro
 	if in.InitialBalanceCents < 0 || in.InitialBalanceCents > ledger.MaxAmountCents {
 		return Box{}, ErrInvalidBalance
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Box{}, err
+	}
 	now := s.now().UTC()
 	row, err := store.New(s.conn).CreateSavingsBox(ctx, store.CreateSavingsBoxParams{
 		Name: name, TargetCents: in.TargetCents, PercentBp: int64(in.PercentBP), InitialBalanceCents: in.InitialBalanceCents,
-		CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+		CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 	})
 	if err != nil {
 		return Box{}, fmt.Errorf("create savings box: %w", err)
@@ -160,13 +165,17 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Box, error) 
 	if err != nil {
 		return Box{}, err
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return Box{}, err
+	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetSavingsBox(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetSavingsBox(ctx, store.GetSavingsBoxParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
 		}
-		return q.UpdateSavingsBox(ctx, store.UpdateSavingsBoxParams{Name: name, TargetCents: c.TargetCents, PercentBp: int64(c.PercentBP), UpdatedAt: s.now().UTC(), ID: id})
+		return q.UpdateSavingsBox(ctx, store.UpdateSavingsBoxParams{Name: name, TargetCents: c.TargetCents, PercentBp: int64(c.PercentBP), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID})
 	})
 	if err != nil {
 		return Box{}, err
@@ -176,13 +185,17 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Box, error) 
 
 // Delete removes a box without moves.
 func (s *Service) Delete(ctx context.Context, id int64) error {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return err
+	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetSavingsBox(ctx, id); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetSavingsBox(ctx, store.GetSavingsBoxParams{ID: id, GroupID: groupID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
 		}
-		if err := q.DeleteSavingsBox(ctx, id); err != nil {
+		if err := q.DeleteSavingsBox(ctx, store.DeleteSavingsBoxParams{ID: id, GroupID: groupID}); err != nil {
 			if db.IsForeignKeyViolation(err) {
 				return ErrInUse
 			}
@@ -234,9 +247,13 @@ func (s *Service) move(ctx context.Context, userID int64, kind MoveKind, mv Move
 	if mv.Month == (civil.Month{}) {
 		mv.Month = mv.Date.MonthOf()
 	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return ledger.Entry{}, err
+	}
 	var entryID int64
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		box, err := q.GetSavingsBox(ctx, mv.BoxID)
+		box, err := q.GetSavingsBox(ctx, store.GetSavingsBoxParams{ID: mv.BoxID, GroupID: groupID})
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -262,7 +279,7 @@ func (s *Service) move(ctx context.Context, userID int64, kind MoveKind, mv Move
 		now := s.now().UTC()
 		e, err := q.CreateEntry(ctx, store.CreateEntryParams{
 			AccountID: mv.AccountID, Kind: string(entryKind), AmountCents: amount, OccurredOn: mv.Date.String(), Confirmed: true,
-			Description: desc, CreatedBy: userID, CreatedAt: now, UpdatedAt: now,
+			Description: desc, CreatedBy: userID, CreatedAt: now, UpdatedAt: now, GroupID: groupID,
 		})
 		if err != nil {
 			return fmt.Errorf("create savings entry: %w", err)
@@ -295,11 +312,15 @@ func (s *Service) get(ctx context.Context, id int64) (Box, error) {
 
 // boxes builds every box as seen in month m, using base for the suggestion.
 func (s *Service) boxes(ctx context.Context, q *store.Queries, m civil.Month, base int64) ([]Box, error) {
-	rows, err := q.ListSavingsBoxes(ctx)
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.ListSavingsBoxes(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list savings boxes: %w", err)
 	}
-	moves, err := q.ListSavingsMoves(ctx)
+	moves, err := q.ListSavingsMoves(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list savings moves: %w", err)
 	}
