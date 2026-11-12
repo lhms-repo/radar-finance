@@ -4,17 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
+	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
+
+// groupCtx acts on the first group of a fresh database as ana, the first user, whose rules and history the import keeps.
+var groupCtx = auth.WithUserID(scope.WithGroup(context.Background(), 1), 1)
 
 // fixture holds a migrated database with a card that closes on the 3rd and is due on the 10th.
 type fixture struct {
@@ -32,18 +34,11 @@ var dec = civil.Month{Year: 2026, Month: time.December}
 // newFixture opens a fresh database for one test.
 func newFixture(t *testing.T) fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	testutil.FirstGroup(t, conn, ana)
+	persons := []account.Person{{ID: ana.PersonID}}
 	cards := card.NewService(conn).WithToday(func() civil.Date { return civil.Date{Year: 2026, Month: time.November, Day: 20} })
 	c, err := cards.CreateCard(ctx, ana.ID, card.CardInput{Name: "Nubank", PersonID: persons[0].ID, LimitCents: 1_000_000, ClosingDay: 3, DueDay: 10, Color: "purple", Finish: "matte"})
 	if err != nil {
@@ -72,7 +67,7 @@ const invoiceCSV = "date,title,amount\n" +
 // TestRules picks the most recent rule for the same original text, ignoring case and spaces (RF-54, RN-19).
 func TestRules(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	delivery, rest := f.cat["Delivery"], f.cat["Restaurantes e lanches"]
 	tests := []struct {
 		name    string
@@ -111,7 +106,7 @@ func ptr[T any](v T) *T { return &v }
 // TestPreview applies rules, flags duplicates within a day and skips the payment (RF-53, RF-55, RF-56, RN-20).
 func TestPreview(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	// Already in the Radar: the market purchase typed a day off, and the streaming recurrence.
 	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.November, Day: 7}, Merchant: "Mercado", CategoryID: f.cat["Delivery"], AmountCents: 12_045, Installments: 1}); err != nil {
 		t.Fatal(err)
@@ -166,7 +161,7 @@ func TestPreview(t *testing.T) {
 // TestCommit records the chosen lines in the chosen invoice, learns the rules and can be undone (RF-53, RF-55, RF-57).
 func TestCommit(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	lines, err := f.s.Preview(ctx, f.cardID, dec, invoiceCSV)
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +228,7 @@ func TestCommit(t *testing.T) {
 // amount and invoice, since the CSV dates later installments at the start of the cycle (RF-57, RN-20).
 func TestPreviewInstallments(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	// R$ 400,00 in 4 bought on September 20: installments in October, November, December and January.
 	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.September, Day: 20}, Merchant: "Loja Parcelada", CategoryID: f.cat["Delivery"], AmountCents: 40_000, Installments: 4}); err != nil {
 		t.Fatal(err)
@@ -276,7 +271,7 @@ func TestPreviewInstallments(t *testing.T) {
 // so a second identical charge is imported (RF-56, RN-20).
 func TestPreviewMatchesOnce(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	nov := func(d int) civil.Date { return civil.Date{Year: 2026, Month: time.November, Day: d} }
 	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: nov(10), Merchant: "Cafe", CategoryID: f.cat["Delivery"], AmountCents: 800, Installments: 1}); err != nil {
 		t.Fatal(err)
@@ -311,7 +306,7 @@ func TestPreviewMatchesOnce(t *testing.T) {
 // bought the same day, which left the real installment line to be imported twice (RF-57, RN-20).
 func TestPreviewSingleLineSkipsInstallments(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.November, Day: 10}, Merchant: "Loja", CategoryID: f.cat["Delivery"], AmountCents: 30_000, Installments: 3}); err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +345,7 @@ func TestCommitSplit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newFixture(t)
-			ctx := context.Background()
+			ctx := groupCtx
 			lines, err := f.s.Preview(ctx, f.cardID, dec, invoiceCSV)
 			if err != nil {
 				t.Fatal(err)
@@ -379,5 +374,89 @@ func TestCommitSplit(t *testing.T) {
 				t.Fatalf("december third party = %d", inv.ThirdPartyCents)
 			}
 		})
+	}
+}
+
+// TestGroupIsolation shows that rules and imports belong to the person, that purchases belong to the active
+// group, and that nothing of another group is seen by duplicate detection (RF-54, RF-82, RN-20, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	delivery := f.cat["Delivery"]
+	lines, err := f.s.Preview(groupCtx, f.cardID, dec, invoiceCSV)
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit := make([]CommitLine, 0, len(lines))
+	for _, l := range lines {
+		commit = append(commit, CommitLine{Line: l.Line, FriendlyName: l.FriendlyName, CategoryID: l.CategoryID, Skip: l.Skip, Remember: l.Index == 0})
+	}
+	commit[0].CategoryID = &delivery
+	res, err := f.s.Commit(groupCtx, f.userID, f.cardID, dec, "Nubank.csv", commit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules, err := f.s.Rules(groupCtx)
+	if err != nil || len(rules) != 1 {
+		t.Fatalf("rules = %v, %v", rules, err)
+	}
+
+	// A second member of the same group has no rule and no import of Ana.
+	bruno := testutil.NewUser(t, f.conn, "bruno", "Bruno Ficticio")
+	accounts := account.NewService(f.conn)
+	if err := accounts.AddMember(context.Background(), 1, bruno.ID, account.RoleMember); err != nil {
+		t.Fatal(err)
+	}
+	asBruno := auth.WithUserID(groupCtx, bruno.ID)
+	// A second group has its own card, bought with the same amounts, and its own member.
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := auth.WithUserID(testutil.NewGroup(t, f.conn, "Outra", carla), carla.ID)
+	carlas, err := f.cards.CreateCard(other, carla.ID, card.CardInput{Name: "Nubank", PersonID: carla.PersonID, LimitCents: 1_000_000, ClosingDay: 3, DueDay: 10, Color: "purple", Finish: "matte"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, ctx := range []struct {
+		name string
+		ctx  context.Context
+	}{{"another member", asBruno}, {"another group", other}} {
+		t.Run(ctx.name, func(t *testing.T) {
+			if got, err := f.s.Rules(ctx.ctx); err != nil || len(got) != 0 {
+				t.Fatalf("rules = %v, %v", got, err)
+			}
+			if got, err := f.s.Imports(ctx.ctx); err != nil || len(got) != 0 {
+				t.Fatalf("imports = %v, %v", got, err)
+			}
+			if _, err := f.s.UpdateRule(ctx.ctx, rules[0].ID, RuleInput{Original: "x", FriendlyName: "x"}); !errors.Is(err, ErrRuleNotFound) {
+				t.Fatalf("update rule: err = %v", err)
+			}
+			if err := f.s.DeleteRule(ctx.ctx, rules[0].ID); !errors.Is(err, ErrRuleNotFound) {
+				t.Fatalf("delete rule: err = %v", err)
+			}
+			if err := f.s.Undo(ctx.ctx, res.ImportID); !errors.Is(err, ErrImportNotFound) {
+				t.Fatalf("undo: err = %v", err)
+			}
+		})
+	}
+	if _, err := f.s.Preview(other, f.cardID, dec, invoiceCSV); !errors.Is(err, card.ErrCardNotFound) {
+		t.Fatalf("preview on the card of another group: err = %v", err)
+	}
+	if _, err := f.s.Commit(other, carla.ID, f.cardID, dec, "x.csv", commit); !errors.Is(err, card.ErrCardNotFound) {
+		t.Fatalf("commit on the card of another group: err = %v", err)
+	}
+	// The same file on the card of the other group finds no duplicate: it only looks at its own group.
+	own, err := f.s.Preview(other, carlas.ID, dec, invoiceCSV)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range own {
+		if l.Duplicate != nil {
+			t.Fatalf("duplicate found across groups: %+v", l)
+		}
+		if l.RuleID != nil {
+			t.Fatalf("rule of Ana applied to Carla: %+v", l)
+		}
+	}
+	if got, _ := f.s.Imports(groupCtx); len(got) != 1 {
+		t.Fatalf("imports of Ana = %d, want 1", len(got))
 	}
 }
