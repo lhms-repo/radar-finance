@@ -74,3 +74,7 @@ WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 SELECT id
 FROM categories
 WHERE system_key = ?;
+
+-- name: AleloUsedElsewhere :one
+-- Whether the Alelo card has purchases in a group other than this one (RF-82).
+SELECT CAST(EXISTS (SELECT 1 FROM alelo_purchases ap WHERE ap.alelo_id = sqlc.arg(alelo_id) AND coalesce(ap.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER)) AS INTEGER) AS used;

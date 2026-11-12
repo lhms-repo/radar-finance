@@ -11,6 +11,25 @@ import (
 	"time"
 )
 
+const cardUsedElsewhere = `-- name: CardUsedElsewhere :one
+SELECT CAST(EXISTS (SELECT 1 FROM purchases p WHERE p.card_id = ?1 AND coalesce(p.group_id, 0) <> CAST(?2 AS INTEGER))
+    OR EXISTS (SELECT 1 FROM recurrences r WHERE r.card_id = ?1 AND coalesce(r.group_id, 0) <> CAST(?2 AS INTEGER))
+    OR EXISTS (SELECT 1 FROM invoice_payments ip WHERE ip.card_id = ?1 AND coalesce(ip.group_id, 0) <> CAST(?2 AS INTEGER)) AS INTEGER) AS used
+`
+
+type CardUsedElsewhereParams struct {
+	CardID  int64
+	GroupID int64
+}
+
+// Whether the card has purchases, recurrences or payments in a group other than this one (RF-82).
+func (q *Queries) CardUsedElsewhere(ctx context.Context, arg CardUsedElsewhereParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, cardUsedElsewhere, arg.CardID, arg.GroupID)
+	var used int64
+	err := row.Scan(&used)
+	return used, err
+}
+
 const createCard = `-- name: CreateCard :one
 INSERT INTO cards (name, person_id, limit_cents, closing_day, due_day, last_digits, color, finish,
                    created_by, created_at, updated_at)

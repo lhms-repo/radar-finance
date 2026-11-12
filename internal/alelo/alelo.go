@@ -47,6 +47,7 @@ var (
 	ErrDescriptionRequired = problem.Invalid("alelo_description_required", "Descreva a compra.")
 	ErrPurchaseNotFound    = problem.NotFound("alelo_purchase_not_found", "Compra não encontrada.")
 	ErrInvalidStyle        = problem.Invalid("alelo_style_invalid", "Escolha o visual do cartão.")
+	ErrHolderUsedElsewhere = problem.Conflict("alelo_holder_used_elsewhere", "Este Alelo tem compras em outro grupo, então o titular não pode mudar.")
 )
 
 // Card is an Alelo card with its current balance.
@@ -225,11 +226,22 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Card, error)
 		return Card{}, err
 	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := getCard(ctx, q, id); err != nil {
+		cur, err := getCard(ctx, q, id)
+		if err != nil {
 			return err
 		}
 		if err := checkRefs(ctx, q, name, c.PersonID, id); err != nil {
 			return err
+		}
+		// A new holder outside another group would hide this card from it, with its purchases still counted there (RF-82).
+		if c.PersonID != cur.PersonID {
+			used, err := q.AleloUsedElsewhere(ctx, store.AleloUsedElsewhereParams{AleloID: id, GroupID: groupID})
+			if err != nil {
+				return err
+			}
+			if used != 0 {
+				return ErrHolderUsedElsewhere
+			}
 		}
 		return q.UpdateAleloCard(ctx, store.UpdateAleloCardParams{
 			Name: name, PersonID: c.PersonID, MonthlyCreditCents: c.MonthlyCreditCents, CreditDay: int64(c.CreditDay),

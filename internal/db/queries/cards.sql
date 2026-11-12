@@ -141,3 +141,9 @@ VALUES (CAST(sqlc.arg(group_id) AS INTEGER), sqlc.arg(card_id), sqlc.arg(invoice
 SELECT CAST(coalesce(min(number), 1) AS INTEGER) AS number
 FROM installments
 WHERE purchase_id = ?;
+
+-- name: CardUsedElsewhere :one
+-- Whether the card has purchases, recurrences or payments in a group other than this one (RF-82).
+SELECT CAST(EXISTS (SELECT 1 FROM purchases p WHERE p.card_id = sqlc.arg(card_id) AND coalesce(p.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER))
+    OR EXISTS (SELECT 1 FROM recurrences r WHERE r.card_id = sqlc.arg(card_id) AND coalesce(r.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER))
+    OR EXISTS (SELECT 1 FROM invoice_payments ip WHERE ip.card_id = sqlc.arg(card_id) AND coalesce(ip.group_id, 0) <> CAST(sqlc.arg(group_id) AS INTEGER)) AS INTEGER) AS used;

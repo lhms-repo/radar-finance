@@ -49,6 +49,7 @@ var (
 	ErrInvalidLook         = problem.Invalid("card_look_invalid", "Cor ou acabamento inválido.")
 	ErrPersonNotFound      = problem.Invalid("card_person_not_found", "Escolha uma pessoa do casal.")
 	ErrCardInactive        = problem.Conflict("card_inactive", "Este cartão está desativado. Reative-o para lançar nele.")
+	ErrHolderUsedElsewhere = problem.Conflict("card_holder_used_elsewhere", "Este cartão tem compras em outro grupo, então o titular não pode mudar.")
 	ErrCardInUse           = problem.Conflict("card_in_use", "Este cartão já tem lançamentos e não pode ser excluído. Desative-o para tirá-lo das opções.")
 	ErrPurchaseNotFound    = problem.NotFound("purchase_not_found", "Compra não encontrada.")
 	ErrMerchantRequired    = problem.Invalid("purchase_merchant_required", "Informe o estabelecimento.")
@@ -199,11 +200,22 @@ func (s *Service) UpdateCard(ctx context.Context, id int64, in CardInput, active
 		return Card{}, err
 	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := getCard(ctx, q, id); err != nil {
+		cur, err := getCard(ctx, q, id)
+		if err != nil {
 			return err
 		}
 		if err := checkCardRefs(ctx, q, in, id); err != nil {
 			return err
+		}
+		// A new holder outside another group would hide this card from it, with its purchases still counted there (RF-82).
+		if in.PersonID != cur.PersonID {
+			used, err := q.CardUsedElsewhere(ctx, store.CardUsedElsewhereParams{CardID: id, GroupID: groupID})
+			if err != nil {
+				return err
+			}
+			if used != 0 {
+				return ErrHolderUsedElsewhere
+			}
 		}
 		return q.UpdateCard(ctx, store.UpdateCardParams{
 			Name: in.Name, PersonID: in.PersonID, LimitCents: in.LimitCents, ClosingDay: int64(in.ClosingDay), DueDay: int64(in.DueDay),

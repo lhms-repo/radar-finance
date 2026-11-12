@@ -58,6 +58,7 @@ var (
 	ErrSameAccount         = problem.Invalid("transfer_same_account", "Escolha contas diferentes para a transferência.")
 	ErrNoChange            = problem.Invalid("adjustment_no_change", "O saldo da conta já é esse valor.")
 	ErrEntryNotFound       = problem.NotFound("entry_not_found", "Lançamento não encontrado.")
+	ErrHolderUsedElsewhere = problem.Conflict("holder_used_elsewhere", "Esta conta tem movimento em outro grupo, então o titular não pode mudar.")
 	ErrSavingsNegative     = problem.Conflict("savings_deposit_withdrawn", "Este aporte já foi retirado da caixinha. Apague a retirada antes, senão a caixinha fica com saldo negativo.")
 )
 
@@ -258,6 +259,16 @@ func (s *Service) UpdateAccount(ctx context.Context, id int64, c AccountChanges)
 		if c.PersonID != nil {
 			if err := CheckPerson(ctx, q, *c.PersonID); err != nil {
 				return err
+			}
+			// A new holder outside another group would hide this account from it, with its rows still counted there (RF-82).
+			if *c.PersonID != cur.PersonID {
+				used, err := q.AccountUsedElsewhere(ctx, store.AccountUsedElsewhereParams{AccountID: id, GroupID: groupID})
+				if err != nil {
+					return err
+				}
+				if used != 0 {
+					return ErrHolderUsedElsewhere
+				}
 			}
 			next.PersonID = *c.PersonID
 		}
