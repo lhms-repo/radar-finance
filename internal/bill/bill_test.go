@@ -4,17 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database where today is 2026-11-11, with a user, two accounts and the services.
@@ -29,21 +27,18 @@ type fixture struct {
 	agua    int64
 }
 
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
 // newFixture opens a fresh database for one test.
 func newFixture(t *testing.T) fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	l := ledger.NewService(conn)
 	nubank, err := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Nubank Ana", PersonID: persons[0].ID, InitialBalanceCents: 500_000})
 	if err != nil {
@@ -71,7 +66,7 @@ func (f fixture) power() Input {
 // TestCreate validates the bill registration (RF-35).
 func TestCreate(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	var topLevel int64
 	_ = f.conn.QueryRow(`SELECT id FROM categories WHERE name = 'Moradia'`).Scan(&topLevel)
 	tests := []struct {
@@ -108,7 +103,7 @@ func TestCreate(t *testing.T) {
 // TestMonth derives the bills of each month, using the expected amount until the real one is informed (RF-36, RN-14).
 func TestMonth(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	power, _ := f.s.Create(ctx, f.userID, f.power())
 	water, _ := f.s.Create(ctx, f.userID, Input{Name: "Água", CategoryID: f.agua, AccountID: f.nubank, DueDay: 31, ExpectedCents: 9_000, StartMonth: month(2026, time.December), EndMonth: &civil.Month{Year: 2027, Month: time.February}})
 	if err := f.s.SetActual(ctx, power.ID, month(2026, time.December), 21_337); err != nil {
@@ -148,7 +143,7 @@ func TestMonth(t *testing.T) {
 
 // TestUpdateKeepsPaidMonths refuses changes that leave a paid month outside the bill (RF-37).
 func TestUpdateKeepsPaidMonths(t *testing.T) {
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name    string
 		edit    func(in *Input)
@@ -181,7 +176,7 @@ func TestUpdateKeepsPaidMonths(t *testing.T) {
 // TestPay records the payment as spending of the bill category and as the real amount of the month (RF-37).
 func TestPay(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	power, _ := f.s.Create(ctx, f.userID, f.power())
 	nov := month(2026, time.November)
 
@@ -241,7 +236,7 @@ func TestPay(t *testing.T) {
 // TestSetActual informs and clears the real amount of a month (RF-36, RN-14).
 func TestSetActual(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	power, _ := f.s.Create(ctx, f.userID, f.power())
 	nov := month(2026, time.November)
 	tests := []struct {
@@ -282,7 +277,7 @@ func TestSetActual(t *testing.T) {
 // TestUpdateAndDelete changes the expected amount of months without a real one and keeps paid bills.
 func TestUpdateAndDelete(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	power, _ := f.s.Create(ctx, f.userID, f.power())
 	unused, _ := f.s.Create(ctx, f.userID, Input{Name: "Água", CategoryID: f.agua, AccountID: f.nubank, DueDay: 10, ExpectedCents: 9_000, StartMonth: month(2026, time.November)})
 	if _, err := f.s.Pay(ctx, f.userID, Payment{BillID: power.ID, Month: month(2026, time.November)}); err != nil {
@@ -313,5 +308,50 @@ func TestUpdateAndDelete(t *testing.T) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestGroupIsolation shows that a second group sees none of the bills of the first (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	b, err := f.s.Create(groupCtx, f.userID, f.power())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.s.Pay(groupCtx, f.userID, Payment{BillID: b.ID, Month: month(2026, time.November)}); err != nil {
+		t.Fatal(err)
+	}
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "get", run: func() error { _, err := f.s.Get(other, b.ID); return err }, wantErr: ErrNotFound},
+		{name: "update", run: func() error { _, err := f.s.Update(other, b.ID, f.power()); return err }, wantErr: ErrNotFound},
+		{name: "delete", run: func() error { return f.s.Delete(other, b.ID) }, wantErr: ErrNotFound},
+		{name: "set actual", run: func() error { return f.s.SetActual(other, b.ID, month(2026, time.November), 100) }, wantErr: ErrNotFound},
+		{name: "pay", run: func() error {
+			_, err := f.s.Pay(other, carla.ID, Payment{BillID: b.ID, Month: month(2026, time.November)})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "account of another group", run: func() error { _, err := f.s.Create(other, carla.ID, f.power()); return err }, wantErr: ledger.ErrAccountNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.List(context.Background()); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	if list, err := f.s.List(other); err != nil || len(list) != 0 {
+		t.Fatalf("bills of the other group = %v, %v", list, err)
+	}
+	view, err := f.s.Month(other, month(2026, time.November))
+	if err != nil || len(view.Bills) != 0 || view.TotalCents != 0 || view.PaidCents != 0 {
+		t.Fatalf("month of the other group = %+v, %v", view, err)
 	}
 }
