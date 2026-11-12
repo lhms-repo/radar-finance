@@ -272,6 +272,41 @@ func TestPreviewInstallments(t *testing.T) {
 	}
 }
 
+// TestPreviewMatchesOnce lets each purchase, installment or recurrence in the Radar flag only one CSV line,
+// so a second identical charge is imported (RF-56, RN-20).
+func TestPreviewMatchesOnce(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	nov := func(d int) civil.Date { return civil.Date{Year: 2026, Month: time.November, Day: d} }
+	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: nov(10), Merchant: "Cafe", CategoryID: f.cat["Delivery"], AmountCents: 800, Installments: 1}); err != nil {
+		t.Fatal(err)
+	}
+	// R$ 400,00 in 4 bought on September 20: installment 3 is on the December invoice.
+	if _, err := f.cards.AddPurchase(ctx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.September, Day: 20}, Merchant: "Loja Parcelada", CategoryID: f.cat["Delivery"], AmountCents: 40_000, Installments: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.cards.AddRecurrence(ctx, f.userID, card.RecurrenceInput{CardID: f.cardID, Description: "Streaming", CategoryID: f.cat["Streaming"], AmountCents: 2_190, StartDate: nov(4)}); err != nil {
+		t.Fatal(err)
+	}
+	csv := "date,title,amount\n" +
+		"2026-11-10,Cafe Ficticio,\"8,00\"\n" +
+		"2026-11-10,Cafe Ficticio,\"8,00\"\n" +
+		"2026-11-04,Loja Parcelada - Parcela 3/4,\"100,00\"\n" +
+		"2026-11-04,Outra Parcelada - Parcela 3/4,\"100,00\"\n" +
+		"2026-11-09,Spotify,\"21,90\"\n" +
+		"2026-11-19,Outro Streaming,\"21,90\"\n"
+	lines, err := f.s.Preview(ctx, f.cardID, dec, csv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []bool{true, false, true, false, true, false}
+	for i, w := range want {
+		if (lines[i].Duplicate != nil) != w || lines[i].Skip != w {
+			t.Errorf("line %d (%s) duplicate = %v, want %v", i, lines[i].Merchant, lines[i].Duplicate != nil, w)
+		}
+	}
+}
+
 // TestCommitSplit divides imported lines with other people or leaves them all to one person; on an
 // installment line the share follows only the installments created from the CSV on (RF-24, RF-25, RF-57).
 func TestCommitSplit(t *testing.T) {

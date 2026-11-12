@@ -12,7 +12,7 @@ import (
 )
 
 const cardInstallmentMatch = `-- name: CardInstallmentMatch :many
-SELECT p.merchant, p.purchased_on, i.amount_cents
+SELECT i.id AS installment_id, p.merchant, p.purchased_on, i.amount_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 WHERE i.card_id = ?1
@@ -20,7 +20,7 @@ WHERE i.card_id = ?1
   AND i.number = ?3
   AND p.installment_count = ?4
   AND i.amount_cents = ?5
-LIMIT 1
+ORDER BY i.id
 `
 
 type CardInstallmentMatchParams struct {
@@ -32,9 +32,10 @@ type CardInstallmentMatchParams struct {
 }
 
 type CardInstallmentMatchRow struct {
-	Merchant    string
-	PurchasedOn string
-	AmountCents int64
+	InstallmentID int64
+	Merchant      string
+	PurchasedOn   string
+	AmountCents   int64
 }
 
 // Installments of the card on the invoice with the given number, count and amount, to link a CSV installment (RF-57).
@@ -53,7 +54,12 @@ func (q *Queries) CardInstallmentMatch(ctx context.Context, arg CardInstallmentM
 	items := []CardInstallmentMatchRow{}
 	for rows.Next() {
 		var i CardInstallmentMatchRow
-		if err := rows.Scan(&i.Merchant, &i.PurchasedOn, &i.AmountCents); err != nil {
+		if err := rows.Scan(
+			&i.InstallmentID,
+			&i.Merchant,
+			&i.PurchasedOn,
+			&i.AmountCents,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -68,11 +74,12 @@ func (q *Queries) CardInstallmentMatch(ctx context.Context, arg CardInstallmentM
 }
 
 const cardItemsNear = `-- name: CardItemsNear :many
-SELECT p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
+SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 WHERE i.card_id = ?1
   AND p.purchased_on >= ?2 AND p.purchased_on <= ?3
+ORDER BY i.id
 `
 
 type CardItemsNearParams struct {
@@ -82,6 +89,7 @@ type CardItemsNearParams struct {
 }
 
 type CardItemsNearRow struct {
+	InstallmentID    int64
 	PurchaseID       int64
 	Merchant         string
 	PurchasedOn      string
@@ -103,6 +111,7 @@ func (q *Queries) CardItemsNear(ctx context.Context, arg CardItemsNearParams) ([
 	for rows.Next() {
 		var i CardItemsNearRow
 		if err := rows.Scan(
+			&i.InstallmentID,
 			&i.PurchaseID,
 			&i.Merchant,
 			&i.PurchasedOn,

@@ -58,15 +58,16 @@ WHERE id = ?;
 
 -- name: CardItemsNear :many
 -- Installments of the card whose purchase date is within a day of the given one, for duplicates (RN-20).
-SELECT p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
+SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 WHERE i.card_id = sqlc.arg(card_id)
-  AND p.purchased_on >= sqlc.arg(first_day) AND p.purchased_on <= sqlc.arg(last_day);
+  AND p.purchased_on >= sqlc.arg(first_day) AND p.purchased_on <= sqlc.arg(last_day)
+ORDER BY i.id;
 
 -- name: CardInstallmentMatch :many
 -- Installments of the card on the invoice with the given number, count and amount, to link a CSV installment (RF-57).
-SELECT p.merchant, p.purchased_on, i.amount_cents
+SELECT i.id AS installment_id, p.merchant, p.purchased_on, i.amount_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 WHERE i.card_id = sqlc.arg(card_id)
@@ -74,4 +75,4 @@ WHERE i.card_id = sqlc.arg(card_id)
   AND i.number = sqlc.arg(number)
   AND p.installment_count = sqlc.arg(installment_count)
   AND i.amount_cents = sqlc.arg(amount_cents)
-LIMIT 1;
+ORDER BY i.id;
