@@ -142,7 +142,7 @@ func TestEventsStreamEndsOnHubClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	hub := events.NewHub()
-	srv := httptest.NewServer(eventsHandler(hub, sm))
+	srv := httptest.NewServer(eventsHandler(hub, sm, account.NewService(conn)))
 	defer srv.Close()
 	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
 	req.AddCookie(&http.Cookie{Name: sm.Cookie.Name, Value: token})

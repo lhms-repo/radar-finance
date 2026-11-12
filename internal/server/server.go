@@ -36,10 +36,39 @@ import (
 	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // maxBodyBytes limits JSON request bodies.
 const maxBodyBytes = 1 << 20
+
+// memberOnly checks on every request that the person still belongs to the active group of the session; someone
+// removed from it goes back to the entry instead of reading the group with an old session (RF-02).
+func memberOnly(d Deps, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if publicRoute(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		groupID, err := scope.Group(r.Context())
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "unauthenticated", "Sua sessão expirou. Entre novamente.")
+			return
+		}
+		_, ok, err := d.Accounts.Membership(r.Context(), groupID, auth.UserID(r.Context()))
+		if err != nil {
+			d.Log.Error("check membership", "err", err)
+			writeError(w, http.StatusInternalServerError, "internal", "Algo deu errado. Tente de novo.")
+			return
+		}
+		if !ok {
+			_ = auth.SignOut(r.Context(), d.Sessions)
+			writeError(w, http.StatusUnauthorized, "unauthenticated", "Você não faz mais parte deste grupo. Entre novamente.")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // publicRoute tells the requests that need no session: the liveness check and the steps of entering,
 // which show only group names and, after a group is chosen, the names of its members (RF-01).
@@ -122,9 +151,9 @@ func New(d Deps) http.Handler {
 	if hub == nil {
 		hub = events.NewHub()
 	}
-	protected := limitBody(auth.RequireUser(d.Sessions, publicRoute, apiHandler))
+	protected := limitBody(auth.RequireUser(d.Sessions, publicRoute, memberOnly(d, apiHandler)))
 	root := http.NewServeMux()
-	root.Handle("/api/events", eventsHandler(hub, d.Sessions))
+	root.Handle("/api/events", eventsHandler(hub, d.Sessions, d.Accounts))
 	root.Handle("/api/", http.NewCrossOriginProtection().Handler(d.Sessions.LoadAndSave(noStore(publishChanges(hub, d.Sessions, protected)))))
 	root.Handle("/", staticHandler(d.Assets))
 	return securityHeaders(recoverer(d.Log, logRequests(d.Log, root)))

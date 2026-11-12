@@ -95,6 +95,25 @@ func TestGroupRoutes(t *testing.T) {
 	}
 }
 
+// TestSessionNeedsMembership sends back to the entry, on any route and on the live stream, a session whose person
+// left the active group after entering (RF-02).
+func TestSessionNeedsMembership(t *testing.T) {
+	srv, conn := testServer(t)
+	bruno := newClient(t)
+	signIn(t, bruno, srv, "bruno")
+	if resp := get(t, bruno, srv.URL+"/api/accounts"); resp.StatusCode != http.StatusOK {
+		t.Fatalf("accounts while a member = %d", resp.StatusCode)
+	}
+	if _, err := conn.Exec(`DELETE FROM group_members WHERE group_id = 1 AND person_id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/api/accounts", "/api/market/lists", "/api/events"} {
+		if resp := get(t, bruno, srv.URL+path); resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("%s after leaving = %d, want 401", path, resp.StatusCode)
+		}
+	}
+}
+
 // TestNoTakeoverAcrossGroups keeps an administrator of one group from reaching the login a person uses in another:
 // joining needs the PIN of the person, and only whoever runs every group of the person resets it (RF-80).
 func TestNoTakeoverAcrossGroups(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
+	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/events"
 )
@@ -16,7 +17,7 @@ import (
 const heartbeat = 25 * time.Second
 
 // eventsHandler streams the changes of shared data of the session group as server sent events (RF-02, RF-71).
-func eventsHandler(hub *events.Hub, sm *scs.SessionManager) http.Handler {
+func eventsHandler(hub *events.Hub, sm *scs.SessionManager, accounts *account.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Método não permitido.")
@@ -24,6 +25,11 @@ func eventsHandler(hub *events.Hub, sm *scs.SessionManager) http.Handler {
 		}
 		user, group := auth.SessionUser(sm, r)
 		if user == 0 || group == 0 {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "Entre de novo para continuar.")
+			return
+		}
+		// The stream skips the session middleware, so it checks the membership itself (RF-02).
+		if _, ok, err := accounts.Membership(r.Context(), group, user); err != nil || !ok {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "Entre de novo para continuar.")
 			return
 		}
