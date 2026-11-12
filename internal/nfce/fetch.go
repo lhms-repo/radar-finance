@@ -26,10 +26,15 @@ var (
 	ErrLayout        = problem.Invalid("receipt_layout_unknown", "Não consegui ler os itens dessa nota. O site da Sefaz pode ter mudado.")
 )
 
+// upgradeTimeout bounds the https attempt of an http:// QR code, so a portal without https costs little.
+const upgradeTimeout = 10 * time.Second
+
 // Client downloads receipts from the state portals.
 type Client struct {
 	timeout   time.Duration
 	allowHost func(host string) bool
+	// transport replaces the default one in tests; nil uses Go defaults.
+	transport http.RoundTripper
 }
 
 // NewClient returns a client that only talks to government hosts.
@@ -67,17 +72,34 @@ func isGovHost(host string) bool {
 	return strings.HasSuffix(host, ".gov.br")
 }
 
-// Fetch downloads and parses the receipt; on the Goiás shell page it follows the iframe
-// with the same cookies and unwraps the HTML embedded in the frame script (RF-68).
+// Fetch downloads and parses the receipt (RF-68). An http:// QR code is read over https first, so nobody
+// on the way can swap the items and prices, and over http only when the portal does not answer there.
 func (c *Client) Fetch(ctx context.Context, raw string) (Receipt, error) {
 	u, err := url.Parse(normalize(raw))
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || !c.allowHost(u.Hostname()) {
 		return Receipt{}, ErrNotReceiptURL
 	}
+	if u.Scheme == "http" {
+		secure := *u
+		secure.Scheme = "https"
+		upgradeCtx, cancel := context.WithTimeout(ctx, upgradeTimeout)
+		rec, err := c.fetch(upgradeCtx, &secure)
+		cancel()
+		if err == nil {
+			return rec, nil
+		}
+	}
+	return c.fetch(ctx, u)
+}
+
+// fetch downloads one address; on the Goiás shell page it follows the iframe with the same cookies and
+// unwraps the HTML embedded in the frame script.
+func (c *Client) fetch(ctx context.Context, u *url.URL) (Receipt, error) {
 	jar, _ := cookiejar.New(nil)
 	client := &http.Client{
-		Timeout: c.timeout,
-		Jar:     jar,
+		Timeout:   c.timeout,
+		Jar:       jar,
+		Transport: c.transport,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 5 || !c.allowHost(req.URL.Hostname()) {
 				return ErrNotReceiptURL
