@@ -188,6 +188,8 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
   const bill = useCreateBill();
   const aleloPurchase = useAddAleloPurchase();
   const mutation = { purchase, recurrence, expense, bill, alelo: aleloPurchase, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
+  // Any save in flight blocks another one, even after the type changes, so one tap never records twice.
+  const saving = [purchase, recurrence, expense, oneOff, recurring, bill, aleloPurchase].some((m) => m.isPending);
 
   /** Moves the focus to the next text field after the subcategory, saving a tap (RNF-13). */
   const focusNextField = () => {
@@ -206,6 +208,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
 
   /** Validates and sends the entry as the system object of its combination. */
   const submit = form.handleSubmit((raw) => {
+    if (saving) return;
     const v = { ...raw, cardId: raw.cardId || cardId, accountId: raw.accountId || accountId, aleloId: raw.aleloId || aleloId };
     if (combo === "purchase" || combo === "recurrence") writeStorage(LAST_CARD_KEY, String(v.cardId));
     else if (combo === "alelo") writeStorage(LAST_ALELO_KEY, String(v.aleloId));
@@ -369,7 +372,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         </LayoutGroup>
 
         <FieldError message={mutation.error?.message} />
-        <ConfirmButton done={done} pending={mutation.isPending} />
+        <ConfirmButton done={done} pending={saving} />
       </form>
     </Dialog>
   );
