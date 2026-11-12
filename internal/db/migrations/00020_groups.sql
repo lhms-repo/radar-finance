@@ -89,5 +89,6 @@ CREATE UNIQUE INDEX products_identity ON products (group_id, name COLLATE NOCASE
 
 -- +goose Down
 -- Irreversible: dropping group_id would need a rebuild of every table above, and a group created after this
--- migration has no place to go back to. Restore a backup taken before it instead (docs/backup.md).
-SELECT 1;
+-- migration has no place to go back to. Restore a backup taken before it instead (docs/backup.md). The
+-- statement below fails on purpose, so goose never marks this version as undone while the schema stays.
+SELECT RAISE(ABORT, 'migration 20 is irreversible: restore a backup taken before it');

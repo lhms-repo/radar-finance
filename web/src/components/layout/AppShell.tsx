@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useOutlet } from "react-router";
 import { onUnauthorized } from "@/api/client";
-import { ME_KEY, useMeQuery } from "@/app/session";
+import { ME_KEY, useMeQuery, onSessionChange } from "@/app/session";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Logo } from "@/components/layout/Logo";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -25,11 +25,16 @@ export function AppShell() {
   useEffect(
     () =>
       onUnauthorized(() => {
+        // Data of the old session never shows to whoever enters next.
+        qc.clear();
         qc.setQueryData(ME_KEY, null);
         navigate("/login", { replace: true, state: { from: location.pathname } });
       }),
     [qc, navigate, location.pathname],
   );
+
+  // Another tab switched the group or entered as someone else: this one starts over on the overview.
+  useEffect(() => onSessionChange(() => window.location.assign("/")), []);
 
   // Adopts the preferences saved on the server once per session (RNF-14, RNF-25).
   useEffect(() => {

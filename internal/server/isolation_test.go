@@ -1,7 +1,9 @@
 package server
 
 import (
+	"archive/zip"
 	"bufio"
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -116,11 +118,11 @@ func TestNoDataCrossesGroups(t *testing.T) {
 	signIn(t, ana, srv, "ana")
 
 	query := fmt.Sprintf("month=%s&from=%s-01-01&to=%s-12-31&text=secreto", month, today.Format("2006"), today.Format("2006"))
-	// read returns the body of a GET, skipping the live stream, which never ends.
+	// read returns the body of a GET, with the files of a zip (the export) opened, so their rows are searched too.
 	read := func(c *http.Client, path string) (int, string) {
 		resp := get(t, c, srv.URL+"/api"+path+"?"+query)
 		body, _ := io.ReadAll(resp.Body)
-		return resp.StatusCode, string(body)
+		return resp.StatusCode, unzipped(t, body)
 	}
 
 	seen, routes := 0, getRoutes(t)
@@ -144,4 +146,31 @@ func TestNoDataCrossesGroups(t *testing.T) {
 	if seen < 10 {
 		t.Fatalf("the first group saw its own marked rows on only %d routes; the seed is not reaching the API", seen)
 	}
+}
+
+// unzipped returns the text of every file inside body when it is a zip, or body itself otherwise.
+func unzipped(t *testing.T, body []byte) string {
+	t.Helper()
+	if !bytes.HasPrefix(body, []byte("PK")) {
+		return string(body)
+	}
+	r, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatalf("zip response: %v", err)
+	}
+	var all strings.Builder
+	for _, f := range r.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		all.Write(b)
+		all.WriteString("\n")
+	}
+	return all.String()
 }

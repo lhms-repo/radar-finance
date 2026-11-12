@@ -56,7 +56,7 @@ Comandos:
   user pin               define o PIN de um usuário (--login; o PIN é lido da entrada)
   user list              lista os usuários
   group create           cria um grupo com o primeiro administrador (--name, --admin LOGIN)
-  group add              põe um usuário num grupo (--group NOME, --login; --admin para administrador)
+  group add              põe um usuário num grupo (--group NOME, --login; --as-admin para administrador)
   group list             lista os grupos e os membros
   backup                 gera um backup manual
   healthcheck            verifica se o servidor responde
