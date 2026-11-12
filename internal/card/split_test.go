@@ -3,6 +3,8 @@ package card
 import (
 	"context"
 	"errors"
+	"math/big"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -211,6 +213,12 @@ func TestSplitGuards(t *testing.T) {
 // TestSpreadShares spreads each share over the installments following the installment amounts, so the shares
 // never add up to more than an installment and the couple part of a month is never negative (RN-03, RN-04, RN-05).
 func TestSpreadShares(t *testing.T) {
+	// Equal split among three people, which used to pile cents on some installments: 14,33 and 14,35 on equal ones.
+	t.Run("three people stay within a cent", func(t *testing.T) {
+		inst := Split(68_823, 16)
+		shares := []int64{22_941, 22_941, 22_941}
+		checkProportional(t, inst, shares, spreadShares(inst, shares))
+	})
 	tests := []struct {
 		name   string
 		total  int64
@@ -241,6 +249,34 @@ func TestSpreadShares(t *testing.T) {
 	}
 }
 
+// checkProportional fails when a cell is not the floor or the ceiling of its proportional value: one cent per
+// installment plus the rest of the share in proportion to the room each installment has after those cents.
+func checkProportional(t *testing.T, inst, shares []int64, got [][]int64) {
+	t.Helper()
+	var room int64
+	for _, a := range inst {
+		room += a - int64(len(shares))
+	}
+	for p, s := range shares {
+		for i, a := range inst {
+			// The product reaches 1e22 at the amount cap, past int64.
+			num := new(big.Int).Mul(big.NewInt(s-int64(len(inst))), big.NewInt(a-int64(len(shares))))
+			low, high := int64(1), int64(1)
+			if room > 0 {
+				q, r := new(big.Int).QuoRem(num, big.NewInt(room), new(big.Int))
+				low += q.Int64()
+				high = low
+				if r.Sign() != 0 {
+					high++
+				}
+			}
+			if got[p][i] < low || got[p][i] > high {
+				t.Fatalf("installments %v shares %v: person %d has %d in installment %d, want %d or %d", inst, shares, p, got[p][i], i, low, high)
+			}
+		}
+	}
+}
+
 // TestSpreadSharesInvariants checks many purchases: each share adds up exactly, no installment carries more
 // in shares than its amount and every person has at least one cent per installment.
 func TestSpreadSharesInvariants(t *testing.T) {
@@ -249,7 +285,7 @@ func TestSpreadSharesInvariants(t *testing.T) {
 			if total < int64(n) {
 				continue
 			}
-			for _, people := range [][]int64{{1}, {1, 1}, {1, 2, 3}, {5, 5}, {1, 1, 1, 1}} {
+			for _, people := range [][]int64{{1}, {1, 1}, {1, 1, 1}, {1, 2, 3}, {5, 5}, {1, 1, 1, 1}, {1, 1, 1, 1, 1, 1, 1, 1, 1, 1}} {
 				// Turn the weights into shares that use the whole purchase, the hardest case.
 				var weight int64
 				for _, w := range people {
@@ -294,7 +330,52 @@ func TestSpreadSharesInvariants(t *testing.T) {
 						t.Fatalf("total %d n %d shares %v: installment %d carries %d of %d", total, n, shares, i, col, amount)
 					}
 				}
+				checkProportional(t, inst, shares, got)
 			}
 		}
+	}
+}
+
+// TestSpreadSharesRandom checks the invariants on random purchases with a fixed seed: up to 48 installments,
+// up to 10 people and any valid shares.
+func TestSpreadSharesRandom(t *testing.T) {
+	r := rand.New(rand.NewPCG(3, 11))
+	for range 20_000 {
+		n := 1 + r.IntN(48)
+		people := 1 + r.IntN(10)
+		minTotal := int64(n * people)
+		total := minTotal + r.Int64N(1_000_000)
+		// Each person gets n cents, then a random slice of what is left, possibly leaving some for the couple.
+		shares := make([]int64, people)
+		spare := total - minTotal
+		for p := range shares {
+			give := int64(0)
+			if spare > 0 {
+				give = r.Int64N(spare + 1)
+			}
+			shares[p] = int64(n) + give
+			spare -= give
+		}
+		inst := Split(total, n)
+		got := spreadShares(inst, shares)
+		for p, s := range shares {
+			var sum int64
+			for _, a := range got[p] {
+				sum += a
+			}
+			if sum != s {
+				t.Fatalf("installments %v shares %v: person %d adds %d, want %d", inst, shares, p, sum, s)
+			}
+		}
+		for i, amount := range inst {
+			var col int64
+			for p := range shares {
+				col += got[p][i]
+			}
+			if col > amount {
+				t.Fatalf("installments %v shares %v: installment %d carries %d", inst, shares, i, col)
+			}
+		}
+		checkProportional(t, inst, shares, got)
 	}
 }
