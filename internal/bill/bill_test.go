@@ -146,6 +146,38 @@ func TestMonth(t *testing.T) {
 	}
 }
 
+// TestUpdateKeepsPaidMonths refuses changes that leave a paid month outside the bill (RF-37).
+func TestUpdateKeepsPaidMonths(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name    string
+		edit    func(in *Input)
+		wantErr error
+	}{
+		{name: "start after the paid month", edit: func(in *Input) { in.StartMonth = month(2027, time.January) }, wantErr: ErrPaidOutside},
+		{name: "end before the paid month", edit: func(in *Input) { in.EndMonth = &civil.Month{Year: 2026, Month: time.November} }, wantErr: ErrPaidOutside},
+		{name: "end on the paid month", edit: func(in *Input) { in.EndMonth = &civil.Month{Year: 2026, Month: time.December} }},
+		{name: "day and amount changed", edit: func(in *Input) { in.DueDay, in.ExpectedCents = 20, 19_000 }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			in := f.power()
+			b, err := f.s.Create(ctx, f.userID, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.s.Pay(ctx, f.userID, Payment{BillID: b.ID, Month: month(2026, time.December)}); err != nil {
+				t.Fatal(err)
+			}
+			tt.edit(&in)
+			if _, err := f.s.Update(ctx, b.ID, in); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestPay records the payment as spending of the bill category and as the real amount of the month (RF-37).
 func TestPay(t *testing.T) {
 	f := newFixture(t)

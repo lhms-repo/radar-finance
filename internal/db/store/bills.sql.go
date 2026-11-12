@@ -183,6 +183,35 @@ func (q *Queries) ListBillAmounts(ctx context.Context, month string) ([]ListBill
 	return items, nil
 }
 
+const listBillPaidMonths = `-- name: ListBillPaidMonths :many
+SELECT coalesce(bill_month, '') AS month
+FROM entries
+WHERE bill_id = ?
+`
+
+func (q *Queries) ListBillPaidMonths(ctx context.Context, billID sql.NullInt64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listBillPaidMonths, billID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var month string
+		if err := rows.Scan(&month); err != nil {
+			return nil, err
+		}
+		items = append(items, month)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBillPayments = `-- name: ListBillPayments :many
 SELECT e.id, e.bill_id, e.amount_cents, e.occurred_on, e.account_id, a.name AS account_name
 FROM entries e

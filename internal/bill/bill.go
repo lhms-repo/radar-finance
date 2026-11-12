@@ -34,6 +34,7 @@ var (
 	ErrNoOccurrence   = problem.Invalid("bill_no_occurrence", "Esta conta não vence no mês escolhido.")
 	ErrAlreadyPaid    = problem.Conflict("bill_already_paid", "Esta conta já foi paga neste mês.")
 	ErrInUse          = problem.Conflict("bill_in_use", "Esta conta já tem pagamentos. Informe o último mês para encerrá-la.")
+	ErrPaidOutside    = problem.Conflict("bill_paid_outside", "Esta mudança tiraria da conta um mês já pago. Apague o pagamento desse mês antes de mudar os meses.")
 )
 
 // Bill is a registered fixed bill.
@@ -190,6 +191,9 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Bill, error) 
 			return err
 		}
 		if err := checkRefs(ctx, q, in); err != nil {
+			return err
+		}
+		if err := checkPaidMonths(ctx, q, id, in); err != nil {
 			return err
 		}
 		return q.UpdateBill(ctx, store.UpdateBillParams{
@@ -370,6 +374,25 @@ func dueOn(b Bill, m civil.Month) (civil.Date, bool) {
 		return civil.Date{}, false
 	}
 	return m.Day(b.DueDay), true
+}
+
+// checkPaidMonths refuses a change that leaves a paid month outside the bill, which would hide the payment from the forecast.
+func checkPaidMonths(ctx context.Context, q *store.Queries, id int64, in Input) error {
+	months, err := q.ListBillPaidMonths(ctx, sql.NullInt64{Int64: id, Valid: true})
+	if err != nil {
+		return err
+	}
+	next := Bill{DueDay: in.DueDay, StartMonth: in.StartMonth, EndMonth: in.EndMonth}
+	for _, s := range months {
+		m, err := civil.ParseMonth(s)
+		if err != nil {
+			return err
+		}
+		if _, ok := dueOn(next, m); !ok {
+			return ErrPaidOutside
+		}
+	}
+	return nil
 }
 
 // validate trims and checks the bill fields.
