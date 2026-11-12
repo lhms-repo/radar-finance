@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
-import { AlertTriangle, CheckCircle2, ChevronRight, Download, HandCoins, HardDrive, Landmark, LogOut, Monitor, Moon, Sun, Tags, Target, Wand2, FileUp } from "lucide-react";
+import { Users, AlertTriangle, CheckCircle2, ChevronRight, Download, HandCoins, HardDrive, Landmark, LogOut, Monitor, Moon, Sun, Tags, Target, Wand2, FileUp } from "lucide-react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { api, unwrap, type Backup, type Theme } from "@/api/client";
@@ -43,6 +43,7 @@ export function SettingsPage() {
 /** Links to the record screens kept in Settings (section 5.2). */
 function RecordsCard() {
   const links = [
+    { to: "/settings/group", label: "Grupo e pessoas", hint: "Quem faz parte, papéis, PINs e outros grupos", icon: Users },
     { to: "/settings/accounts", label: "Contas bancárias", hint: "Saldos, extrato, ajustes e transferências", icon: Landmark },
     { to: "/settings/incomes", label: "Rendas", hint: "Salários, bolsa, 13º e confirmação do recebimento", icon: HandCoins },
     { to: "/settings/budgets", label: "Orçamentos", hint: "Limite mensal por categoria, com aviso a 80% e 100%", icon: Target },
