@@ -245,13 +245,20 @@ function CategoryFormDialog({
   });
   const icon = useWatch({ control: form.control, name: "icon" });
 
+  /** Clears the mutation and the typed text, so the next category opens with its own values, and closes. */
+  const close = () => {
+    mutation.reset();
+    form.reset();
+    onClose();
+  };
+
   /** Sends the form, requiring an icon for top level categories. */
   const submit = form.handleSubmit((v) => {
     if (topLevel && !v.icon) {
       form.setError("icon", { message: "Escolha um ícone." });
       return;
     }
-    const done = { onSuccess: onClose };
+    const done = { onSuccess: close };
     if (editing) update.mutate({ id: editing.id, body: { name: v.name, icon: v.icon } }, done);
     else create.mutate({ name: v.name, icon: v.icon || undefined, parentId: parent?.id }, done);
   });
@@ -260,13 +267,7 @@ function CategoryFormDialog({
   return (
     <Dialog
       open={state !== null}
-      onOpenChange={(o) => {
-        if (!o) {
-          mutation.reset();
-          form.reset();
-          onClose();
-        }
-      }}
+      onOpenChange={(o) => !o && close()}
       title={title}
     >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
@@ -284,7 +285,7 @@ function CategoryFormDialog({
         )}
         <FieldError message={mutation.error?.message} />
         <DialogActions>
-          <Button variant="ghost" onClick={onClose}>
+          <Button variant="ghost" onClick={close}>
             Cancelar
           </Button>
           <Button type="submit" disabled={mutation.isPending}>
