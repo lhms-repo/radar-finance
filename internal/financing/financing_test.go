@@ -4,17 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"io"
-	"log/slog"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/civil"
-	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/testutil"
 )
 
 // fixture holds a migrated database where today is 2026-11-11, with a user, an account and the services.
@@ -27,21 +25,18 @@ type fixture struct {
 	house     int64
 }
 
+// groupCtx acts on the first group of a fresh database, created by every fixture.
+var groupCtx = scope.WithGroup(context.Background(), 1)
+
 // newFixture opens a fresh database for one test.
 func newFixture(t *testing.T) fixture {
 	t.Helper()
-	ctx := context.Background()
-	conn, err := db.Open(filepath.Join(t.TempDir(), "radar.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.Close() })
-	if err := db.Migrate(ctx, conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
-	}
-	users := account.NewService(conn)
-	ana, _ := users.Create(ctx, "ana", "Ana Ficticia")
-	persons, _ := users.ListPersons(ctx)
+	ctx := groupCtx
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	testutil.FirstGroup(t, conn, ana, bruno)
+	persons := []account.Person{{ID: ana.PersonID}, {ID: bruno.PersonID}}
 	l := ledger.NewService(conn)
 	acc, err := l.CreateAccount(ctx, ana.ID, ledger.NewAccount{Name: "Caixa Ana", PersonID: persons[0].ID, InitialBalanceCents: 1_000_000})
 	if err != nil {
@@ -67,7 +62,7 @@ func (f fixture) houseLoan() Input {
 // TestCreate validates the financing registration (RF-39).
 func TestCreate(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	tests := []struct {
 		name    string
 		mod     func(*Input)
@@ -103,7 +98,7 @@ func TestCreate(t *testing.T) {
 // TestMonth turns each installment into a bill to pay, numbered, until the last one (RF-40).
 func TestMonth(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	car, err := f.s.Create(ctx, f.userID, Input{
 		Name: "Carro", CategoryID: f.house, AccountID: f.accountID, DueDay: 31, InstallmentCents: 90_000,
 		TotalInstallments: 48, PaidInstallments: 45, BalanceCents: 270_000, NextMonth: month(2026, time.November),
@@ -143,7 +138,7 @@ func TestMonth(t *testing.T) {
 // TestPay lowers the balance to the value the user informs, suggested as balance minus installment (RF-41, RN-16).
 func TestPay(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	loan, _ := f.s.Create(ctx, f.userID, f.houseLoan())
 	nov, dec := month(2026, time.November), month(2026, time.December)
 
@@ -204,7 +199,7 @@ func TestPay(t *testing.T) {
 // TestCorrect fixes the balance and the installment by hand, and later payments start from it (RF-42).
 func TestCorrect(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	loan, _ := f.s.Create(ctx, f.userID, f.houseLoan())
 	tests := []struct {
 		name    string
@@ -232,7 +227,7 @@ func TestCorrect(t *testing.T) {
 // TestPaidOff stops the installments after the last one and keeps financings with history.
 func TestPaidOff(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := groupCtx
 	solar, _ := f.s.Create(ctx, f.userID, Input{
 		Name: "Energia solar", CategoryID: f.house, AccountID: f.accountID, DueDay: 5, InstallmentCents: 50_000,
 		TotalInstallments: 10, PaidInstallments: 9, BalanceCents: 50_000, NextMonth: month(2026, time.November),
@@ -254,3 +249,54 @@ func TestPaidOff(t *testing.T) {
 
 // ptr returns a pointer to v.
 func ptr[T any](v T) *T { return &v }
+
+// TestGroupIsolation shows that a second group sees none of the financings of the first (RF-82, RN-27).
+func TestGroupIsolation(t *testing.T) {
+	f := newFixture(t)
+	loan, err := f.s.Create(groupCtx, f.userID, f.houseLoan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	nov := month(2026, time.November)
+	if _, err := f.s.Pay(groupCtx, f.userID, Payment{FinancingID: loan.ID, Month: nov}); err != nil {
+		t.Fatal(err)
+	}
+	carla := testutil.NewUser(t, f.conn, "carla", "Carla Ficticia")
+	other := testutil.NewGroup(t, f.conn, "Outra", carla)
+
+	tests := []struct {
+		name    string
+		run     func() error
+		wantErr error
+	}{
+		{name: "get", run: func() error { _, err := f.s.Get(other, loan.ID); return err }, wantErr: ErrNotFound},
+		{name: "update", run: func() error {
+			_, err := f.s.Update(other, loan.ID, Changes{Name: "X", CategoryID: f.house, AccountID: f.accountID, DueDay: 5})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "delete", run: func() error { return f.s.Delete(other, loan.ID) }, wantErr: ErrNotFound},
+		{name: "pay", run: func() error {
+			_, err := f.s.Pay(other, carla.ID, Payment{FinancingID: loan.ID, Month: month(2026, time.December)})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "correct", run: func() error {
+			_, err := f.s.Correct(other, carla.ID, Correction{FinancingID: loan.ID, BalanceCents: 100, InstallmentCents: 100})
+			return err
+		}, wantErr: ErrNotFound},
+		{name: "account of another group", run: func() error { _, err := f.s.Create(other, carla.ID, f.houseLoan()); return err }, wantErr: ledger.ErrAccountNotFound},
+		{name: "no active group", run: func() error { _, err := f.s.List(context.Background()); return err }, wantErr: scope.ErrNoGroup},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.run(); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	if list, err := f.s.List(other); err != nil || len(list) != 0 {
+		t.Fatalf("financings of the other group = %v, %v", list, err)
+	}
+	if occ, err := f.s.Month(other, nov); err != nil || len(occ) != 0 {
+		t.Fatalf("month of the other group = %v, %v", occ, err)
+	}
+}
