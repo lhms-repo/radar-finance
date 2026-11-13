@@ -29,13 +29,6 @@ build_ssh_opts() {
   fi
 }
 
-# remote_quote joins arguments into one shell-quoted string for the remote side.
-remote_quote() {
-  local quoted
-  printf -v quoted '%q ' "$@"
-  printf '%s' "${quoted% }"
-}
-
 # is_mounted reports whether the mount directory is an active mount point.
 is_mounted() {
   if command -v mountpoint >/dev/null 2>&1; then
@@ -129,10 +122,12 @@ cmd_check() {
   printf 'conexão SSH com %s:\n' "$target"
   ssh -T "${SSH_OPTS[@]}" "$target" "$(remote_quote "$EXECUTOR_SCRIPT" --check)"
   build_ssh_opts "$EXECUTOR_SSH_TOOLS_KEY"
-  if ssh -T "${SSH_OPTS[@]}" "$target" "cd $(remote_quote "$EXECUTOR_REPO_DIR") && git rev-parse --is-inside-work-tree" >/dev/null 2>&1; then
-    printf 'comandos de revisão (run): ok\n'
+  if ! ssh -T "${SSH_OPTS[@]}" "$target" "cd $(remote_quote "$EXECUTOR_REPO_DIR")" >/dev/null 2>&1; then
+    printf 'comandos de revisão (run): sem acesso, confira EXECUTOR_SSH_TOOLS_KEY e EXECUTOR_REPO_DIR\n'
+  elif ! ssh -T "${SSH_OPTS[@]}" "$target" "cd $(remote_quote "$EXECUTOR_REPO_DIR") && git rev-parse --is-inside-work-tree" >/dev/null 2>&1; then
+    printf 'comandos de revisão (run): ok, mas a pasta não é um repositório git, então git diff não vai funcionar\n'
   else
-    printf 'comandos de revisão (run): falhou, confira EXECUTOR_SSH_TOOLS_KEY\n'
+    printf 'comandos de revisão (run): ok\n'
   fi
   if is_mounted; then
     printf 'montagem: ativa em %s\n' "$PLANNER_MOUNT_DIR"

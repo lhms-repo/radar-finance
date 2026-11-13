@@ -39,6 +39,7 @@ O Codex removeu o comando `codex mcp-server` na versão 0.154.0. O substituto of
 | `AGENTS.md` | executora | Regras do projeto e formato da resposta para o executor |
 | `tools/agent-bridge/executor.sh` | executora | Carrega o `.env`, entra no projeto e roda o agente sem interação, uma tarefa por vez |
 | `tools/agent-bridge/planner.sh` | planejador | Envia tarefas, continua sessões, roda comandos de revisão e monta a pasta |
+| `tools/agent-bridge/setup.sh` | as duas | Prepara cada máquina: `executor`, `planner` e `lock-password` |
 | `tools/agent-bridge/lib.sh` | as duas | Leitura do `.env` sem executá-lo e checagem da permissão |
 | `tools/agent-bridge/.env.example` | as duas | Modelo do `.env`, com as variáveis das duas máquinas |
 
@@ -46,33 +47,59 @@ O `.env` é lido literalmente: sem expansão de `$VARIAVEL` e sem comentário de
 
 ## 1. Máquina executora
 
-A pasta `tools/agent-bridge/` fica dentro do repositório: o `executor.sh` descobre a pasta do projeto pela própria localização. Os passos supõem o PC com Windows e o projeto no WSL, como a produção.
+No WSL, de dentro do repositório (com o projeto em `/home/<usuario>/radar-finance`):
 
-| Passo | Como fazer | Feito |
-| --- | --- | --- |
-| Agente instalado e autenticado | No WSL, `codex login` com a conta do ChatGPT, ou o modelo local configurado em `~/.codex/config.toml` | [ ] |
-| Servidor SSH no WSL | `sudo apt install openssh-server` e `sudo systemctl enable --now ssh` | [ ] |
-| WSL visível na rede local | Em `%UserProfile%\.wslconfig`, seção `[wsl2]`, a linha `networkingMode=mirrored`; depois `wsl --shutdown` no PowerShell | [ ] |
-| Firewall | No PowerShell como administrador: `New-NetFirewallRule -DisplayName "Radar SSH executor" -Direction Inbound -Protocol TCP -LocalPort 22 -Profile Private -Action Allow` | [ ] |
-| `.env` | `cp tools/agent-bridge/.env.example tools/agent-bridge/.env`, `chmod 600 tools/agent-bridge/.env` e preencher a parte "Executor machine" | [ ] |
-| Teste local | `tools/agent-bridge/executor.sh --check` mostra a pasta, a versão e o login do agente, e `ok` para go, pnpm, node, make, git e flock | [ ] |
+```bash
+codex login            # se o agente ainda não tiver login
+tools/agent-bridge/setup.sh executor
+```
 
-Se a conexão da outra máquina não chegar ao WSL mesmo com a rede espelhada, confira na documentação do WSL as regras de firewall do Hyper-V para a rede espelhada.
+O `setup.sh executor`:
 
-Numa sessão SSH sem terminal, o `.bashrc` do Ubuntu para logo no início, então o `PATH` do nvm, do Go e do pnpm pode não existir. Por isso o `.env` tem `AGENT_BIN` e `AGENT_PATH_EXTRA`.
+- instala e liga o servidor SSH;
+- confere o login do agente e encontra `codex`, `go`, `pnpm` e `node`, porque numa sessão SSH sem terminal o `.bashrc` do Ubuntu não monta o `PATH`;
+- cria o `.env` com permissão 600 e preenche `AGENT_BIN` e `AGENT_PATH_EXTRA`, sem apagar o que você já tiver escrito;
+- roda o `executor.sh --check`;
+- no fim, mostra os dois comandos para a máquina do planejador.
+
+Se faltar `go` ou `pnpm`, instale-os no WSL nas versões do `.devcontainer` e rode o setup de novo. Hoje eles podem existir só dentro do Dev Container.
+
+Se o WSL ainda não estiver em rede espelhada, o setup mostra os comandos para o PowerShell do Windows como administrador: a linha `networkingMode=mirrored` no `.wslconfig`, a regra de firewall da porta 22 e o `wsl --shutdown`. Se esse PC for a produção, o `wsl --shutdown` derruba o Docker e o Radar por alguns instantes. Se mesmo assim a conexão não chegar ao WSL, confira na documentação do WSL as regras de firewall do Hyper-V para a rede espelhada.
 
 ## 2. Máquina do planejador
 
-Precisa de bash, cliente SSH, `sshfs` e o agente planejador. O `sshfs` é nativo no Linux, pede o macFUSE no macOS e, no Windows, fica mais simples dentro do WSL. A pasta `agent-bridge` fica fora de qualquer repositório.
+Precisa de bash, cliente SSH e `tar`. Rode os dois comandos que o setup da executora mostrou, já com o usuário e o IP dela. Têm este formato:
 
-| Passo | Como fazer | Feito |
-| --- | --- | --- |
-| Chave SSH | `ssh-keygen -t ed25519 -f ~/.ssh/radar_executor -C radar-executor`. Sem senha, ou com senha guardada no `ssh-agent` | [ ] |
-| Autorizar a chave | `ssh-copy-id -i ~/.ssh/radar_executor.pub usuario@maquina-executora` | [ ] |
-| Copiar os scripts | `scp -r usuario@maquina-executora:/caminho/do/projeto/tools/agent-bridge ~/agent-bridge` | [ ] |
-| `.env` | `cp ~/agent-bridge/.env.example ~/agent-bridge/.env`, `chmod 600 ~/agent-bridge/.env` e preencher a parte "Planner machine" | [ ] |
-| Conferir | `~/agent-bridge/planner.sh check` | [ ] |
-| Montar a pasta | `~/agent-bridge/planner.sh mount` | [ ] |
+```bash
+ssh usuario@ip-da-executora 'tar --exclude=agent-bridge/.env -C /home/usuario/radar-finance/tools -cf - agent-bridge' | tar -C ~ -xf -
+~/agent-bridge/setup.sh planner usuario@ip-da-executora
+```
+
+O primeiro comando copia os scripts, sem o `.env` da executora. O `setup.sh planner`:
+
+- instala o `sshfs` quando há `apt-get`; no macOS, instale o macFUSE e o sshfs à mão;
+- cria a chave `~/.ssh/radar_executor`, se ainda não existir;
+- autoriza a chave na executora, pedindo a senha uma única vez;
+- copia de novo os scripts da executora, o que também serve para atualizá-los depois;
+- cria o `.env` com permissão 600, com host, usuário, porta, chave e pasta do projeto;
+- roda o `planner.sh check`.
+
+Opções: `--repo` para outra pasta do projeto, `--port`, `--key` e `--dir`.
+
+Depois:
+
+```bash
+~/agent-bridge/planner.sh mount
+echo "Responda apenas: ok. Não altere nenhum arquivo." | ~/agent-bridge/planner.sh task
+```
+
+Quando a tarefa de teste responder, desligue o login por senha na executora:
+
+```bash
+tools/agent-bridge/setup.sh lock-password
+```
+
+Antes de fechar o terminal da executora, confira com `planner.sh check` que a chave continua entrando.
 
 Abra o agente planejador dentro da pasta montada (`~/radar-remote` por padrão). Assim ele lê as instruções e o restante do projeto direto da máquina executora.
 

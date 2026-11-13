@@ -55,3 +55,10 @@ expand_home() {
   fi
   printf '%s' "$path"
 }
+
+# remote_quote joins arguments into one shell-quoted string for the remote side of SSH.
+remote_quote() {
+  local quoted
+  printf -v quoted '%q ' "$@"
+  printf '%s' "${quoted% }"
+}

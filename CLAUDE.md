@@ -124,6 +124,9 @@ Ponte entre agentes (opcional, veja `docs/agentes.md`): o planejador escreve as 
 
 | Comando | Onde | O que faz |
 | --- | --- | --- |
+| `tools/agent-bridge/setup.sh executor` | Executor | Prepara a máquina executora: SSH, caminhos do agente e `.env` |
+| `setup.sh planner usuario@host` | Planejador | Prepara a máquina do planejador: chave, cópia dos scripts e `.env` |
+| `tools/agent-bridge/setup.sh lock-password` | Executor | Desliga o login por senha no SSH depois que a chave funcionar |
 | `tools/agent-bridge/executor.sh --check` | Executor | Confere a pasta, o login do agente e as ferramentas no `PATH` |
 | `planner.sh check` | Planejador | Confere ferramentas locais, SSH e o agente na máquina executora |
 | `planner.sh task [arquivo]` | Planejador | Envia uma tarefa ao executor e devolve a sessão e a resposta final |
