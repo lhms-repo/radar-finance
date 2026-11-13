@@ -47,7 +47,7 @@ O `.env` é lido literalmente: sem expansão de `$VARIAVEL` e sem comentário de
 
 ## 1. Máquina executora
 
-No WSL, de dentro do repositório (com o projeto em `/home/<usuario>/radar-finance`):
+No Ubuntu, de dentro do repositório (com o projeto em `/home/<usuario>/radar-finance`):
 
 ```bash
 codex login            # se o agente ainda não tiver login
@@ -57,18 +57,19 @@ tools/agent-bridge/setup.sh executor
 O `setup.sh executor`:
 
 - instala e liga o servidor SSH;
+- se o `ufw` estiver ativo, libera a porta 22 só para a rede local (`/24` do IP da máquina);
 - confere o login do agente e encontra `codex`, `go`, `pnpm` e `node`, porque numa sessão SSH sem terminal o `.bashrc` do Ubuntu não monta o `PATH`;
 - cria o `.env` com permissão 600 e preenche `AGENT_BIN` e `AGENT_PATH_EXTRA`, sem apagar o que você já tiver escrito;
 - roda o `executor.sh --check`;
 - no fim, mostra os dois comandos para a máquina do planejador.
 
-Se faltar `go` ou `pnpm`, instale-os no WSL nas versões do `.devcontainer` e rode o setup de novo. Hoje eles podem existir só dentro do Dev Container.
+Se faltar `go` ou `pnpm`, instale-os na máquina nas versões do `.devcontainer` e rode o setup de novo. Eles podem existir só dentro do Dev Container.
 
-Se o WSL ainda não estiver em rede espelhada, o setup mostra os comandos para o PowerShell do Windows como administrador: a linha `networkingMode=mirrored` no `.wslconfig`, a regra de firewall da porta 22 e o `wsl --shutdown`. Se esse PC for a produção, o `wsl --shutdown` derruba o Docker e o Radar por alguns instantes. Se mesmo assim a conexão não chegar ao WSL, confira na documentação do WSL as regras de firewall do Hyper-V para a rede espelhada.
+Se a executora for o WSL de um Windows, o setup também mostra os comandos para o PowerShell como administrador: a rede espelhada no `.wslconfig`, a regra de firewall do Windows e o `wsl --shutdown`.
 
 ## 2. Máquina do planejador
 
-Precisa de bash, cliente SSH e `tar`. Rode os dois comandos que o setup da executora mostrou, já com o usuário e o IP dela. Têm este formato:
+Precisa de bash, cliente SSH e `tar`, que o Ubuntu já tem. Rode os dois comandos que o setup da executora mostrou, já com o usuário e o IP dela. Têm este formato:
 
 ```bash
 ssh usuario@ip-da-executora 'tar --exclude=agent-bridge/.env -C /home/usuario/radar-finance/tools -cf - agent-bridge' | tar -C ~ -xf -
@@ -77,7 +78,7 @@ ssh usuario@ip-da-executora 'tar --exclude=agent-bridge/.env -C /home/usuario/ra
 
 O primeiro comando copia os scripts, sem o `.env` da executora. O `setup.sh planner`:
 
-- instala o `sshfs` quando há `apt-get`; no macOS, instale o macFUSE e o sshfs à mão;
+- instala o `sshfs`;
 - cria a chave `~/.ssh/radar_executor`, se ainda não existir;
 - autoriza a chave na executora, pedindo a senha uma única vez;
 - copia de novo os scripts da executora, o que também serve para atualizá-los depois;

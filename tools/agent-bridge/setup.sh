@@ -78,6 +78,30 @@ Depois, abra o WSL de novo e rode este setup mais uma vez para conferir.
 EOF
 }
 
+# lan_prefix prints the /24 network of this machine's first IPv4 address, such as 192.168.0.0/24.
+lan_prefix() {
+  hostname -I 2>/dev/null | awk '{ split($1, o, "."); if (o[4] != "") print o[1] "." o[2] "." o[3] ".0/24" }'
+}
+
+# check_firewall opens SSH to the local network when ufw is active and has no rule for port 22.
+check_firewall() {
+  command -v ufw >/dev/null 2>&1 || return 0
+  local status prefix
+  status="$(as_root ufw status 2>/dev/null || true)"
+  [[ "$status" == *"Status: active"* ]] || return 0
+  if grep -Eq '^(22|22/tcp|OpenSSH)[[:space:]]' <<<"$status"; then
+    info "firewall: a porta 22 já está liberada"
+    return 0
+  fi
+  prefix="$(lan_prefix)"
+  if [[ -z "$prefix" ]]; then
+    warn "firewall ativo sem regra para a porta 22; libere com: sudo ufw allow from <sua-rede>/24 to any port 22 proto tcp"
+    return 0
+  fi
+  info "firewall: liberando a porta 22 só para a rede local $prefix"
+  as_root ufw allow from "$prefix" to any port 22 proto tcp
+}
+
 # setup_executor prepares the machine that runs the coding agent inside the project.
 setup_executor() {
   (($# == 0)) || die "uso: setup.sh executor"
@@ -122,7 +146,7 @@ setup_executor() {
     command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
   done
   if ((${#missing[@]} > 0)); then
-    warn "não encontrados: ${missing[*]}. Instale no WSL (Go e pnpm nas versões do .devcontainer) e rode de novo."
+    warn "não encontrados: ${missing[*]}. Instale nesta máquina (Go e pnpm nas versões do .devcontainer) e rode de novo."
   fi
 
   info "arquivo $env_file"
@@ -131,6 +155,8 @@ setup_executor() {
   if [[ -n "$extra" ]]; then
     set_env_value "$env_file" AGENT_PATH_EXTRA "$extra" 0
   fi
+
+  check_firewall
 
   if grep -qi microsoft /proc/version 2>/dev/null; then
     info "rede do WSL"
