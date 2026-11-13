@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, switchSpace } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -83,6 +83,13 @@ test("cards: register, purchase in installments, recurrence and invoice payment 
   await purchase.getByRole("button", { name: "Lançar" }).click();
   await expect(purchase).toBeHidden();
 
+  // The group reads its part without paying; Ana pays the whole invoice in her personal space (RF-83).
+  await page.goto("/cards");
+  await page.getByRole("option", { name: cardName }).click();
+  await page.getByRole("button", { name: "Mês anterior" }).click();
+  await expect(page.getByText("Mercado Antigo")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pagar fatura" })).toHaveCount(0);
+  await switchSpace(page, "Pessoal");
   await page.goto("/cards");
   await page.getByRole("option", { name: cardName }).click();
   await page.getByRole("button", { name: "Mês anterior" }).click();

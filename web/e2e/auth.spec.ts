@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { USERS, login } from "./helpers";
+import { USERS, chooseHome, login } from "./helpers";
 
 test("redirects to the user picker without a session", async ({ page }) => {
   await page.goto("/settings");
   await expect(page).toHaveURL(/\/login$/);
+  await chooseHome(page);
   await expect(page.getByRole("heading", { name: "Quem está usando?" })).toBeVisible();
   for (const u of USERS) {
     await expect(page.getByRole("button", { name: u.name })).toBeVisible();
@@ -12,6 +13,7 @@ test("redirects to the user picker without a session", async ({ page }) => {
 
 test("a wrong PIN is refused and the right one enters (RF-01, RN-27)", async ({ page }) => {
   await page.goto("/login");
+  await chooseHome(page);
   await page.getByRole("button", { name: USERS[0]!.name }).click();
   await page.getByLabel("PIN").fill("0000");
   await page.getByRole("button", { name: "Entrar" }).click();
