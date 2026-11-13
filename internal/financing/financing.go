@@ -16,6 +16,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/membersplit"
 	"github.com/italogfx/radar-finance/internal/problem"
 	"github.com/italogfx/radar-finance/internal/scope"
 )
@@ -91,6 +92,8 @@ type Input struct {
 	BalanceCents      int64
 	// NextMonth is the month of the next installment to pay.
 	NextMonth civil.Month
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // Changes edits the descriptive fields; amounts change through Correct (RF-42).
@@ -99,6 +102,8 @@ type Changes struct {
 	CategoryID int64
 	AccountID  int64
 	DueDay     int
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // Occurrence is the installment of one month as a bill to pay (RF-40).
@@ -191,7 +196,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Financing
 			return fmt.Errorf("create financing: %w", err)
 		}
 		id = f.ID
-		return nil
+		return membersplit.Save(ctx, q, groupID, membersplit.KindFinancing, id, in.Members, in.InstallmentCents)
 	})
 	if err != nil {
 		return Financing{}, err
@@ -213,15 +218,19 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Financing, e
 		return Financing{}, err
 	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := s.get(ctx, q, id); err != nil {
+		cur, err := s.get(ctx, q, id)
+		if err != nil {
 			return err
 		}
 		if err := checkRefs(ctx, q, c.CategoryID, c.AccountID); err != nil {
 			return err
 		}
-		return q.UpdateFinancing(ctx, store.UpdateFinancingParams{
+		if err := q.UpdateFinancing(ctx, store.UpdateFinancingParams{
 			Name: c.Name, CategoryID: c.CategoryID, AccountID: c.AccountID, DueDay: int64(c.DueDay), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
-		})
+		}); err != nil {
+			return err
+		}
+		return membersplit.Save(ctx, q, groupID, membersplit.KindFinancing, id, c.Members, cur.InstallmentCents)
 	})
 	if err != nil {
 		return Financing{}, err

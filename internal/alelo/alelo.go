@@ -17,6 +17,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/membersplit"
 	"github.com/italogfx/radar-finance/internal/problem"
 	"github.com/italogfx/radar-finance/internal/scope"
 )
@@ -128,6 +129,8 @@ type Purchase struct {
 	Date        civil.Date
 	Description string
 	AmountCents int64
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // Service reads and writes Alelo cards.
@@ -419,6 +422,9 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 	})
 	if err != nil {
 		return PurchaseItem{}, fmt.Errorf("create alelo purchase: %w", err)
+	}
+	if err := membersplit.Save(ctx, q, groupID, membersplit.KindAlelo, r.ID, p.Members, p.AmountCents); err != nil {
+		return PurchaseItem{}, err
 	}
 	return PurchaseItem{ID: r.ID, Date: p.Date, Description: desc, AmountCents: r.AmountCents}, nil
 }
