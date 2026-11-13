@@ -182,6 +182,10 @@ func TestLoginFlow(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || len(members) != 2 || members[0].Name != "Ana Ficticia" || !members[0].HasPIN {
 		t.Fatalf("login members = %d %+v", resp.StatusCode, members)
 	}
+	// The owner of a personal space is not listed through it (RF-83).
+	if resp := get(t, c, srv.URL+"/api/auth/groups/2/members"); resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("members of a personal space = %d, want 404", resp.StatusCode)
+	}
 	if resp := get(t, c, srv.URL+"/api/auth/groups/99/members"); resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("members of a missing group = %d, want 404", resp.StatusCode)
 	}
@@ -194,7 +198,8 @@ func TestLoginFlow(t *testing.T) {
 	}{
 		{name: "unknown person", body: `{"groupId":1,"userId":99,"pin":"4821"}`, want: http.StatusUnauthorized},
 		{name: "wrong PIN", body: `{"groupId":1,"userId":1,"pin":"0000"}`, want: http.StatusBadRequest, code: "pin_wrong"},
-		{name: "group of someone else", body: `{"groupId":2,"userId":1,"pin":"4821"}`, want: http.StatusBadRequest, code: "group_not_member"},
+		{name: "own personal space", body: `{"groupId":2,"userId":1,"pin":"4821"}`, want: http.StatusBadRequest, code: "group_not_member"},
+		{name: "personal space of someone else", body: `{"groupId":3,"userId":1,"pin":"4821"}`, want: http.StatusBadRequest, code: "group_not_member"},
 		{name: "no group", body: `{"userId":1,"pin":"4821"}`, want: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
@@ -222,7 +227,7 @@ func TestLoginFlow(t *testing.T) {
 		Groups []struct{ ID int64 }
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&me)
-	if me.Name != "Ana Ficticia" || me.Theme != "system" || me.Group.Name != "Casa" || me.Group.Role != "admin" || len(me.Groups) != 1 {
+	if me.Name != "Ana Ficticia" || me.Theme != "system" || me.Group.Name != "Casa" || me.Group.Role != "admin" || len(me.Groups) != 2 {
 		t.Fatalf("unexpected me: %+v", me)
 	}
 	cookie := resp.Header.Get("Set-Cookie")
@@ -239,10 +244,10 @@ func TestLoginFlow(t *testing.T) {
 	}
 
 	// A second group of Ana: switching needs no PIN, and a group she is not in is refused.
-	if _, err := conn.Exec(`INSERT INTO groups (id, name, created_at) VALUES (2, 'Praia', '2026-11-12 12:00:00+00:00'), (3, 'Outro', '2026-11-12 12:00:00+00:00')`); err != nil {
+	if _, err := conn.Exec(`INSERT INTO groups (id, name, created_at) VALUES (10, 'Praia', '2026-11-12 12:00:00+00:00'), (11, 'Outro', '2026-11-12 12:00:00+00:00')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := conn.Exec(`INSERT INTO group_members (group_id, person_id, role, weight_bp, joined_at) VALUES (2, 1, 'member', 10000, '2026-11-12 12:00:00+00:00')`); err != nil {
+	if _, err := conn.Exec(`INSERT INTO group_members (group_id, person_id, role, weight_bp, joined_at) VALUES (10, 1, 'member', 10000, '2026-11-12 12:00:00+00:00')`); err != nil {
 		t.Fatal(err)
 	}
 	put := func(body string) *http.Response {
@@ -257,12 +262,21 @@ func TestLoginFlow(t *testing.T) {
 		t.Cleanup(func() { resp.Body.Close() })
 		return resp
 	}
-	if resp := put(`{"groupId":3}`); resp.StatusCode != http.StatusBadRequest {
+	if resp := put(`{"groupId":11}`); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("switch to a group of others = %d, want 400", resp.StatusCode)
+	}
+	// The personal space of Bruno is closed to Ana; her own opens like any group (RF-83).
+	if resp := put(`{"groupId":3}`); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("switch to the personal space of bruno = %d, want 400", resp.StatusCode)
 	}
 	resp = put(`{"groupId":2}`)
 	_ = json.NewDecoder(resp.Body).Decode(&me)
-	if resp.StatusCode != http.StatusOK || me.Group.Name != "Praia" || me.Group.Role != "member" || len(me.Groups) != 2 {
+	if resp.StatusCode != http.StatusOK || me.Group.Name != "Pessoal" {
+		t.Fatalf("switch to her personal space = %d %+v", resp.StatusCode, me)
+	}
+	resp = put(`{"groupId":10}`)
+	_ = json.NewDecoder(resp.Body).Decode(&me)
+	if resp.StatusCode != http.StatusOK || me.Group.Name != "Praia" || me.Group.Role != "member" || len(me.Groups) != 3 {
 		t.Fatalf("switch = %d %+v", resp.StatusCode, me)
 	}
 	resp = get(t, c, srv.URL+"/api/me")

@@ -20,6 +20,9 @@ import (
 type Role string
 
 // Member roles: administrators manage the group and its people (RF-80).
+// kindPersonal marks the personal space of one person in groups.kind (RF-83).
+const kindPersonal = "personal"
+
 const (
 	RoleAdmin  Role = "admin"
 	RoleMember Role = "member"
@@ -51,13 +54,15 @@ var (
 	ErrLoginOrPIN         = problem.Invalid("login_or_pin_wrong", "Login ou PIN incorreto.")
 	ErrResetOutsideGroups = problem.Forbidden("pin_reset_other_groups", "Essa pessoa também está num grupo que você não administra. O PIN dela só pode ser redefinido por quem administra todos os grupos dela, ou pelo terminal.")
 	ErrPersonRequired     = problem.Invalid("person_required", "Informe o nome e o login da pessoa.")
+	ErrPersonalGroup      = problem.Conflict("group_personal", "O espaço Pessoal é só seu: não tem outros membros, papéis nem outro nome.")
 )
 
-// Group is a group of people with the role of whoever reads it.
+// Group is a group of people with the role of whoever reads it; a personal one is the space of one person (RF-83).
 type Group struct {
-	ID   int64
-	Name string
-	Role Role
+	ID       int64
+	Name     string
+	Role     Role
+	Personal bool
 }
 
 // Member is a person of a group with role, weight and whether a PIN exists.
@@ -97,7 +102,7 @@ func (s *Service) CreateGroup(ctx context.Context, name string, adminUserID int6
 		if err := q.AddGroupMember(ctx, store.AddGroupMemberParams{GroupID: g.ID, PersonID: u.PersonID, Role: string(RoleAdmin), WeightBp: fullWeightBP, JoinedAt: now}); err != nil {
 			return fmt.Errorf("add first member: %w", err)
 		}
-		return nil
+		return ensurePersonal(ctx, q, u.PersonID, u.ID, now)
 	})
 	if err != nil {
 		return Group{}, err
@@ -112,7 +117,7 @@ func (s *Service) RenameGroup(ctx context.Context, groupID int64, name string) e
 		return err
 	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := getGroup(ctx, q, groupID); err != nil {
+		if _, err := sharedGroup(ctx, q, groupID); err != nil {
 			return err
 		}
 		if err := checkGroupName(ctx, q, name, groupID); err != nil {
@@ -141,7 +146,7 @@ func (s *Service) GetGroup(ctx context.Context, groupID int64) (Group, error) {
 	if err != nil {
 		return Group{}, err
 	}
-	return Group{ID: g.ID, Name: g.Name}, nil
+	return Group{ID: g.ID, Name: g.Name, Personal: g.Kind == kindPersonal}, nil
 }
 
 // GroupsOf lists the groups of a user with the role in each, for the group selector (RF-81).
@@ -160,7 +165,7 @@ func (s *Service) GroupsOf(ctx context.Context, userID int64) ([]Group, error) {
 	}
 	out := make([]Group, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, Group{ID: r.ID, Name: r.Name, Role: Role(r.Role)})
+		out = append(out, Group{ID: r.ID, Name: r.Name, Role: Role(r.Role), Personal: r.Kind == kindPersonal})
 	}
 	return out, nil
 }
@@ -189,7 +194,7 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID int64, role Rol
 		return ErrInvalidRole
 	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := getGroup(ctx, q, groupID); err != nil {
+		if _, err := sharedGroup(ctx, q, groupID); err != nil {
 			return err
 		}
 		u, err := q.GetUserByID(ctx, userID)
@@ -204,8 +209,12 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID int64, role Rol
 		} else if ok {
 			return ErrAlreadyMember
 		}
-		if err := q.AddGroupMember(ctx, store.AddGroupMemberParams{GroupID: groupID, PersonID: u.PersonID, Role: string(role), WeightBp: 1, JoinedAt: s.now().UTC()}); err != nil {
+		now := s.now().UTC()
+		if err := q.AddGroupMember(ctx, store.AddGroupMemberParams{GroupID: groupID, PersonID: u.PersonID, Role: string(role), WeightBp: 1, JoinedAt: now}); err != nil {
 			return fmt.Errorf("add member: %w", err)
+		}
+		if err := ensurePersonal(ctx, q, u.PersonID, u.ID, now); err != nil {
+			return err
 		}
 		return equalWeights(ctx, q, groupID)
 	})
@@ -229,7 +238,7 @@ func (s *Service) CreateMember(ctx context.Context, groupID int64, login, name, 
 	}
 	var u store.User
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := getGroup(ctx, q, groupID); err != nil {
+		if _, err := sharedGroup(ctx, q, groupID); err != nil {
 			return err
 		}
 		if _, err := q.GetUserByLogin(ctx, login); err == nil {
@@ -251,6 +260,9 @@ func (s *Service) CreateMember(ctx context.Context, groupID int64, login, name, 
 		if err := q.AddGroupMember(ctx, store.AddGroupMemberParams{GroupID: groupID, PersonID: p.ID, Role: string(role), WeightBp: 1, JoinedAt: now}); err != nil {
 			return fmt.Errorf("add member: %w", err)
 		}
+		if err := ensurePersonal(ctx, q, p.ID, u.ID, now); err != nil {
+			return err
+		}
 		return equalWeights(ctx, q, groupID)
 	})
 	if err != nil {
@@ -265,6 +277,9 @@ func (s *Service) SetRole(ctx context.Context, groupID, userID int64, role Role)
 		return ErrInvalidRole
 	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		if _, err := sharedGroup(ctx, q, groupID); err != nil {
+			return err
+		}
 		members, err := q.ListGroupMembers(ctx, groupID)
 		if err != nil {
 			return err
@@ -322,6 +337,12 @@ func (s *Service) Authenticate(ctx context.Context, groupID, userID int64, pin s
 	} else if !ok {
 		return User{}, ErrNotMember
 	}
+	// A personal space is never a way in: one enters through a shared group and switches to it (RF-01, RF-83).
+	if g, err := getGroup(ctx, q, groupID); err != nil {
+		return User{}, err
+	} else if g.Kind == kindPersonal {
+		return User{}, ErrNotMember
+	}
 	if err := s.verifyPIN(ctx, userID, pin); err != nil {
 		return User{}, err
 	}
@@ -334,8 +355,10 @@ func (s *Service) JoinWithPIN(ctx context.Context, groupID int64, login, pin str
 	if role != RoleAdmin && role != RoleMember {
 		return User{}, ErrInvalidRole
 	}
-	if _, err := s.GetGroup(ctx, groupID); err != nil {
+	if g, err := s.GetGroup(ctx, groupID); err != nil {
 		return User{}, err
+	} else if g.Personal {
+		return User{}, ErrPersonalGroup
 	}
 	u, err := s.GetByLogin(ctx, strings.ToLower(strings.TrimSpace(login)))
 	if errors.Is(err, ErrNotFound) {
@@ -364,10 +387,13 @@ func (s *Service) CanResetPIN(ctx context.Context, callerID, targetID int64) err
 	if err != nil {
 		return err
 	}
-	if len(groups) == 0 {
-		return ErrResetOutsideGroups
-	}
+	shared := 0
 	for _, g := range groups {
+		// The personal space has only its owner, so it never counts against the administrator.
+		if g.Personal {
+			continue
+		}
+		shared++
 		role, ok, err := s.Membership(ctx, g.ID, callerID)
 		if err != nil {
 			return err
@@ -375,6 +401,9 @@ func (s *Service) CanResetPIN(ctx context.Context, callerID, targetID int64) err
 		if !ok || role != RoleAdmin {
 			return ErrResetOutsideGroups
 		}
+	}
+	if shared == 0 {
+		return ErrResetOutsideGroups
 	}
 	return nil
 }
@@ -475,6 +504,29 @@ func getGroup(ctx context.Context, q *store.Queries, id int64) (store.Group, err
 		return store.Group{}, ErrGroupNotFound
 	}
 	return g, err
+}
+
+// sharedGroup reads a group that takes members, refusing a personal space (RF-83).
+func sharedGroup(ctx context.Context, q *store.Queries, id int64) (store.Group, error) {
+	g, err := getGroup(ctx, q, id)
+	if err != nil {
+		return store.Group{}, err
+	}
+	if g.Kind == kindPersonal {
+		return store.Group{}, ErrPersonalGroup
+	}
+	return g, nil
+}
+
+// ensurePersonal gives the person her personal space, with her as its only member, if she has none yet (RF-83).
+func ensurePersonal(ctx context.Context, q *store.Queries, personID, userID int64, now time.Time) error {
+	if err := q.EnsurePersonalGroup(ctx, store.EnsurePersonalGroupParams{PersonID: sql.NullInt64{Int64: personID, Valid: true}, CreatedBy: sql.NullInt64{Int64: userID, Valid: true}, CreatedAt: now}); err != nil {
+		return fmt.Errorf("personal group: %w", err)
+	}
+	if err := q.EnsurePersonalMember(ctx, store.EnsurePersonalMemberParams{JoinedAt: now, PersonID: sql.NullInt64{Int64: personID, Valid: true}}); err != nil {
+		return fmt.Errorf("personal member: %w", err)
+	}
+	return nil
 }
 
 // membership returns the role of the user in the group and whether the user belongs to it.

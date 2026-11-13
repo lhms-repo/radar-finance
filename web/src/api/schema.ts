@@ -1854,6 +1854,8 @@ export interface components {
             id: number;
             name: string;
             role: components["schemas"]["GroupRole"];
+            /** @description Whether this is the personal space of the user, seen only by her (RF-83). */
+            personal: boolean;
         };
         GroupName: {
             name: string;

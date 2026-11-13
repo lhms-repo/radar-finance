@@ -3138,7 +3138,7 @@ components:
 
     GroupSummary:
       type: object
-      required: [id, name, role]
+      required: [id, name, role, personal]
       properties:
         id:
           type: integer
@@ -3147,6 +3147,9 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/GroupRole"
+        personal:
+          description: Whether this is the personal space of the user, seen only by her (RF-83).
+          type: boolean
 
     GroupName:
       type: object
