@@ -423,7 +423,7 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 	if err != nil {
 		return PurchaseItem{}, fmt.Errorf("create alelo purchase: %w", err)
 	}
-	if err := membersplit.Save(ctx, q, groupID, membersplit.KindAlelo, r.ID, p.Members, p.AmountCents); err != nil {
+	if err := membersplit.Save(ctx, q, groupID, membersplit.KindAlelo, r.ID, p.Members, p.AmountCents, s.now(), true); err != nil {
 		return PurchaseItem{}, err
 	}
 	return PurchaseItem{ID: r.ID, Date: p.Date, Description: desc, AmountCents: r.AmountCents}, nil

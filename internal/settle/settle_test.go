@@ -81,7 +81,7 @@ func newTrio(t *testing.T) trio {
 // rule saves a division between members for an item of Casa.
 func (tr trio) rule(t *testing.T, kind membersplit.Kind, id int64, r *membersplit.Rule, amount int64) {
 	t.Helper()
-	if err := membersplit.Save(context.Background(), store.New(tr.conn), 1, kind, id, r, amount); err != nil {
+	if err := membersplit.Save(context.Background(), store.New(tr.conn), 1, kind, id, r, amount, time.Now(), true); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -252,5 +252,106 @@ func TestPayRules(t *testing.T) {
 	}
 	if _, err := tr.s.Settlement(scope.WithGroup(context.Background(), 2), civil.Month{Year: 2026, Month: time.November}); !errors.Is(err, ErrPersonal) {
 		t.Fatalf("settlement of a personal space: %v, want ErrPersonal", err)
+	}
+}
+
+// TestChangesApplyFromNowOn keeps what was paid or recorded before a change with the division and the weights it had:
+// a bill paid before its division changes, an expense recorded the same day before someone joins (RN-28).
+func TestChangesApplyFromNowOn(t *testing.T) {
+	tr := newTrio(t)
+	ctx := home
+	q := store.New(tr.conn)
+	nov2026 := civil.Month{Year: 2026, Month: time.November}
+	bills := bill.NewService(tr.conn)
+	b, err := bills.Create(ctx, tr.people["ana"].ID, bill.Input{Name: "Internet", CategoryID: tr.cat("Energia"), AccountID: tr.accounts["ana"], DueDay: 5, ExpectedCents: 10_000, StartMonth: civil.Month{Year: 2026, Month: time.October}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bills.Pay(ctx, tr.people["ana"].ID, bill.Payment{BillID: b.ID, Month: civil.Month{Year: 2026, Month: time.October}, AmountCents: 10_000, Date: civil.Date{Year: 2026, Month: time.October, Day: 5}}); err != nil {
+		t.Fatal(err)
+	}
+	// From now on the bill is only Ana's; October was paid by the weights and stays so.
+	only := &membersplit.Rule{Mode: membersplit.ModeEqual, Members: []membersplit.Member{{PersonID: tr.person("ana")}}}
+	if err := membersplit.Save(context.Background(), q, 1, membersplit.KindBill, b.ID, only, 10_000, time.Now(), false); err != nil {
+		t.Fatal(err)
+	}
+	// Saving the same division again records nothing new.
+	if err := membersplit.Save(context.Background(), q, 1, membersplit.KindBill, b.ID, only, 10_000, time.Now(), false); err != nil {
+		t.Fatal(err)
+	}
+	var rows int64
+	_ = tr.conn.QueryRow(`SELECT count(*) FROM member_splits WHERE item_kind = 'bill' AND item_id = ?`, b.ID).Scan(&rows)
+	if rows != 1 {
+		t.Fatalf("divisions recorded = %d, want 1", rows)
+	}
+	if _, err := bills.Pay(ctx, tr.people["ana"].ID, bill.Payment{BillID: b.ID, Month: nov2026, AmountCents: 10_000, Date: nov(5)}); err != nil {
+		t.Fatal(err)
+	}
+	// The October payment, before the change, keeps the weights of the three members.
+	st, err := tr.s.Settlement(ctx, civil.Month{Year: 2026, Month: time.October})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Lines) != 1 || len(st.Lines[0].Shares) != 3 {
+		t.Fatalf("October payment = %+v, want the weights of the three members", st.Lines)
+	}
+
+	// Someone who joins after an expense was recorded, on its very day, takes no part in it.
+	dani := testutil.NewUser(t, tr.conn, "dani", "Dani Ficticia")
+	before := time.Now().UTC().Add(-time.Hour)
+	if _, err := tr.conn.Exec(`INSERT INTO group_weights (group_id, person_id, weight_bp, from_day, set_at) VALUES (1, ?, 2500, '2026-11-12', ?)`, dani.PersonID, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.conn.Exec(`INSERT INTO group_members (group_id, person_id, role, weight_bp, joined_at) VALUES (1, ?, 'member', 2500, ?)`, dani.PersonID, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	e, err := tr.ledger.AddExpense(ctx, tr.people["ana"].ID, ledger.NewExpense{AccountID: tr.accounts["ana"], AmountCents: 9_000, Date: nov(12), CategoryID: tr.cat("Delivery"), Description: "Antes da Dani"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.conn.Exec(`UPDATE entries SET created_at = ? WHERE id = ?`, before, e.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.ledger.AddExpense(ctx, tr.people["ana"].ID, ledger.NewExpense{AccountID: tr.accounts["ana"], AmountCents: 9_000, Date: nov(12), CategoryID: tr.cat("Delivery"), Description: "Depois da Dani"}); err != nil {
+		t.Fatal(err)
+	}
+	st, err = tr.s.Settlement(ctx, nov2026)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range st.Lines {
+		took := false
+		for _, sh := range l.Shares {
+			took = took || sh.PersonID == dani.PersonID
+		}
+		if l.Description == "Antes da Dani" && took {
+			t.Errorf("Dani took part in an expense recorded before she joined: %+v", l)
+		}
+		if l.Description == "Depois da Dani" && !took {
+			t.Errorf("Dani took no part in an expense recorded after she joined: %+v", l)
+		}
+	}
+}
+
+// TestPurchasesBeforeTheStartStayOut leaves out every installment of a card purchase made before the settlement
+// started, even when its invoices close after it (RN-31).
+func TestPurchasesBeforeTheStartStayOut(t *testing.T) {
+	tr := newTrio(t)
+	c, err := tr.cards.CreateCard(home, tr.people["carla"].ID, card.CardInput{Name: "Cartao Carla", PersonID: tr.person("carla"), LimitCents: 1_000_000, ClosingDay: 3, DueDay: 10, Color: "purple", Finish: "matte"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Bought on September 20, before the start on October 1, in 3x: October, November and December invoices.
+	if _, err := tr.cards.AddPurchase(home, tr.people["carla"].ID, card.PurchaseInput{CardID: c.ID, Date: civil.Date{Year: 2026, Month: time.September, Day: 20}, Merchant: "Ar-condicionado", CategoryID: tr.cat("Delivery"), AmountCents: 300_000, Installments: 3}); err != nil {
+		t.Fatal(err)
+	}
+	st, err := tr.s.Settlement(home, civil.Month{Year: 2026, Month: time.November})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range st.Members {
+		if m.PaidCents != 0 || m.ShareCents != 0 {
+			t.Fatalf("a purchase from before the start entered the settlement: %+v", st.Members)
+		}
 	}
 }

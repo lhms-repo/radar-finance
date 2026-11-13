@@ -129,10 +129,18 @@ func (s *Service) WithToday(today func() civil.Date) *Service {
 	return s
 }
 
-// weightRow is the weight of a member from a day on.
+// weightRow is the weight of a member from a day and moment on.
 type weightRow struct {
-	from   civil.Date
+	from   string
+	setAt  string
 	weight int64
+}
+
+// datedRule is a division of an item from a day and moment on; an empty day is the division since the start.
+type datedRule struct {
+	from  string
+	setAt string
+	rule  *membersplit.Rule
 }
 
 // group holds what the settlement of the active group needs: its members in order, weights over time and divisions.
@@ -142,7 +150,7 @@ type group struct {
 	order   []int64
 	names   map[int64]string
 	weights map[int64][]weightRow
-	rules   map[string]*membersplit.Rule
+	rules   map[string][]datedRule
 }
 
 // load reads the members, their weights over time and the divisions of the active group.
@@ -158,7 +166,7 @@ func (s *Service) load(ctx context.Context, q *store.Queries) (group, error) {
 	if g.Kind == "personal" {
 		return group{}, ErrPersonal
 	}
-	out := group{id: groupID, names: map[int64]string{}, weights: map[int64][]weightRow{}, rules: map[string]*membersplit.Rule{}}
+	out := group{id: groupID, names: map[int64]string{}, weights: map[int64][]weightRow{}, rules: map[string][]datedRule{}}
 	from, err := q.GroupSettlesFrom(ctx, groupID)
 	if err != nil {
 		return group{}, err
@@ -181,24 +189,24 @@ func (s *Service) load(ctx context.Context, q *store.Queries) (group, error) {
 		return group{}, err
 	}
 	for _, r := range rows {
-		d, err := civil.ParseDate(r.FromDay)
-		if err != nil {
-			return group{}, err
-		}
-		out.weights[r.PersonID] = append(out.weights[r.PersonID], weightRow{from: d, weight: r.WeightBp})
+		out.weights[r.PersonID] = append(out.weights[r.PersonID], weightRow{from: r.FromDay, setAt: r.SetAt, weight: r.WeightBp})
 	}
 	splits, err := q.ListGroupMemberSplits(ctx, groupID)
 	if err != nil {
 		return group{}, err
 	}
+	byID := map[int64]*membersplit.Rule{}
 	for _, r := range splits {
-		key := ruleKey(membersplit.Kind(r.ItemKind), r.ItemID)
-		rule := out.rules[key]
+		rule := byID[r.ID]
 		if rule == nil {
 			rule = &membersplit.Rule{Mode: membersplit.Mode(r.Mode)}
-			out.rules[key] = rule
+			byID[r.ID] = rule
+			key := ruleKey(membersplit.Kind(r.ItemKind), r.ItemID)
+			out.rules[key] = append(out.rules[key], datedRule{from: r.FromDay, setAt: r.SetAt, rule: rule})
 		}
-		rule.Members = append(rule.Members, membersplit.Member{PersonID: r.PersonID, ShareCents: r.ShareCents})
+		if r.PersonID != 0 {
+			rule.Members = append(rule.Members, membersplit.Member{PersonID: r.PersonID, ShareCents: r.ShareCents})
+		}
 	}
 	return out, nil
 }
@@ -206,13 +214,14 @@ func (s *Service) load(ctx context.Context, q *store.Queries) (group, error) {
 // ruleKey names the division of an item in the map of a group.
 func ruleKey(kind membersplit.Kind, id int64) string { return fmt.Sprintf("%s:%d", kind, id) }
 
-// weightsOn returns the weights of the members on day d, in the order they joined; who had no weight yet takes no part.
-func (g group) weightsOn(d civil.Date) []membersplit.Weighted {
+// weightsOn returns the weights of the members for an expense of day d recorded at recorded, in the order they
+// joined; who had no weight yet takes no part (RN-28).
+func (g group) weightsOn(d civil.Date, recorded time.Time) []membersplit.Weighted {
 	var out []membersplit.Weighted
 	for _, p := range g.order {
 		var w int64
 		for _, r := range g.weights[p] {
-			if !d.Before(r.from) {
+			if membersplit.Applies(r.from, r.setAt, d, recorded) {
 				w = r.weight
 			}
 		}
@@ -223,9 +232,16 @@ func (g group) weightsOn(d civil.Date) []membersplit.Weighted {
 	return out
 }
 
-// split divides one expense of the group between the members on its day (RN-28).
-func (g group) split(l *Line, kind membersplit.Kind, id int64) {
-	ws := g.rules[ruleKey(kind, id)].Weights(g.weightsOn(l.Date))
+// split divides one expense of the group between the members with the weights and the division in force when it
+// happened and was recorded (RN-28).
+func (g group) split(l *Line, kind membersplit.Kind, id int64, recorded time.Time) {
+	var rule *membersplit.Rule
+	for _, r := range g.rules[ruleKey(kind, id)] {
+		if membersplit.Applies(r.from, r.setAt, l.Date, recorded) {
+			rule = r.rule
+		}
+	}
+	ws := rule.Weights(g.weightsOn(l.Date, recorded))
 	parts := membersplit.Allocate(l.AmountCents, ws)
 	for i, w := range ws {
 		l.Shares = append(l.Shares, Share{PersonID: w.PersonID, Name: g.names[w.PersonID], Cents: parts[i]})
@@ -259,11 +275,11 @@ func (s *Service) lines(ctx context.Context, q *store.Queries, g group) ([]Line,
 		// Paying a bill or an installment follows the division of the bill or the financing.
 		switch {
 		case e.BillID > 0:
-			g.split(&l, membersplit.KindBill, e.BillID)
+			g.split(&l, membersplit.KindBill, e.BillID, e.CreatedAt)
 		case e.FinancingID > 0:
-			g.split(&l, membersplit.KindFinancing, e.FinancingID)
+			g.split(&l, membersplit.KindFinancing, e.FinancingID, e.CreatedAt)
 		default:
-			g.split(&l, membersplit.KindEntry, e.ID)
+			g.split(&l, membersplit.KindEntry, e.ID, e.CreatedAt)
 		}
 		out = append(out, l)
 	}
@@ -277,7 +293,7 @@ func (s *Service) lines(ctx context.Context, q *store.Queries, g group) ([]Line,
 			return nil, err
 		}
 		l := Line{Date: d, Kind: LineAlelo, Description: a.Description, Source: a.CardName, PayerID: a.PayerID, PayerName: g.names[a.PayerID], AmountCents: a.AmountCents}
-		g.split(&l, membersplit.KindAlelo, a.ID)
+		g.split(&l, membersplit.KindAlelo, a.ID, a.CreatedAt)
 		out = append(out, l)
 	}
 	charges, err := s.cards.GroupCharges(ctx, q, g.from, today)
@@ -290,7 +306,7 @@ func (s *Service) lines(ctx context.Context, q *store.Queries, g group) ([]Line,
 		if c.Kind == "recurrence" {
 			kind = membersplit.KindRecurrence
 		}
-		g.split(&l, kind, c.RefID)
+		g.split(&l, kind, c.RefID, c.Recorded)
 		out = append(out, l)
 	}
 	return out, nil

@@ -6,30 +6,40 @@
 ALTER TABLE groups ADD COLUMN settles_from TEXT;
 UPDATE groups SET settles_from = date('now', '-3 hours');
 
--- Weight of each member from a day on. An expense uses the weights in force on its day, and a member takes part
--- only from the day of her first weight, so joining or changing weights never rewrites the past (RN-28).
+-- Weight of each member from a moment on: from_day, and on that very day only for what was recorded after set_at
+-- (RFC 3339 in UTC; empty for the start). An expense uses the weights in force when it happened, and a member takes
+-- part only from her first weight, so joining or changing weights never rewrites the past (RN-28).
 CREATE TABLE group_weights (
     group_id  INTEGER NOT NULL REFERENCES groups (id) ON DELETE CASCADE,
     person_id INTEGER NOT NULL REFERENCES persons (id),
     weight_bp INTEGER NOT NULL CHECK (weight_bp BETWEEN 1 AND 10000),
     from_day  TEXT    NOT NULL,
-    PRIMARY KEY (group_id, person_id, from_day)
+    set_at    TEXT    NOT NULL DEFAULT '',
+    PRIMARY KEY (group_id, person_id, from_day, set_at)
 );
 INSERT INTO group_weights (group_id, person_id, weight_bp, from_day)
 SELECT m.group_id, m.person_id, m.weight_bp, g.settles_from
 FROM group_members m JOIN groups g ON g.id = m.group_id
 WHERE g.kind = 'shared';
 
--- Division between members chosen when an expense was recorded, when it is not by the weights (RN-28). Equal
--- lists who took part; custom holds each member's value, used as a proportion on every occurrence of a bill,
--- financing or recurrence.
+-- Division between members of an expense, when it is not by the weights, with its history: the one recorded with
+-- the item starts with an empty from_day, and an edit applies from its day and moment on, so what was paid or closed
+-- keeps its division (RN-28). Equal lists who took part; custom holds each member's value, used as a proportion
+-- on every occurrence of a bill, financing or recurrence.
 CREATE TABLE member_splits (
-    item_kind   TEXT    NOT NULL CHECK (item_kind IN ('entry', 'purchase', 'recurrence', 'bill', 'financing', 'alelo')),
-    item_id     INTEGER NOT NULL,
-    mode        TEXT    NOT NULL CHECK (mode IN ('equal', 'custom')),
+    id        INTEGER PRIMARY KEY,
+    item_kind TEXT    NOT NULL CHECK (item_kind IN ('entry', 'purchase', 'recurrence', 'bill', 'financing', 'alelo')),
+    item_id   INTEGER NOT NULL,
+    from_day  TEXT    NOT NULL DEFAULT '',
+    set_at    TEXT    NOT NULL DEFAULT '',
+    mode      TEXT    NOT NULL CHECK (mode IN ('weights', 'equal', 'custom')),
+    UNIQUE (item_kind, item_id, from_day, set_at)
+);
+CREATE TABLE member_split_shares (
+    split_id    INTEGER NOT NULL REFERENCES member_splits (id) ON DELETE CASCADE,
     person_id   INTEGER NOT NULL REFERENCES persons (id),
     share_cents INTEGER NOT NULL DEFAULT 0 CHECK (share_cents >= 0),
-    PRIMARY KEY (item_kind, item_id, person_id)
+    PRIMARY KEY (split_id, person_id)
 );
 
 -- A division goes away with its item, or when the item moves to another space, so a reused id never inherits it.
@@ -112,6 +122,7 @@ DROP TRIGGER purchases_member_splits_move;
 DROP TRIGGER purchases_member_splits_delete;
 DROP TRIGGER entries_member_splits_move;
 DROP TRIGGER entries_member_splits_delete;
+DROP TABLE member_split_shares;
 DROP TABLE member_splits;
 DROP TABLE group_weights;
 ALTER TABLE groups DROP COLUMN settles_from;

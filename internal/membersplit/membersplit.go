@@ -7,8 +7,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/big"
 	"sort"
+	"time"
 
+	"github.com/italogfx/radar-finance/internal/civil"
+	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/problem"
 )
@@ -67,36 +71,38 @@ type Weighted struct {
 
 // Allocate divides amount in proportion to the weights, the cents left going to the largest remainders and, on a
 // tie, to whoever comes first; the parts always add up to amount, and a negative amount gives negative parts (RN-03, RN-28).
+// The products go through big integers, since custom values in cents times an amount in cents overflow int64.
 func Allocate(amount int64, ws []Weighted) []int64 {
 	out := make([]int64, len(ws))
-	var total int64
+	total := new(big.Int)
 	for _, w := range ws {
 		if w.Weight > 0 {
-			total += w.Weight
+			total.Add(total, big.NewInt(w.Weight))
 		}
 	}
-	if total == 0 || amount == 0 {
+	if total.Sign() == 0 || amount == 0 {
 		return out
 	}
 	sign := int64(1)
 	if amount < 0 {
 		sign, amount = -1, -amount
 	}
-	rems := make([]int64, len(ws))
+	rems := make([]*big.Int, len(ws))
 	var given int64
 	for i, w := range ws {
+		rems[i] = new(big.Int)
 		if w.Weight <= 0 {
 			continue
 		}
-		out[i] = amount * w.Weight / total
-		rems[i] = amount * w.Weight % total
+		q, r := new(big.Int).QuoRem(new(big.Int).Mul(big.NewInt(amount), big.NewInt(w.Weight)), total, new(big.Int))
+		out[i], rems[i] = q.Int64(), r
 		given += out[i]
 	}
 	order := make([]int, len(ws))
 	for i := range order {
 		order[i] = i
 	}
-	sort.SliceStable(order, func(a, b int) bool { return rems[order[a]] > rems[order[b]] })
+	sort.SliceStable(order, func(a, b int) bool { return rems[order[a]].Cmp(rems[order[b]]) > 0 })
 	for k := 0; given < amount; k++ {
 		i := order[k%len(order)]
 		if ws[i].Weight <= 0 {
@@ -142,20 +148,56 @@ func (r *Rule) Weights(group []Weighted) []Weighted {
 	return out
 }
 
-// Save replaces the division of an item of the group; nil or weights removes it. In custom mode the values must
-// add up to amount, the part of the group in the expense (RN-28). A personal space keeps no division.
-func Save(ctx context.Context, q *store.Queries, groupID int64, kind Kind, itemID int64, r *Rule, amount int64) error {
-	if err := q.DeleteMemberSplit(ctx, store.DeleteMemberSplitParams{ItemKind: string(kind), ItemID: itemID}); err != nil {
-		return fmt.Errorf("clear member split: %w", err)
-	}
-	if r == nil || r.Mode == "" || r.Mode == ModeWeights {
+// exact tells the kinds whose values must add up to the expense itself; bills, financings and recurrences repeat
+// with other amounts, so their values are proportions and only need to be above zero.
+func exact(kind Kind) bool { return kind == KindEntry || kind == KindPurchase || kind == KindAlelo }
+
+// Save records the division of an item of the group; nil keeps what is there (RN-28). Creating, it is the division
+// of the new item from its start. Otherwise it is an edit, which applies from at on, so what was paid or closed
+// keeps its division, and it records nothing when the division did not change. A personal space keeps none.
+func Save(ctx context.Context, q *store.Queries, groupID int64, kind Kind, itemID int64, r *Rule, amount int64, at time.Time, creating bool) error {
+	if r == nil {
 		return nil
+	}
+	if r.Mode == "" {
+		r.Mode = ModeWeights
 	}
 	g, err := q.GetGroup(ctx, groupID)
 	if err != nil {
 		return fmt.Errorf("group of the split: %w", err)
 	}
 	if g.Kind == "personal" {
+		return nil
+	}
+	if err := validate(ctx, q, groupID, kind, r, amount); err != nil {
+		return err
+	}
+	if creating {
+		if err := q.DeleteItemSplits(ctx, store.DeleteItemSplitsParams{ItemKind: string(kind), ItemID: itemID}); err != nil {
+			return fmt.Errorf("clear member split: %w", err)
+		}
+		if r.Mode == ModeWeights {
+			return nil
+		}
+		return insert(ctx, q, kind, itemID, "", "", r)
+	}
+	cur, err := Load(ctx, q, kind, itemID)
+	if err != nil {
+		return err
+	}
+	if cur.Equal(r) {
+		return nil
+	}
+	loc, err := time.LoadLocation(config.Location)
+	if err != nil {
+		loc = time.UTC
+	}
+	return insert(ctx, q, kind, itemID, civil.DateOf(at.In(loc)).String(), at.UTC().Format(time.RFC3339Nano), r)
+}
+
+// validate checks the members and values of a division against the group and the part of the group in the expense.
+func validate(ctx context.Context, q *store.Queries, groupID int64, kind Kind, r *Rule, amount int64) error {
+	if r.Mode == ModeWeights {
 		return nil
 	}
 	if r.Mode != ModeEqual && r.Mode != ModeCustom {
@@ -190,13 +232,25 @@ func Save(ctx context.Context, q *store.Queries, groupID int64, kind Kind, itemI
 	if chosen == 0 {
 		return ErrNobody
 	}
-	if r.Mode == ModeCustom {
+	if r.Mode == ModeCustom && exact(kind) {
 		if amount <= 0 {
 			return ErrNothingToCut
 		}
 		if sum != amount {
 			return ErrSumMismatch
 		}
+	}
+	return nil
+}
+
+// insert writes one dated division with its members.
+func insert(ctx context.Context, q *store.Queries, kind Kind, itemID int64, day, setAt string, r *Rule) error {
+	id, err := q.InsertSplitRule(ctx, store.InsertSplitRuleParams{ItemKind: string(kind), ItemID: itemID, FromDay: day, SetAt: setAt, Mode: string(r.Mode)})
+	if err != nil {
+		return fmt.Errorf("save member split: %w", err)
+	}
+	if r.Mode == ModeWeights {
+		return nil
 	}
 	for _, m := range r.Members {
 		share := m.ShareCents
@@ -205,25 +259,88 @@ func Save(ctx context.Context, q *store.Queries, groupID int64, kind Kind, itemI
 		} else if share == 0 {
 			continue
 		}
-		if err := q.InsertMemberSplit(ctx, store.InsertMemberSplitParams{ItemKind: string(kind), ItemID: itemID, Mode: string(r.Mode), PersonID: m.PersonID, ShareCents: share}); err != nil {
-			return fmt.Errorf("save member split: %w", err)
+		if err := q.InsertSplitShare(ctx, store.InsertSplitShareParams{SplitID: id, PersonID: m.PersonID, ShareCents: share}); err != nil {
+			return fmt.Errorf("save member split share: %w", err)
 		}
 	}
 	return nil
 }
 
-// Load reads the division of an item, nil when it follows the weights of the group.
+// Load reads the division in force for an item, nil when it follows the weights of the group.
 func Load(ctx context.Context, q *store.Queries, kind Kind, itemID int64) (*Rule, error) {
-	rows, err := q.ListMemberSplit(ctx, store.ListMemberSplitParams{ItemKind: string(kind), ItemID: itemID})
-	if errors.Is(err, sql.ErrNoRows) || len(rows) == 0 {
+	row, err := q.LatestSplitRule(ctx, store.LatestSplitRuleParams{ItemKind: string(kind), ItemID: itemID})
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	r := &Rule{Mode: Mode(rows[0].Mode)}
-	for _, row := range rows {
-		r.Members = append(r.Members, Member{PersonID: row.PersonID, ShareCents: row.ShareCents})
+	if Mode(row.Mode) == ModeWeights {
+		return nil, nil
+	}
+	shares, err := q.ListSplitShares(ctx, row.ID)
+	if err != nil {
+		return nil, err
+	}
+	r := &Rule{Mode: Mode(row.Mode)}
+	for _, sh := range shares {
+		r.Members = append(r.Members, Member{PersonID: sh.PersonID, ShareCents: sh.ShareCents})
 	}
 	return r, nil
+}
+
+// Equal tells whether two divisions are the same, nil standing for the weights.
+func (r *Rule) Equal(o *Rule) bool {
+	norm := func(x *Rule) (Mode, map[int64]int64) {
+		if x == nil || x.Mode == "" || x.Mode == ModeWeights {
+			return ModeWeights, nil
+		}
+		m := map[int64]int64{}
+		for _, mm := range x.Members {
+			if x.Mode == ModeEqual {
+				m[mm.PersonID] = 0
+			} else if mm.ShareCents > 0 {
+				m[mm.PersonID] = mm.ShareCents
+			}
+		}
+		return x.Mode, m
+	}
+	am, a := norm(r)
+	bm, b := norm(o)
+	if am != bm || len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if w, ok := b[k]; !ok || w != v {
+			return false
+		}
+	}
+	return true
+}
+
+// Applies tells whether something that starts on fromDay at setAt (empty for the start) is in force for an expense
+// of day that was recorded at recorded: from the next days on, and on that day only for what was recorded after it,
+// so a change never rewrites what came before (RN-28).
+func Applies(fromDay, setAt string, day civil.Date, recorded time.Time) bool {
+	if fromDay == "" {
+		return true
+	}
+	from, err := civil.ParseDate(fromDay)
+	if err != nil {
+		return false
+	}
+	if from.Before(day) {
+		return true
+	}
+	if from != day {
+		return false
+	}
+	if setAt == "" {
+		return true
+	}
+	at, err := time.Parse(time.RFC3339Nano, setAt)
+	if err != nil {
+		return true
+	}
+	return !recorded.Before(at)
 }

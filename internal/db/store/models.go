@@ -197,6 +197,7 @@ type GroupWeight struct {
 	PersonID int64
 	WeightBp int64
 	FromDay  string
+	SetAt    string
 }
 
 type Import struct {
@@ -274,9 +275,16 @@ type MarketSetting struct {
 }
 
 type MemberSplit struct {
-	ItemKind   string
-	ItemID     int64
-	Mode       string
+	ID       int64
+	ItemKind string
+	ItemID   int64
+	FromDay  string
+	SetAt    string
+	Mode     string
+}
+
+type MemberSplitShare struct {
+	SplitID    int64
 	PersonID   int64
 	ShareCents int64
 }

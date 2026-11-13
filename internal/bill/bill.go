@@ -184,7 +184,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Bill, err
 			return fmt.Errorf("create bill: %w", err)
 		}
 		id = b.ID
-		return membersplit.Save(ctx, q, groupID, membersplit.KindBill, id, in.Members, in.ExpectedCents)
+		return membersplit.Save(ctx, q, groupID, membersplit.KindBill, id, in.Members, in.ExpectedCents, s.now(), true)
 	})
 	if err != nil {
 		return Bill{}, err
@@ -218,7 +218,7 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Bill, error) 
 		}); err != nil {
 			return err
 		}
-		return membersplit.Save(ctx, q, groupID, membersplit.KindBill, id, in.Members, in.ExpectedCents)
+		return membersplit.Save(ctx, q, groupID, membersplit.KindBill, id, in.Members, in.ExpectedCents, s.now(), false)
 	})
 	if err != nil {
 		return Bill{}, err

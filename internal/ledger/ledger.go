@@ -402,7 +402,7 @@ func (s *Service) AddExpenseTx(ctx context.Context, q *store.Queries, userID int
 	if err != nil {
 		return 0, err
 	}
-	return e.ID, membersplit.Save(ctx, q, groupID, membersplit.KindEntry, e.ID, in.Members, in.AmountCents)
+	return e.ID, membersplit.Save(ctx, q, groupID, membersplit.KindEntry, e.ID, in.Members, in.AmountCents, s.now(), true)
 }
 
 // NewIncome is a one off income received in an account, outside the registered incomes (RF-13).

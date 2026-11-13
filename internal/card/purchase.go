@@ -111,16 +111,21 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 	if err := s.writeSplits(ctx, q, userID, row.ID, p, p.shares); err != nil {
 		return 0, err
 	}
-	return row.ID, membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, row.ID, in.Members, groupPart(p))
+	part, err := q.PurchaseGroupPart(ctx, row.ID)
+	if err != nil {
+		return 0, err
+	}
+	return row.ID, membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, row.ID, in.Members, part, s.now(), true)
 }
 
-// groupPart is what the members divide of a purchase: the total without the shares of other people (RF-84).
-func groupPart(p Purchase) int64 {
-	part := p.TotalCents
-	for _, sh := range p.shares {
-		part -= sh.ShareCents
+// saveMembers records an edited division of a purchase, checked against its part as stored: the installments in
+// the Radar without the shares of other people, even when it was imported from a middle installment (RF-84).
+func (s *Service) saveMembers(ctx context.Context, q *store.Queries, groupID, id int64, r *membersplit.Rule) error {
+	part, err := q.PurchaseGroupPart(ctx, id)
+	if err != nil {
+		return err
 	}
-	return part
+	return membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, id, r, part, s.now(), false)
 }
 
 // UpdatePurchase replaces a purchase and regenerates its installments and shares; the card stays the same.
@@ -153,7 +158,7 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 			if err := updatePartialImport(ctx, q, groupID, cur, p, in.Split, s.now().UTC()); err != nil {
 				return err
 			}
-			return membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, id, in.Members, groupPart(p))
+			return s.saveMembers(ctx, q, groupID, id, in.Members)
 		}
 		if err := q.UpdatePurchase(ctx, store.UpdatePurchaseParams{
 			PurchasedOn: p.Date.String(), Merchant: p.Merchant, Description: p.Description, CategoryID: nullID(p.CategoryID),
@@ -174,7 +179,7 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 		if err := s.writeSplits(ctx, q, cur.createdBy, id, p, p.shares); err != nil {
 			return err
 		}
-		return membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, id, in.Members, groupPart(p))
+		return s.saveMembers(ctx, q, groupID, id, in.Members)
 	})
 	if err != nil {
 		return Purchase{}, err

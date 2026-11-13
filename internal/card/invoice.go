@@ -3,6 +3,7 @@ package card
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/db"
@@ -479,10 +480,13 @@ type GroupCharge struct {
 	RefID       int64
 	Description string
 	AmountCents int64
+	// Recorded is when the purchase or the recurrence was recorded (RN-28).
+	Recorded time.Time
 }
 
 // GroupCharges lists the parts of the active group in the invoices of its cards that closed between from and to,
-// both included, for the settlement between members (RF-84).
+// both included, for the settlement between members; purchases made before from stay out, with every installment,
+// since the settlement starts there (RF-84, RN-31).
 func (s *Service) GroupCharges(ctx context.Context, q *store.Queries, from, to civil.Date) ([]GroupCharge, error) {
 	groupID, err := scope.Group(ctx)
 	if err != nil {
@@ -496,7 +500,7 @@ func (s *Service) GroupCharges(ctx context.Context, q *store.Queries, from, to c
 	var out []GroupCharge
 	for _, r := range cards {
 		c := Card{ID: r.ID, Name: r.Name, PersonID: r.PersonID, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
-		rows, err := q.GroupInstallments(ctx, store.GroupInstallmentsParams{GroupID: groupID, CardID: c.ID})
+		rows, err := q.GroupInstallments(ctx, store.GroupInstallmentsParams{GroupID: groupID, CardID: c.ID, Since: from.String()})
 		if err != nil {
 			return nil, fmt.Errorf("group installments: %w", err)
 		}
@@ -514,7 +518,7 @@ func (s *Service) GroupCharges(ctx context.Context, q *store.Queries, from, to c
 			if row.InstallmentCount > 1 {
 				desc = fmt.Sprintf("%s (%d/%d)", row.Merchant, row.Number, row.InstallmentCount)
 			}
-			out = append(out, GroupCharge{Date: closing, CardID: c.ID, CardName: c.Name, PayerID: c.PersonID, Kind: "purchase", RefID: row.PurchaseID, Description: desc, AmountCents: part})
+			out = append(out, GroupCharge{Date: closing, CardID: c.ID, CardName: c.Name, PayerID: c.PersonID, Kind: "purchase", RefID: row.PurchaseID, Description: desc, AmountCents: part, Recorded: row.CreatedAt})
 		}
 		recs, err := s.recurrencesIn(ctx, q, c, view{groupID: groupID})
 		if err != nil {
@@ -527,7 +531,7 @@ func (s *Service) GroupCharges(ctx context.Context, q *store.Queries, from, to c
 				if !within(closing) || amount <= 0 {
 					continue
 				}
-				out = append(out, GroupCharge{Date: closing, CardID: c.ID, CardName: c.Name, PayerID: c.PersonID, Kind: "recurrence", RefID: rec.ID, Description: rec.Description, AmountCents: amount})
+				out = append(out, GroupCharge{Date: closing, CardID: c.ID, CardName: c.Name, PayerID: c.PersonID, Kind: "recurrence", RefID: rec.ID, Description: rec.Description, AmountCents: amount, Recorded: rec.CreatedAt})
 			}
 		}
 	}
