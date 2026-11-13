@@ -148,6 +148,33 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /spaces/{id}/moves:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: moveToSpace
+      tags: [me]
+      summary: Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpaceMove"
+      responses:
+        "204":
+          description: The item is in the other space.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
   /me/preferences:
     patch:
       operationId: updatePreferences
@@ -697,6 +724,8 @@ paths:
       operationId: addAccountExpense
       tags: [accounts]
       summary: Records a one off expense paid from the account (section 5.6).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -806,6 +835,8 @@ paths:
       operationId: createIncome
       tags: [incomes]
       summary: Registers a recurring or eventual income (RF-09, RF-11).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -929,6 +960,8 @@ paths:
       operationId: addAccountIncome
       tags: [incomes]
       summary: Records a one off income received in the account (RF-13).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -1144,6 +1177,8 @@ paths:
       operationId: addPurchase
       tags: [cards]
       summary: Registers a purchase in one or more installments (RF-15, RF-16, RF-18, RN-03).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -1358,6 +1393,8 @@ paths:
       operationId: createBill
       tags: [bills]
       summary: Registers a fixed bill (RF-35).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -1529,6 +1566,8 @@ paths:
       operationId: createFinancing
       tags: [financings]
       summary: Registers a financing with its state on the day (RF-39).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -1982,6 +2021,8 @@ paths:
       operationId: createSavingsBox
       tags: [savings]
       summary: Creates a savings box (RF-43).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -3029,6 +3070,14 @@ components:
       schema:
         type: integer
         format: int64
+    Space:
+      name: X-Radar-Space
+      in: header
+      required: false
+      description: Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+      schema:
+        type: integer
+        format: int64
 
   securitySchemes:
     session:
@@ -3135,6 +3184,17 @@ components:
     GroupRole:
       type: string
       enum: [admin, member]
+
+    SpaceMove:
+      type: object
+      required: [kind, itemId]
+      properties:
+        kind:
+          type: string
+          enum: [entry, purchase, bill, financing, income, savings]
+        itemId:
+          type: integer
+          format: int64
 
     GroupSummary:
       type: object

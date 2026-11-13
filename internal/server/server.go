@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
 	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/space"
 )
 
 // maxBodyBytes limits JSON request bodies.
@@ -65,6 +67,20 @@ func memberOnly(d Deps, next http.Handler) http.Handler {
 			_ = auth.SignOut(r.Context(), d.Sessions)
 			writeError(w, http.StatusUnauthorized, "unauthenticated", "Você não faz mais parte deste grupo. Entre novamente.")
 			return
+		}
+		// A new item may go straight to another space of the person, never to one she is not in (RF-83).
+		if target, ok := spaceHeader(r); ok && target != groupID {
+			_, member, err := d.Accounts.Membership(r.Context(), target, auth.UserID(r.Context()))
+			if err != nil {
+				d.Log.Error("check space", "err", err)
+				writeError(w, http.StatusInternalServerError, "internal", "Algo deu errado. Tente de novo.")
+				return
+			}
+			if !member {
+				writeError(w, http.StatusForbidden, "space_forbidden", "Você não faz parte desse espaço.")
+				return
+			}
+			r = r.WithContext(scope.WithGroup(r.Context(), target))
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -108,6 +124,7 @@ type Deps struct {
 	Notifications *notify.Service
 	Imports       *importer.Service
 	Market        *market.Service
+	Spaces        *space.Service
 	// Events carries the changes to the open screens; one is created when nil.
 	Events    *events.Hub
 	Sessions  *scs.SessionManager
@@ -283,4 +300,17 @@ func staticHandler(assets fs.FS) http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
+}
+
+// spaceHeader reads the space a request creates its item in, from the X-Radar-Space header (RF-83).
+func spaceHeader(r *http.Request) (int64, bool) {
+	v := r.Header.Get("X-Radar-Space")
+	if v == "" {
+		return 0, false
+	}
+	id, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, false
+	}
+	return id, true
 }

@@ -532,6 +532,36 @@ func (e SearchLineSource) Valid() bool {
 	}
 }
 
+// Defines values for SpaceMoveKind.
+const (
+	SpaceMoveKindBill      SpaceMoveKind = "bill"
+	SpaceMoveKindEntry     SpaceMoveKind = "entry"
+	SpaceMoveKindFinancing SpaceMoveKind = "financing"
+	SpaceMoveKindIncome    SpaceMoveKind = "income"
+	SpaceMoveKindPurchase  SpaceMoveKind = "purchase"
+	SpaceMoveKindSavings   SpaceMoveKind = "savings"
+)
+
+// Valid indicates whether the value is a known member of the SpaceMoveKind enum.
+func (e SpaceMoveKind) Valid() bool {
+	switch e {
+	case SpaceMoveKindBill:
+		return true
+	case SpaceMoveKindEntry:
+		return true
+	case SpaceMoveKindFinancing:
+		return true
+	case SpaceMoveKindIncome:
+		return true
+	case SpaceMoveKindPurchase:
+		return true
+	case SpaceMoveKindSavings:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SplitInputMode.
 const (
 	Custom SplitInputMode = "custom"
@@ -2398,6 +2428,15 @@ type ShoppingListInput struct {
 	Name string `json:"name"`
 }
 
+// SpaceMove defines model for SpaceMove.
+type SpaceMove struct {
+	ItemId int64         `json:"itemId"`
+	Kind   SpaceMoveKind `json:"kind"`
+}
+
+// SpaceMoveKind defines model for SpaceMove.Kind.
+type SpaceMoveKind string
+
 // SpendSub defines model for SpendSub.
 type SpendSub struct {
 	// Cents Amount in cents (RN-21).
@@ -2494,6 +2533,9 @@ type TransferCreate struct {
 // Id defines model for Id.
 type Id = int64
 
+// Space defines model for Space.
+type Space = int64
+
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
 
@@ -2512,6 +2554,18 @@ type ServerError = Error
 // Unauthorized defines model for Unauthorized.
 type Unauthorized = Error
 
+// AddAccountExpenseParams defines parameters for AddAccountExpense.
+type AddAccountExpenseParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
+}
+
+// AddAccountIncomeParams defines parameters for AddAccountIncome.
+type AddAccountIncomeParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
+}
+
 // GetAccountStatementParams defines parameters for GetAccountStatement.
 type GetAccountStatementParams struct {
 	// Month Month as YYYY-MM.
@@ -2521,6 +2575,12 @@ type GetAccountStatementParams struct {
 // GetAgendaParams defines parameters for GetAgenda.
 type GetAgendaParams struct {
 	Month Month `form:"month" json:"month"`
+}
+
+// CreateBillParams defines parameters for CreateBill.
+type CreateBillParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
 }
 
 // GetBillMonthParams defines parameters for GetBillMonth.
@@ -2538,10 +2598,28 @@ type GetCardForecastParams struct {
 	Count *int `form:"count,omitempty" json:"count,omitempty"`
 }
 
+// AddPurchaseParams defines parameters for AddPurchase.
+type AddPurchaseParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
+}
+
 // ListCategoriesParams defines parameters for ListCategories.
 type ListCategoriesParams struct {
 	// IncludeInactive Also returns inactive categories, for the management screen.
 	IncludeInactive *bool `form:"includeInactive,omitempty" json:"includeInactive,omitempty"`
+}
+
+// CreateFinancingParams defines parameters for CreateFinancing.
+type CreateFinancingParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
+}
+
+// CreateIncomeParams defines parameters for CreateIncome.
+type CreateIncomeParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
 }
 
 // GetIncomeMonthParams defines parameters for GetIncomeMonth.
@@ -2569,6 +2647,12 @@ type GetSpendingParams struct {
 // GetSavingsMonthParams defines parameters for GetSavingsMonth.
 type GetSavingsMonthParams struct {
 	Month Month `form:"month" json:"month"`
+}
+
+// CreateSavingsBoxParams defines parameters for CreateSavingsBox.
+type CreateSavingsBoxParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
 }
 
 // SearchEntriesParams defines parameters for SearchEntries.
@@ -2780,6 +2864,9 @@ type DepositSavingsJSONRequestBody = SavingsDepositCreate
 // WithdrawSavingsJSONRequestBody defines body for WithdrawSavings for application/json ContentType.
 type WithdrawSavingsJSONRequestBody = SavingsWithdrawalCreate
 
+// MoveToSpaceJSONRequestBody defines body for MoveToSpace for application/json ContentType.
+type MoveToSpaceJSONRequestBody = SpaceMove
+
 // CreateTransferJSONRequestBody defines body for CreateTransfer for application/json ContentType.
 type CreateTransferJSONRequestBody = TransferCreate
 
@@ -2805,10 +2892,10 @@ type ServerInterface interface {
 	AdjustAccountBalance(w http.ResponseWriter, r *http.Request, id Id)
 	// AddAccountExpense Records a one off expense paid from the account (section 5.6).
 	// (POST /accounts/{id}/expenses)
-	AddAccountExpense(w http.ResponseWriter, r *http.Request, id Id)
+	AddAccountExpense(w http.ResponseWriter, r *http.Request, id Id, params AddAccountExpenseParams)
 	// AddAccountIncome Records a one off income received in the account (RF-13).
 	// (POST /accounts/{id}/incomes)
-	AddAccountIncome(w http.ResponseWriter, r *http.Request, id Id)
+	AddAccountIncome(w http.ResponseWriter, r *http.Request, id Id, params AddAccountIncomeParams)
 	// GetAccountStatement Entries of the account in the month, with opening and closing balances (RF-05).
 	// (GET /accounts/{id}/statement)
 	GetAccountStatement(w http.ResponseWriter, r *http.Request, id Id, params GetAccountStatementParams)
@@ -2871,7 +2958,7 @@ type ServerInterface interface {
 	ListBills(w http.ResponseWriter, r *http.Request)
 	// CreateBill Registers a fixed bill (RF-35).
 	// (POST /bills)
-	CreateBill(w http.ResponseWriter, r *http.Request)
+	CreateBill(w http.ResponseWriter, r *http.Request, params CreateBillParams)
 	// GetBillMonth Bills due in the month with expected, real and paid amounts (RF-36, RF-37, RN-14).
 	// (GET /bills/month)
 	GetBillMonth(w http.ResponseWriter, r *http.Request, params GetBillMonthParams)
@@ -2922,7 +3009,7 @@ type ServerInterface interface {
 	PayInvoice(w http.ResponseWriter, r *http.Request, id Id, month Month)
 	// AddPurchase Registers a purchase in one or more installments (RF-15, RF-16, RF-18, RN-03).
 	// (POST /cards/{id}/purchases)
-	AddPurchase(w http.ResponseWriter, r *http.Request, id Id)
+	AddPurchase(w http.ResponseWriter, r *http.Request, id Id, params AddPurchaseParams)
 	// ListRecurrences Recurrences of the card with the current price (RF-17).
 	// (GET /cards/{id}/recurrences)
 	ListRecurrences(w http.ResponseWriter, r *http.Request, id Id)
@@ -2952,7 +3039,7 @@ type ServerInterface interface {
 	ListFinancings(w http.ResponseWriter, r *http.Request)
 	// CreateFinancing Registers a financing with its state on the day (RF-39).
 	// (POST /financings)
-	CreateFinancing(w http.ResponseWriter, r *http.Request)
+	CreateFinancing(w http.ResponseWriter, r *http.Request, params CreateFinancingParams)
 	// DeleteFinancing Deletes a financing without payments.
 	// (DELETE /financings/{id})
 	DeleteFinancing(w http.ResponseWriter, r *http.Request, id Id)
@@ -3003,7 +3090,7 @@ type ServerInterface interface {
 	ListIncomes(w http.ResponseWriter, r *http.Request)
 	// CreateIncome Registers a recurring or eventual income (RF-09, RF-11).
 	// (POST /incomes)
-	CreateIncome(w http.ResponseWriter, r *http.Request)
+	CreateIncome(w http.ResponseWriter, r *http.Request, params CreateIncomeParams)
 	// GetIncomeMonth Expected and received incomes of the month (RF-10, RF-13, RN-13).
 	// (GET /incomes/month)
 	GetIncomeMonth(w http.ResponseWriter, r *http.Request, params GetIncomeMonthParams)
@@ -3165,7 +3252,7 @@ type ServerInterface interface {
 	GetSavingsMonth(w http.ResponseWriter, r *http.Request, params GetSavingsMonthParams)
 	// CreateSavingsBox Creates a savings box (RF-43).
 	// (POST /savings)
-	CreateSavingsBox(w http.ResponseWriter, r *http.Request)
+	CreateSavingsBox(w http.ResponseWriter, r *http.Request, params CreateSavingsBoxParams)
 	// DeleteSavingsBox Deletes a box without moves.
 	// (DELETE /savings/{id})
 	DeleteSavingsBox(w http.ResponseWriter, r *http.Request, id Id)
@@ -3181,6 +3268,9 @@ type ServerInterface interface {
 	// SearchEntries Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
 	// (GET /search)
 	SearchEntries(w http.ResponseWriter, r *http.Request, params SearchEntriesParams)
+	// MoveToSpace Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83).
+	// (POST /spaces/{id}/moves)
+	MoveToSpace(w http.ResponseWriter, r *http.Request, id Id)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(w http.ResponseWriter, r *http.Request)
@@ -3354,8 +3444,32 @@ func (siw *ServerInterfaceWrapper) AddAccountExpense(w http.ResponseWriter, r *h
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddAccountExpenseParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AddAccountExpense(w, r, id)
+		siw.Handler.AddAccountExpense(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3380,8 +3494,32 @@ func (siw *ServerInterfaceWrapper) AddAccountIncome(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddAccountIncomeParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AddAccountIncome(w, r, id)
+		siw.Handler.AddAccountIncome(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3868,8 +4006,35 @@ func (siw *ServerInterfaceWrapper) ListBills(w http.ResponseWriter, r *http.Requ
 // CreateBill operation middleware
 func (siw *ServerInterfaceWrapper) CreateBill(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateBillParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateBill(w, r)
+		siw.Handler.CreateBill(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4352,8 +4517,32 @@ func (siw *ServerInterfaceWrapper) AddPurchase(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddPurchaseParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AddPurchase(w, r, id)
+		siw.Handler.AddPurchase(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4583,8 +4772,35 @@ func (siw *ServerInterfaceWrapper) ListFinancings(w http.ResponseWriter, r *http
 // CreateFinancing operation middleware
 func (siw *ServerInterfaceWrapper) CreateFinancing(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateFinancingParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateFinancing(w, r)
+		siw.Handler.CreateFinancing(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4914,8 +5130,35 @@ func (siw *ServerInterfaceWrapper) ListIncomes(w http.ResponseWriter, r *http.Re
 // CreateIncome operation middleware
 func (siw *ServerInterfaceWrapper) CreateIncome(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateIncomeParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateIncome(w, r)
+		siw.Handler.CreateIncome(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6090,8 +6333,35 @@ func (siw *ServerInterfaceWrapper) GetSavingsMonth(w http.ResponseWriter, r *htt
 // CreateSavingsBox operation middleware
 func (siw *ServerInterfaceWrapper) CreateSavingsBox(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateSavingsBoxParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreateSavingsBox(w, r)
+		siw.Handler.CreateSavingsBox(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6316,6 +6586,32 @@ func (siw *ServerInterfaceWrapper) SearchEntries(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// MoveToSpace operation middleware
+func (siw *ServerInterfaceWrapper) MoveToSpace(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MoveToSpace(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListBackups operation middleware
 func (siw *ServerInterfaceWrapper) ListBackups(w http.ResponseWriter, r *http.Request) {
 
@@ -6513,6 +6809,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/me/group", wrapper.SwitchGroup)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/spaces/{id}/moves", wrapper.MoveToSpace)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/me/preferences", wrapper.UpdatePreferences)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/system/health", wrapper.GetHealth)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/system/backups", wrapper.ListBackups)
@@ -7025,8 +7322,9 @@ func (response AdjustAccountBalance409JSONResponse) VisitAdjustAccountBalanceRes
 }
 
 type AddAccountExpenseRequestObject struct {
-	Id   Id `json:"id"`
-	Body *AddAccountExpenseJSONRequestBody
+	Id     Id `json:"id"`
+	Params AddAccountExpenseParams
+	Body   *AddAccountExpenseJSONRequestBody
 }
 
 type AddAccountExpenseResponseObject interface {
@@ -7104,8 +7402,9 @@ func (response AddAccountExpense409JSONResponse) VisitAddAccountExpenseResponse(
 }
 
 type AddAccountIncomeRequestObject struct {
-	Id   Id `json:"id"`
-	Body *AddAccountIncomeJSONRequestBody
+	Id     Id `json:"id"`
+	Params AddAccountIncomeParams
+	Body   *AddAccountIncomeJSONRequestBody
 }
 
 type AddAccountIncomeResponseObject interface {
@@ -8226,7 +8525,8 @@ func (response ListBills401JSONResponse) VisitListBillsResponse(w http.ResponseW
 }
 
 type CreateBillRequestObject struct {
-	Body *CreateBillJSONRequestBody
+	Params CreateBillParams
+	Body   *CreateBillJSONRequestBody
 }
 
 type CreateBillResponseObject interface {
@@ -9301,8 +9601,9 @@ func (response PayInvoice409JSONResponse) VisitPayInvoiceResponse(w http.Respons
 }
 
 type AddPurchaseRequestObject struct {
-	Id   Id `json:"id"`
-	Body *AddPurchaseJSONRequestBody
+	Id     Id `json:"id"`
+	Params AddPurchaseParams
+	Body   *AddPurchaseJSONRequestBody
 }
 
 type AddPurchaseResponseObject interface {
@@ -9904,7 +10205,8 @@ func (response ListFinancings401JSONResponse) VisitListFinancingsResponse(w http
 }
 
 type CreateFinancingRequestObject struct {
-	Body *CreateFinancingJSONRequestBody
+	Params CreateFinancingParams
+	Body   *CreateFinancingJSONRequestBody
 }
 
 type CreateFinancingResponseObject interface {
@@ -10949,7 +11251,8 @@ func (response ListIncomes401JSONResponse) VisitListIncomesResponse(w http.Respo
 }
 
 type CreateIncomeRequestObject struct {
-	Body *CreateIncomeJSONRequestBody
+	Params CreateIncomeParams
+	Body   *CreateIncomeJSONRequestBody
 }
 
 type CreateIncomeResponseObject interface {
@@ -13878,7 +14181,8 @@ func (response GetSavingsMonth401JSONResponse) VisitGetSavingsMonthResponse(w ht
 }
 
 type CreateSavingsBoxRequestObject struct {
-	Body *CreateSavingsBoxJSONRequestBody
+	Params CreateSavingsBoxParams
+	Body   *CreateSavingsBoxJSONRequestBody
 }
 
 type CreateSavingsBoxResponseObject interface {
@@ -14254,6 +14558,93 @@ func (response SearchEntries401JSONResponse) VisitSearchEntriesResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveToSpaceRequestObject struct {
+	Id   Id `json:"id"`
+	Body *MoveToSpaceJSONRequestBody
+}
+
+type MoveToSpaceResponseObject interface {
+	VisitMoveToSpaceResponse(w http.ResponseWriter) error
+}
+
+type MoveToSpace204Response struct {
+}
+
+func (response MoveToSpace204Response) VisitMoveToSpaceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type MoveToSpace400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response MoveToSpace400JSONResponse) VisitMoveToSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveToSpace401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response MoveToSpace401JSONResponse) VisitMoveToSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveToSpace403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response MoveToSpace403JSONResponse) VisitMoveToSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveToSpace404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response MoveToSpace404JSONResponse) VisitMoveToSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type MoveToSpace409JSONResponse struct{ ConflictJSONResponse }
+
+func (response MoveToSpace409JSONResponse) VisitMoveToSpaceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -14902,6 +15293,9 @@ type StrictServerInterface interface {
 	// SearchEntries Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
 	// (GET /search)
 	SearchEntries(ctx context.Context, request SearchEntriesRequestObject) (SearchEntriesResponseObject, error)
+	// MoveToSpace Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83).
+	// (POST /spaces/{id}/moves)
+	MoveToSpace(ctx context.Context, request MoveToSpaceRequestObject) (MoveToSpaceResponseObject, error)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(ctx context.Context, request ListBackupsRequestObject) (ListBackupsResponseObject, error)
@@ -15132,10 +15526,11 @@ func (sh *strictHandler) AdjustAccountBalance(w http.ResponseWriter, r *http.Req
 }
 
 // AddAccountExpense operation middleware
-func (sh *strictHandler) AddAccountExpense(w http.ResponseWriter, r *http.Request, id Id) {
+func (sh *strictHandler) AddAccountExpense(w http.ResponseWriter, r *http.Request, id Id, params AddAccountExpenseParams) {
 	var request AddAccountExpenseRequestObject
 
 	request.Id = id
+	request.Params = params
 
 	var body AddAccountExpenseJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -15165,10 +15560,11 @@ func (sh *strictHandler) AddAccountExpense(w http.ResponseWriter, r *http.Reques
 }
 
 // AddAccountIncome operation middleware
-func (sh *strictHandler) AddAccountIncome(w http.ResponseWriter, r *http.Request, id Id) {
+func (sh *strictHandler) AddAccountIncome(w http.ResponseWriter, r *http.Request, id Id, params AddAccountIncomeParams) {
 	var request AddAccountIncomeRequestObject
 
 	request.Id = id
+	request.Params = params
 
 	var body AddAccountIncomeJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -15755,8 +16151,10 @@ func (sh *strictHandler) ListBills(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateBill operation middleware
-func (sh *strictHandler) CreateBill(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) CreateBill(w http.ResponseWriter, r *http.Request, params CreateBillParams) {
 	var request CreateBillRequestObject
+
+	request.Params = params
 
 	var body CreateBillJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -16259,10 +16657,11 @@ func (sh *strictHandler) PayInvoice(w http.ResponseWriter, r *http.Request, id I
 }
 
 // AddPurchase operation middleware
-func (sh *strictHandler) AddPurchase(w http.ResponseWriter, r *http.Request, id Id) {
+func (sh *strictHandler) AddPurchase(w http.ResponseWriter, r *http.Request, id Id, params AddPurchaseParams) {
 	var request AddPurchaseRequestObject
 
 	request.Id = id
+	request.Params = params
 
 	var body AddPurchaseJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -16550,8 +16949,10 @@ func (sh *strictHandler) ListFinancings(w http.ResponseWriter, r *http.Request) 
 }
 
 // CreateFinancing operation middleware
-func (sh *strictHandler) CreateFinancing(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) CreateFinancing(w http.ResponseWriter, r *http.Request, params CreateFinancingParams) {
 	var request CreateFinancingRequestObject
+
+	request.Params = params
 
 	var body CreateFinancingJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -17057,8 +17458,10 @@ func (sh *strictHandler) ListIncomes(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateIncome operation middleware
-func (sh *strictHandler) CreateIncome(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) CreateIncome(w http.ResponseWriter, r *http.Request, params CreateIncomeParams) {
 	var request CreateIncomeRequestObject
+
+	request.Params = params
 
 	var body CreateIncomeJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -18583,8 +18986,10 @@ func (sh *strictHandler) GetSavingsMonth(w http.ResponseWriter, r *http.Request,
 }
 
 // CreateSavingsBox operation middleware
-func (sh *strictHandler) CreateSavingsBox(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) CreateSavingsBox(w http.ResponseWriter, r *http.Request, params CreateSavingsBoxParams) {
 	var request CreateSavingsBoxRequestObject
+
+	request.Params = params
 
 	var body CreateSavingsBoxJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -18757,6 +19162,39 @@ func (sh *strictHandler) SearchEntries(w http.ResponseWriter, r *http.Request, p
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SearchEntriesResponseObject); ok {
 		if err := validResponse.VisitSearchEntriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MoveToSpace operation middleware
+func (sh *strictHandler) MoveToSpace(w http.ResponseWriter, r *http.Request, id Id) {
+	var request MoveToSpaceRequestObject
+
+	request.Id = id
+
+	var body MoveToSpaceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MoveToSpace(ctx, request.(MoveToSpaceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MoveToSpace")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MoveToSpaceResponseObject); ok {
+		if err := validResponse.VisitMoveToSpaceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

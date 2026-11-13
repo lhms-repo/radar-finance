@@ -37,6 +37,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
+	"github.com/italogfx/radar-finance/internal/space"
 )
 
 // testServer starts the full HTTP stack on a fresh database with one fictional user.
@@ -85,6 +86,7 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Accounts:      accounts,
 		Categories:    category.NewService(conn),
 		Ledger:        ledger.NewService(conn),
+		Spaces:        space.NewService(conn),
 		Incomes:       income.NewService(conn),
 		Cards:         cards,
 		Bills:         bills,
