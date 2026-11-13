@@ -179,6 +179,7 @@ type Group struct {
 	Name          string
 	CreatedBy     sql.NullInt64
 	CreatedAt     time.Time
+	SettlesFrom   sql.NullString
 	Kind          string
 	OwnerPersonID sql.NullInt64
 }
@@ -189,6 +190,13 @@ type GroupMember struct {
 	Role     string
 	WeightBp int64
 	JoinedAt time.Time
+}
+
+type GroupWeight struct {
+	GroupID  int64
+	PersonID int64
+	WeightBp int64
+	FromDay  string
 }
 
 type Import struct {
@@ -263,6 +271,14 @@ type MarketSetting struct {
 	MaxMarkets      int64
 	MinSavingsCents int64
 	StaleDays       int64
+}
+
+type MemberSplit struct {
+	ItemKind   string
+	ItemID     int64
+	Mode       string
+	PersonID   int64
+	ShareCents int64
 }
 
 type NotificationRead struct {
@@ -395,6 +411,18 @@ type Session struct {
 	Data     []byte
 	ExpiryMs int64
 	GroupID  sql.NullInt64
+}
+
+type Settlement struct {
+	ID           int64
+	GroupID      int64
+	TransferID   int64
+	FromPersonID int64
+	ToPersonID   int64
+	AmountCents  int64
+	PaidOn       string
+	CreatedBy    int64
+	CreatedAt    time.Time
 }
 
 type ShoppingList struct {
