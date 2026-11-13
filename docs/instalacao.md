@@ -1,6 +1,6 @@
 # Instalação do servidor em casa
 
-Passo a passo para deixar o Radar rodando no Windows e aberto como app nos iPhones (seções 8.3 a 8.5).
+Passo a passo para deixar o Radar rodando no Windows e aberto como app nos celulares, iPhone e Android (seções 8.3 a 8.5).
 
 ## 1. Máquina
 
@@ -38,7 +38,7 @@ New-NetFirewallRule -DisplayName "Radar HTTP redirect" -Direction Inbound -Proto
 
 Nenhuma porta é aberta no roteador (RNF-08).
 
-**Endereço fixo (RNF-22).** No roteador, reserve o IP atual da máquina para o endereço MAC da placa de rede (DHCP reservation). Prefira o cabo Ethernet ao Wi-Fi. O nome `<NOMEDOPC>.local` também funciona no iPhone, porque o Windows responde por mDNS.
+**Endereço fixo (RNF-22).** No roteador, reserve o IP atual da máquina para o endereço MAC da placa de rede (DHCP reservation). Prefira o cabo Ethernet ao Wi-Fi. O nome `<NOMEDOPC>.local` também funciona no iPhone, porque o Windows responde por mDNS. No Android, use sempre o IP: o Chrome do Android não resolve nomes `.local` de forma confiável (RNF-21).
 
 **Pasta dos backups.** Crie `C:\RadarBackups`. Se um dia houver um segundo disco, mude para ele no `deploy/.env`.
 
@@ -57,6 +57,12 @@ Isso cria `deploy/certs/`, que não vai para o repositório. Guarde a pasta `dep
 1. No **Safari** do iPhone, abra `http://<IP do servidor>/ca.crt` (http, sem o s) e toque em **Permitir**. Abrir o arquivo pelo WhatsApp não funciona: o iOS só mostra o texto.
 2. Ajustes: logo no topo aparece **Perfil Transferido**. Se não aparecer, vá em Geral, VPN e Gerenciamento de Dispositivo. Toque em Instalar. O perfil baixado expira em alguns minutos; se sumir, baixe de novo.
 3. Ajustes, Geral, Sobre, Ajustes de Confiança de Certificados: ative a confiança total para "mkcert".
+
+**Instalar a autoridade em cada Android, uma vez só** (depois do passo 4, com o Radar no ar). Os nomes dos menus mudam um pouco entre fabricantes:
+
+1. No **Chrome** do Android, abra `http://<IP do servidor>/ca.crt` (http, sem o s). O arquivo vai para Downloads.
+2. Configurações, Segurança e privacidade, Mais configurações de segurança, Criptografia e credenciais, **Instalar um certificado**, **Certificado de CA**. Confirme o aviso e escolha o `ca.crt` baixado. Se pedir, defina um bloqueio de tela: o Android exige um para guardar certificados.
+3. Em Credenciais confiáveis, aba Usuário, aparece "mkcert". O Chrome passa a confiar no Radar; outros apps não são afetados.
 
 A pasta `deploy/certs/ca` guarda a chave da autoridade e nunca sai do PC; o Caddy recebe só os certificados públicos.
 
@@ -89,7 +95,13 @@ As pessoas entram com PIN (RF-01, RN-27) e ficam só no banco, nunca no reposit�
 2. Toque em Compartilhar, Adicionar à Tela de Início.
 3. Abra pelo ícone: o Radar abre em tela cheia, sem a barra do Safari.
 
-## 6. Conferir
+## 6. Instalar como app no Android (RNF-23)
+
+1. No Chrome, abra `https://192.168.0.10` (o IP reservado, nunca o `.local`).
+2. Menu de três pontos, **Instalar app** (ou **Adicionar à tela inicial**, em versões mais antigas).
+3. Abra pelo ícone: o Radar abre em tela cheia, sem a barra do Chrome. O botão e o gesto de voltar fecham primeiro a folha ou o diálogo aberto (RNF-26).
+
+## 7. Conferir
 
 - Ajustes, Saúde do sistema: mostra o último backup e há quanto tempo o servidor está ligado.
 - `C:\RadarBackups` recebe uma cópia por dia.
