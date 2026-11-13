@@ -97,7 +97,8 @@ func TestGroups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(groups) != 2 || groups[0].ID != home.ID || groups[0].Role != RoleMember || groups[1].ID != beach.ID || groups[1].Role != RoleAdmin {
+	// The personal space comes first (RF-83), then the shared groups by name.
+	if len(groups) != 3 || !groups[0].Personal || groups[1].ID != home.ID || groups[1].Role != RoleMember || groups[2].ID != beach.ID || groups[2].Role != RoleAdmin {
 		t.Fatalf("groups of Carla = %+v", groups)
 	}
 	if err := s.RenameGroup(ctx, beach.ID, "Casa"); !errors.Is(err, ErrGroupNameTaken) {
@@ -310,5 +311,96 @@ func TestAuthenticate(t *testing.T) {
 	}
 	if _, err := s.Authenticate(ctx, home.ID, ana.ID, "5555"); err != nil {
 		t.Fatalf("after a new PIN: %v", err)
+	}
+}
+
+// TestPersonalSpace gives each person a personal space when she joins her first group, keeps it out of the
+// entrance and closed to other members, and leaves PIN resets to the administrator of the shared groups (RF-83).
+func TestPersonalSpace(t *testing.T) {
+	s, _ := newGroupService(t)
+	ctx := context.Background()
+	ana, _ := s.Create(ctx, "ana", "Ana Ficticia")
+	bruno, _ := s.Create(ctx, "bruno", "Bruno Ficticio")
+	if groups, _ := s.GroupsOf(ctx, ana.ID); len(groups) != 0 {
+		t.Fatalf("groups before any group = %+v, want none", groups)
+	}
+	home, err := s.CreateGroup(ctx, "Casa", ana.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AddMember(ctx, home.ID, bruno.ID, RoleMember); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetPIN(ctx, bruno.ID, "7351"); err != nil {
+		t.Fatal(err)
+	}
+
+	personal := map[int64]Group{}
+	for _, u := range []User{ana, bruno} {
+		groups, err := s.GroupsOf(ctx, u.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(groups) != 2 || !groups[0].Personal || groups[0].Name != "Pessoal" || groups[0].Role != RoleAdmin || groups[1].ID != home.ID || groups[1].Personal {
+			t.Fatalf("groups of %s = %+v, want Pessoal first and then Casa", u.Login, groups)
+		}
+		personal[u.ID] = groups[0]
+	}
+	if personal[ana.ID].ID == personal[bruno.ID].ID {
+		t.Fatal("ana and bruno share a personal space")
+	}
+	if members, _ := s.Members(ctx, personal[ana.ID].ID); len(members) != 1 || members[0].UserID != ana.ID || members[0].WeightBP != fullWeightBP {
+		t.Fatalf("members of the personal space = %+v, want only ana", members)
+	}
+	// Joining another group keeps the same personal space.
+	if _, err := s.CreateGroup(ctx, "Praia", ana.ID); err != nil {
+		t.Fatal(err)
+	}
+	if groups, _ := s.GroupsOf(ctx, ana.ID); len(groups) != 3 || groups[0].ID != personal[ana.ID].ID {
+		t.Fatalf("groups after a second group = %+v", groups)
+	}
+	// The entrance lists only shared groups.
+	entrance, _ := s.Groups(ctx)
+	for _, g := range entrance {
+		if g.Personal || g.Name == "Pessoal" {
+			t.Fatalf("entrance lists a personal space: %+v", entrance)
+		}
+	}
+	if len(entrance) != 2 {
+		t.Fatalf("entrance = %+v, want Casa and Praia", entrance)
+	}
+
+	mine := personal[ana.ID].ID
+	refused := []struct {
+		name string
+		err  error
+	}{
+		{"rename", s.RenameGroup(ctx, mine, "Meu")},
+		{"add member", s.AddMember(ctx, mine, bruno.ID, RoleMember)},
+		{"set role", s.SetRole(ctx, mine, ana.ID, RoleMember)},
+	}
+	if _, err := s.CreateMember(ctx, mine, "carla", "Carla Ficticia", "9264", RoleMember); true {
+		refused = append(refused, struct {
+			name string
+			err  error
+		}{"create member", err})
+	}
+	if _, err := s.JoinWithPIN(ctx, mine, "bruno", "7351", RoleMember); true {
+		refused = append(refused, struct {
+			name string
+			err  error
+		}{"join with PIN", err})
+	}
+	for _, r := range refused {
+		if !errors.Is(r.err, ErrPersonalGroup) {
+			t.Errorf("%s in a personal space: %v, want ErrPersonalGroup", r.name, r.err)
+		}
+	}
+	// Ana runs every shared group of Bruno, so his personal space does not stop her from resetting his PIN.
+	if err := s.CanResetPIN(ctx, ana.ID, bruno.ID); err != nil {
+		t.Fatalf("reset by the administrator of all shared groups: %v", err)
+	}
+	if err := s.CanResetPIN(ctx, bruno.ID, ana.ID); !errors.Is(err, ErrResetOutsideGroups) {
+		t.Fatalf("reset by a member: %v, want ErrResetOutsideGroups", err)
 	}
 }

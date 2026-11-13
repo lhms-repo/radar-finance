@@ -1325,9 +1325,12 @@ type GroupRoleChange struct {
 
 // GroupSummary defines model for GroupSummary.
 type GroupSummary struct {
-	Id   int64     `json:"id"`
-	Name string    `json:"name"`
-	Role GroupRole `json:"role"`
+	Id   int64  `json:"id"`
+	Name string `json:"name"`
+
+	// Personal Whether this is the personal space of the user, seen only by her (RF-83).
+	Personal bool      `json:"personal"`
+	Role     GroupRole `json:"role"`
 }
 
 // GroupSwitch defines model for GroupSwitch.

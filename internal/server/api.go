@@ -43,8 +43,11 @@ func (a *API) ListLoginGroups(ctx context.Context, _ gen.ListLoginGroupsRequestO
 
 // ListLoginMembers lists the people of the chosen group, the second step of entering (RF-01).
 func (a *API) ListLoginMembers(ctx context.Context, req gen.ListLoginMembersRequestObject) (gen.ListLoginMembersResponseObject, error) {
-	if _, err := a.d.Accounts.GetGroup(ctx, req.Id); err != nil {
+	if g, err := a.d.Accounts.GetGroup(ctx, req.Id); err != nil {
 		return nil, err
+	} else if g.Personal {
+		// A personal space is not a way in, and its owner is not listed by id.
+		return nil, account.ErrGroupNotFound
 	}
 	members, err := a.d.Accounts.Members(ctx, req.Id)
 	if err != nil {
@@ -255,7 +258,7 @@ func (a *API) me(ctx context.Context, u account.User, groupID int64) (gen.Me, er
 	}
 	out := gen.Me{Id: u.ID, Login: u.Login, Name: u.Name, Theme: gen.Theme(u.Theme), Haptics: u.Haptics, Groups: make([]gen.GroupSummary, 0, len(groups))}
 	for _, g := range groups {
-		summary := gen.GroupSummary{Id: g.ID, Name: g.Name, Role: gen.GroupRole(g.Role)}
+		summary := gen.GroupSummary{Id: g.ID, Name: g.Name, Role: gen.GroupRole(g.Role), Personal: g.Personal}
 		out.Groups = append(out.Groups, summary)
 		if g.ID == groupID {
 			out.Group = summary

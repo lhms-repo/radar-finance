@@ -88,9 +88,14 @@ func TestGroupRoutes(t *testing.T) {
 	}
 	// Ana is the administrator of the new group and can switch to it.
 	resp = send(t, ana, srv, http.MethodGet, "/api/me", "")
-	var me struct{ Groups []struct{ Name, Role string } }
+	var me struct {
+		Groups []struct {
+			Name, Role string
+			Personal   bool
+		}
+	}
 	_ = json.NewDecoder(resp.Body).Decode(&me)
-	if len(me.Groups) != 2 || me.Groups[1].Name != "Praia" || me.Groups[1].Role != "admin" {
+	if len(me.Groups) != 3 || !me.Groups[0].Personal || me.Groups[2].Name != "Praia" || me.Groups[2].Role != "admin" {
 		t.Fatalf("groups of ana = %+v", me.Groups)
 	}
 }
