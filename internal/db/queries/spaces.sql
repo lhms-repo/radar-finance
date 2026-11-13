@@ -95,3 +95,14 @@ WHERE savings_boxes.id = sqlc.arg(item_id) AND savings_boxes.group_id = CAST(sql
 UPDATE entries
 SET group_id = CAST(sqlc.arg(target) AS INTEGER)
 WHERE id IN (SELECT sm.entry_id FROM savings_moves sm WHERE sm.box_id = sqlc.arg(item_id));
+
+-- name: ItemCreator :one
+-- Who recorded the item, the only one who moves it to another space (RF-83).
+SELECT CAST(CASE CAST(sqlc.arg(kind) AS TEXT)
+    WHEN 'entry' THEN (SELECT x.created_by FROM entries x WHERE x.id = sqlc.arg(item_id))
+    WHEN 'purchase' THEN (SELECT x.created_by FROM purchases x WHERE x.id = sqlc.arg(item_id))
+    WHEN 'bill' THEN (SELECT x.created_by FROM bills x WHERE x.id = sqlc.arg(item_id))
+    WHEN 'financing' THEN (SELECT x.created_by FROM financings x WHERE x.id = sqlc.arg(item_id))
+    WHEN 'income' THEN (SELECT x.created_by FROM incomes x WHERE x.id = sqlc.arg(item_id))
+    WHEN 'savings' THEN (SELECT x.created_by FROM savings_boxes x WHERE x.id = sqlc.arg(item_id))
+    ELSE 0 END AS INTEGER) AS created_by;

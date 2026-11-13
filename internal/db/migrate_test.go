@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -253,5 +254,30 @@ func TestMigratePersonalSpaces(t *testing.T) {
 	}
 	if n := scalar(t, conn, `SELECT count(*) FROM pragma_foreign_key_check`); n != 0 {
 		t.Fatalf("foreign key check found %d broken references", n)
+	}
+}
+
+// TestMigratePersonalRefusesDoublePayments stops migration 22 with a clear message when two groups paid the same
+// invoice of a card, which the owner now pays once (RF-83).
+func TestMigratePersonalRefusesDoublePayments(t *testing.T) {
+	conn := migratedTo(t, lastSingleCoupleVersion)
+	seedCouple(t, conn)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := MigrateTo(context.Background(), conn, log, groupRebuildVersion); err != nil {
+		t.Fatal(err)
+	}
+	now := "'2026-11-12 12:00:00+00:00'"
+	for _, q := range []string{
+		`INSERT INTO groups (id, name, created_at) VALUES (2, 'Praia', ` + now + `)`,
+		`INSERT INTO entries (id, account_id, kind, amount_cents, occurred_on, confirmed, description, created_by, created_at, updated_at, group_id) VALUES (9, 1, 'invoice_payment', -100, '2026-12-10', 1, 'Nubank', 1, ` + now + `, ` + now + `, 2)`,
+		`INSERT INTO invoice_payments (group_id, card_id, invoice_month, entry_id, amount_cents, created_by, created_at) VALUES (2, 1, '2026-12', 9, 100, 1, ` + now + `)`,
+	} {
+		if _, err := conn.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	err := MigrateTo(context.Background(), conn, log, personalVersion)
+	if err == nil || !strings.Contains(err.Error(), "paid in more than one group") {
+		t.Fatalf("migration with an invoice paid twice: %v", err)
 	}
 }

@@ -477,7 +477,7 @@ func (q *Queries) ListCardPayments(ctx context.Context, cardID int64) ([]ListCar
 
 const listCardRecurrences = `-- name: ListCardRecurrences :many
 SELECT r.id, r.card_id, r.description, r.category_id, r.start_month, r.end_month, r.created_by, r.created_at, r.updated_at, r.group_id, coalesce(c.name, '') AS category_name, coalesce(pc.name, '') AS parent_category_name,
-       coalesce(pc.icon, '') AS category_icon, coalesce(g.name, '') AS group_name
+       coalesce(pc.icon, '') AS category_icon, coalesce(g.name, '') AS group_name, CAST(coalesce(r.group_id, 0) AS INTEGER) AS space_id
 FROM recurrences r
 JOIN categories c ON c.id = r.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
@@ -507,6 +507,7 @@ type ListCardRecurrencesRow struct {
 	ParentCategoryName string
 	CategoryIcon       string
 	GroupName          string
+	SpaceID            int64
 }
 
 func (q *Queries) ListCardRecurrences(ctx context.Context, arg ListCardRecurrencesParams) ([]ListCardRecurrencesRow, error) {
@@ -533,6 +534,7 @@ func (q *Queries) ListCardRecurrences(ctx context.Context, arg ListCardRecurrenc
 			&i.ParentCategoryName,
 			&i.CategoryIcon,
 			&i.GroupName,
+			&i.SpaceID,
 		); err != nil {
 			return nil, err
 		}
@@ -618,7 +620,8 @@ SELECT i.id, i.purchase_id, i.number, i.amount_cents, p.kind, p.purchased_on, p.
        coalesce(pc.icon, '') AS category_icon,
        coalesce(bp.name, '') AS buyer_name,
        up.name AS created_by_name,
-       coalesce(g.name, '') AS group_name
+       coalesce(g.name, '') AS group_name,
+       CAST(coalesce(p.group_id, 0) AS INTEGER) AS group_id
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 LEFT JOIN categories c ON c.id = p.category_id
@@ -657,6 +660,7 @@ type ListInvoiceInstallmentsRow struct {
 	BuyerName          string
 	CreatedByName      string
 	GroupName          string
+	GroupID            int64
 }
 
 // With full set, the owner of the card reads the lines of every space, her personal one included (RF-83).
@@ -693,6 +697,7 @@ func (q *Queries) ListInvoiceInstallments(ctx context.Context, arg ListInvoiceIn
 			&i.BuyerName,
 			&i.CreatedByName,
 			&i.GroupName,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}

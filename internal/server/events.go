@@ -91,7 +91,7 @@ func clientID(r *http.Request) string {
 }
 
 // publishChanges announces every successful write of shared data to the open streams.
-func publishChanges(hub *events.Hub, sm *scs.SessionManager, next http.Handler) http.Handler {
+func publishChanges(hub *events.Hub, sm *scs.SessionManager, accounts *account.Service, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead {
 			next.ServeHTTP(w, r)
@@ -105,6 +105,16 @@ func publishChanges(hub *events.Hub, sm *scs.SessionManager, next http.Handler) 
 			// An item created in or moved to another space changes that space too (RF-83).
 			if other, ok := otherSpace(r); ok && other != group {
 				hub.Publish(events.Event{Topic: topic, GroupID: other, UserID: user, ClientID: clientID(r)})
+			}
+			// A write in the personal space, like paying the whole invoice, also changes what her groups show.
+			if g, err := accounts.GetGroup(r.Context(), group); err == nil && g.Personal {
+				if mine, err := accounts.GroupsOf(r.Context(), user); err == nil {
+					for _, o := range mine {
+						if !o.Personal {
+							hub.Publish(events.Event{Topic: topic, GroupID: o.ID, UserID: user, ClientID: clientID(r)})
+						}
+					}
+				}
 			}
 		}
 	})

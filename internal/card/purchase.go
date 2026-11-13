@@ -490,13 +490,14 @@ func (s *Service) writeImportedSplits(ctx context.Context, q *store.Queries, use
 	return nil
 }
 
-// RecurrenceChargesIn lists what the recurrences of a card bill on one invoice, for duplicate checks (RN-20).
+// RecurrenceChargesIn lists what the recurrences of a card bill on one invoice, in every space of the card, for
+// duplicate checks (RN-20, RF-83).
 func (s *Service) RecurrenceChargesIn(ctx context.Context, q *store.Queries, cardID int64, m civil.Month) ([]Recurrence, error) {
 	c, err := getCard(ctx, q, cardID)
 	if err != nil {
 		return nil, err
 	}
-	all, err := s.recurrences(ctx, q, c)
+	all, err := s.recurrencesIn(ctx, q, c, view{full: true})
 	if err != nil {
 		return nil, err
 	}

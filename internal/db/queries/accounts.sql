@@ -96,7 +96,8 @@ SELECT e.id, e.account_id, e.kind, e.amount_cents, e.occurred_on, e.confirmed, e
              AND (CAST(sqlc.arg(full) AS INTEGER) = 1 OR o.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
        ), '') AS TEXT) AS counterpart_account_name,
        p.name AS created_by_name,
-       coalesce(g.name, '') AS group_name
+       coalesce(g.name, '') AS group_name,
+       CAST(coalesce(e.group_id, 0) AS INTEGER) AS group_id
 FROM entries e
 LEFT JOIN categories c ON c.id = e.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id

@@ -59,6 +59,7 @@ var (
 	ErrSameAccount         = problem.Invalid("transfer_same_account", "Escolha contas diferentes para a transferência.")
 	ErrNoChange            = problem.Invalid("adjustment_no_change", "O saldo da conta já é esse valor.")
 	ErrEntryNotFound       = problem.NotFound("entry_not_found", "Lançamento não encontrado.")
+	ErrAdjustInPersonal    = problem.Conflict("adjustment_personal", "O saldo é ajustado pela titular da conta, no espaço Pessoal dela.")
 	ErrHolderUsedElsewhere = problem.Conflict("holder_used_elsewhere", "Esta conta tem movimento em outro grupo, então o titular não pode mudar.")
 	ErrSavingsNegative     = problem.Conflict("savings_deposit_withdrawn", "Este aporte já foi retirado da caixinha. Apague a retirada antes, senão a caixinha fica com saldo negativo.")
 )
@@ -108,8 +109,9 @@ type Entry struct {
 	CounterpartAccountName string
 	CreatedByName          string
 	CreatedAt              time.Time
-	// GroupName is the space of the entry, shown on the full statement of the holder (RF-83).
+	// GroupName and GroupID are the space of the entry, on the full statement of the holder (RF-83).
 	GroupName string
+	GroupID   int64
 }
 
 // NewExpense is a one off expense paid straight from an account (section 5.6).
@@ -452,6 +454,17 @@ func (s *Service) AdjustBalance(ctx context.Context, userID int64, in Adjustment
 		if err != nil {
 			return err
 		}
+		// The difference tells the real balance, made of every space, so only the holder adjusts it, in her
+		// personal space, and a group never holds an entry built from personal movements (RF-83).
+		a, err := getAccount(ctx, q, in.AccountID)
+		if err != nil {
+			return err
+		}
+		if mine, err := HolderSpace(ctx, q, a.PersonID); err != nil {
+			return err
+		} else if !mine {
+			return ErrAdjustInPersonal
+		}
 		// The bank shows the real balance, so the adjustment compares with every movement (RF-83).
 		current, err := q.AccountBalance(ctx, store.AccountBalanceParams{ID: in.AccountID, GroupID: groupID})
 		if err != nil {
@@ -680,7 +693,7 @@ func (s *Service) list(ctx context.Context, q *store.Queries, accountID int64, m
 			Confirmed: r.Confirmed, CategoryID: idPtr(r.CategoryID), CategoryName: r.CategoryName,
 			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, Description: r.Description,
 			TransferID: idPtr(r.TransferID), CounterpartAccountName: r.CounterpartAccountName,
-			CreatedByName: r.CreatedByName, CreatedAt: r.CreatedAt, GroupName: r.GroupName,
+			CreatedByName: r.CreatedByName, CreatedAt: r.CreatedAt, GroupName: r.GroupName, GroupID: r.GroupID,
 		})
 	}
 	return out, nil

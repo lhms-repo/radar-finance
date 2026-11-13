@@ -196,7 +196,7 @@ func toEntry(e ledger.Entry) gen.Entry {
 		CategoryName: optional(e.CategoryName), ParentCategoryName: optional(e.ParentCategoryName),
 		CategoryIcon: optional(e.CategoryIcon), Description: e.Description, TransferId: e.TransferID,
 		CounterpartAccountName: optional(e.CounterpartAccountName), CreatedByName: e.CreatedByName, CreatedAt: e.CreatedAt,
-		GroupName: optional(e.GroupName),
+		GroupName: optional(e.GroupName), GroupId: optionalID(e.GroupID),
 	}
 }
 

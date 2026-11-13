@@ -171,7 +171,7 @@ func New(d Deps) http.Handler {
 	protected := limitBody(auth.RequireUser(d.Sessions, publicRoute, memberOnly(d, apiHandler)))
 	root := http.NewServeMux()
 	root.Handle("/api/events", eventsHandler(hub, d.Sessions, d.Accounts))
-	root.Handle("/api/", http.NewCrossOriginProtection().Handler(d.Sessions.LoadAndSave(noStore(publishChanges(hub, d.Sessions, protected)))))
+	root.Handle("/api/", http.NewCrossOriginProtection().Handler(d.Sessions.LoadAndSave(noStore(publishChanges(hub, d.Sessions, d.Accounts, protected)))))
 	root.Handle("/", staticHandler(d.Assets))
 	return securityHeaders(recoverer(d.Log, logRequests(d.Log, root)))
 }

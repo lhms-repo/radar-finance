@@ -1179,6 +1179,9 @@ type Entry struct {
 	Date                   openapi_types.Date `json:"date"`
 	Description            string             `json:"description"`
 
+	// GroupId Id of the space of the entry; only entries of the active space can be changed there (RF-83).
+	GroupId *int64 `json:"groupId,omitempty"`
+
 	// GroupName Space of the entry, on the full statement of the holder (RF-83).
 	GroupName          *string   `json:"groupName,omitempty"`
 	Id                 int64     `json:"id"`
@@ -1658,6 +1661,9 @@ type InvoiceItem struct {
 	// Date Purchase date, kept only as information (RN-01).
 	Date        *openapi_types.Date `json:"date,omitempty"`
 	Description string              `json:"description"`
+
+	// GroupId Id of the space of the line; only lines of the active space can be changed there (RF-83).
+	GroupId *int64 `json:"groupId,omitempty"`
 
 	// GroupName Space of the line, on the full invoice of the owner (RF-83).
 	GroupName *string         `json:"groupName,omitempty"`

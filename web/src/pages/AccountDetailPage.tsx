@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useMe } from "@/app/session";
 import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { AnimatePresence, motion } from "motion/react";
 import { DropdownMenu } from "radix-ui";
@@ -49,6 +50,7 @@ export function AccountDetailPage() {
   const [dialog, setDialog] = useState<DialogKind | null>(null);
   const [removing, setRemoving] = useState<Entry | null>(null);
   const toggle = useUpdateAccount();
+  const me = useMe();
   const a = account.data;
 
   if (account.isError) {
@@ -92,10 +94,10 @@ export function AccountDetailPage() {
           <p className="text-sm text-muted-foreground">O saldo desta conta aparece só para {a.personName}. Aqui ficam os movimentos deste grupo nela.</p>
         )}
         {a.active && (
-          <div className={cn("grid gap-2", a.owned ? "grid-cols-3" : "grid-cols-2")}>
+          <div className={cn("grid gap-2", a.owned && st?.full ? "grid-cols-3" : "grid-cols-2")}>
             <ActionButton icon={<MinusCircle />} label="Saída" onClick={() => setDialog("expense")} />
             <ActionButton icon={<ArrowLeftRight />} label="Transferir" onClick={() => setDialog("transfer")} />
-            {a.owned && <ActionButton icon={<Scale />} label="Ajustar saldo" onClick={() => setDialog("adjust")} />}
+            {a.owned && st?.full && <ActionButton icon={<Scale />} label="Ajustar saldo" onClick={() => setDialog("adjust")} />}
           </div>
         )}
       </Card>
@@ -129,7 +131,7 @@ export function AccountDetailPage() {
         <ul className="flex flex-col">
           <AnimatePresence initial={false}>
             {(st?.entries ?? []).map((e) => (
-              <EntryRow key={e.id} entry={e} onDelete={() => setRemoving(e)} showSpace={st?.full} />
+              <EntryRow key={e.id} entry={e} onDelete={() => setRemoving(e)} showSpace={st?.full} editable={!st?.full || e.groupId === me?.group.id} />
             ))}
           </AnimatePresence>
         </ul>
@@ -223,7 +225,7 @@ function entryTitle(e: Entry) {
 }
 
 /** One statement line with icon, title, author and signed amount. */
-function EntryRow({ entry: e, onDelete, showSpace }: { entry: Entry; onDelete: () => void; showSpace?: boolean }) {
+function EntryRow({ entry: e, onDelete, showSpace, editable = true }: { entry: Entry; onDelete: () => void; showSpace?: boolean; editable?: boolean }) {
   const subtitle = [
     showSpace && e.groupName,
     e.kind === "expense" && e.parentCategoryName,
@@ -255,9 +257,14 @@ function EntryRow({ entry: e, onDelete, showSpace }: { entry: Entry; onDelete: (
         <Money cents={e.amountCents} signed className={cn("text-sm font-medium", e.amountCents > 0 && "text-success")} />
         {!e.confirmed && <span className="text-[0.7rem] text-warning">Previsto</span>}
       </span>
-      <Button variant="ghost" size="icon-sm" aria-label={`Excluir ${entryTitle(e)}`} onClick={onDelete} className="text-muted-foreground">
-        <Trash2 />
-      </Button>
+      {editable ? (
+        <Button variant="ghost" size="icon-sm" aria-label={`Excluir ${entryTitle(e)}`} onClick={onDelete} className="text-muted-foreground">
+          <Trash2 />
+        </Button>
+      ) : (
+        // A line of another space is changed there (RF-83).
+        <span className="size-8" />
+      )}
     </motion.li>
   );
 }

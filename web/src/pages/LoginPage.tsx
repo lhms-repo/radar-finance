@@ -3,7 +3,7 @@ import { ArrowLeft, Lock } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useId, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
-import { api, unwrap } from "@/api/client";
+import { api, unwrap, setActiveSpace } from "@/api/client";
 import { ME_KEY, announceSessionChange, useMeQuery } from "@/app/session";
 import { Splash } from "@/components/layout/AppShell";
 import { Logo } from "@/components/layout/Logo";
@@ -74,6 +74,7 @@ export function LoginPage() {
       writeLastGroup(groupId!);
       // A new session starts with no data of the previous one, here and in the other tabs.
       qc.clear();
+      setActiveSpace(user.group.id);
       qc.setQueryData(ME_KEY, user);
       announceSessionChange();
       navigate(from === "/login" ? "/" : from, { replace: true });

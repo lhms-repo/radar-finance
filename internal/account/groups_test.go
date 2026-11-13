@@ -404,3 +404,20 @@ func TestPersonalSpace(t *testing.T) {
 		t.Fatalf("reset by a member: %v, want ErrResetOutsideGroups", err)
 	}
 }
+
+// TestPersonalNameReserved keeps the name of the personal space out of shared groups, so no picker shows two (RF-83).
+func TestPersonalNameReserved(t *testing.T) {
+	s, _ := newGroupService(t)
+	ctx := context.Background()
+	ana, _ := s.Create(ctx, "ana", "Ana Ficticia")
+	if _, err := s.CreateGroup(ctx, " pessoal ", ana.ID); !errors.Is(err, ErrGroupNameReserved) {
+		t.Fatalf("create Pessoal: %v, want ErrGroupNameReserved", err)
+	}
+	home, err := s.CreateGroup(ctx, "Casa", ana.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RenameGroup(ctx, home.ID, "PESSOAL"); !errors.Is(err, ErrGroupNameReserved) {
+		t.Fatalf("rename to Pessoal: %v, want ErrGroupNameReserved", err)
+	}
+}

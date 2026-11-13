@@ -140,6 +140,12 @@ func (a *API) requireAdmin(ctx context.Context) (int64, error) {
 	if !ok || role != account.RoleAdmin {
 		return 0, errAdminOnly
 	}
+	// Everyone runs her own personal space, which must not open the management of groups (RF-80, RF-83).
+	if g, err := a.d.Accounts.GetGroup(ctx, groupID); err != nil {
+		return 0, err
+	} else if g.Personal {
+		return 0, errAdminOnly
+	}
 	return groupID, nil
 }
 

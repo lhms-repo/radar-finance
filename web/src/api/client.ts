@@ -28,10 +28,22 @@ function newClientId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+/** Space this tab shows; every call carries it, so a tab left behind by a switch in another tab never writes elsewhere (RF-83). */
+let activeSpace: number | undefined;
+
+/** Records the space this tab shows, or forgets it on sign out. */
+export function setActiveSpace(id: number | undefined) {
+  activeSpace = id;
+}
+
 const sessionMiddleware: Middleware = {
-  /** Tags the request with the id of this tab. */
+  /** Tags the request with the id of this tab and the space it shows, except for entering and the session itself. */
   onRequest({ request }) {
     request.headers.set("X-Radar-Client", clientId);
+    const path = new URL(request.url).pathname;
+    if (activeSpace && !request.headers.has("X-Radar-Space") && !path.startsWith("/api/auth") && !path.startsWith("/api/me")) {
+      request.headers.set("X-Radar-Space", String(activeSpace));
+    }
     return request;
   },
   /** Notifies listeners when a protected call returns 401. */

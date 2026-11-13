@@ -15,17 +15,15 @@ const cardInstallmentMatch = `-- name: CardInstallmentMatch :many
 SELECT i.id AS installment_id, p.merchant, p.purchased_on, i.amount_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE p.group_id = CAST(?1 AS INTEGER)
-  AND i.card_id = ?2
-  AND i.invoice_month = ?3
-  AND i.number = ?4
-  AND p.installment_count = ?5
-  AND i.amount_cents = ?6
+WHERE i.card_id = ?1
+  AND i.invoice_month = ?2
+  AND i.number = ?3
+  AND p.installment_count = ?4
+  AND i.amount_cents = ?5
 ORDER BY i.id
 `
 
 type CardInstallmentMatchParams struct {
-	GroupID          int64
 	CardID           int64
 	InvoiceMonth     string
 	Number           int64
@@ -41,9 +39,9 @@ type CardInstallmentMatchRow struct {
 }
 
 // Installments of the card on the invoice with the given number, count and amount, to link a CSV installment (RF-57).
+// Every space of the card counts, as in CardItemsNear (RF-83).
 func (q *Queries) CardInstallmentMatch(ctx context.Context, arg CardInstallmentMatchParams) ([]CardInstallmentMatchRow, error) {
 	rows, err := q.db.QueryContext(ctx, cardInstallmentMatch,
-		arg.GroupID,
 		arg.CardID,
 		arg.InvoiceMonth,
 		arg.Number,
@@ -80,15 +78,13 @@ const cardItemsNear = `-- name: CardItemsNear :many
 SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE p.group_id = CAST(?1 AS INTEGER)
-  AND i.card_id = ?2
+WHERE i.card_id = ?1
   AND p.installment_count = 1
-  AND p.purchased_on >= ?3 AND p.purchased_on <= ?4
+  AND p.purchased_on >= ?2 AND p.purchased_on <= ?3
 ORDER BY i.id
 `
 
 type CardItemsNearParams struct {
-	GroupID  int64
 	CardID   int64
 	FirstDay string
 	LastDay  string
@@ -108,13 +104,9 @@ type CardItemsNearRow struct {
 
 // One-shot purchases of the card bought within a day of the given date, for duplicates of one-shot CSV lines (RN-20).
 // Installment purchases are left out: their CSV lines carry Parcela N/M and match by number (RF-57).
+// Every space of the card counts, so a line recorded in another space is not imported twice (RF-83).
 func (q *Queries) CardItemsNear(ctx context.Context, arg CardItemsNearParams) ([]CardItemsNearRow, error) {
-	rows, err := q.db.QueryContext(ctx, cardItemsNear,
-		arg.GroupID,
-		arg.CardID,
-		arg.FirstDay,
-		arg.LastDay,
-	)
+	rows, err := q.db.QueryContext(ctx, cardItemsNear, arg.CardID, arg.FirstDay, arg.LastDay)
 	if err != nil {
 		return nil, err
 	}

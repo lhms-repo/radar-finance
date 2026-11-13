@@ -17,3 +17,11 @@ func (a *API) MoveToSpace(ctx context.Context, req gen.MoveToSpaceRequestObject)
 	}
 	return gen.MoveToSpace204Response{}, nil
 }
+
+// optionalID leaves a zero id out of the API model.
+func optionalID(id int64) *int64 {
+	if id == 0 {
+		return nil
+	}
+	return &id
+}

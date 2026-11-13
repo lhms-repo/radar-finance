@@ -324,7 +324,7 @@ func toInvoice(inv card.Invoice) gen.Invoice {
 			Merchant: it.Merchant, Description: it.Description, CategoryId: it.CategoryID, CategoryName: optional(it.CategoryName),
 			ParentCategoryName: optional(it.ParentCategoryName), CategoryIcon: optional(it.CategoryIcon), Number: it.Number,
 			Count: it.Count, AmountCents: it.AmountCents, BuyerPersonId: it.BuyerPersonID, BuyerName: optional(it.BuyerName), CreatedByName: optional(it.CreatedByName),
-			GroupName: optional(it.GroupName),
+			GroupName: optional(it.GroupName), GroupId: optionalID(it.GroupID),
 		}
 		if it.PurchaseTotalCents != 0 {
 			total := it.PurchaseTotalCents

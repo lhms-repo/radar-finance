@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import { useMe } from "@/app/session";
 import { DropdownMenu } from "radix-ui";
 import { AlertTriangle, Check, CreditCard, Eye, EyeOff, MinusCircle, MoreHorizontal, Pencil, Plus, Repeat, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -314,6 +315,9 @@ function InvoiceCard({
   onDelete: (item: InvoiceItem) => void;
 }) {
   const undo = useUndoPayment();
+  const me = useMe();
+  /** Tells a line of the active space, the only ones changed here; the full invoice also shows the other spaces (RF-83). */
+  const mine = (it: InvoiceItem) => !invoice.full || it.groupId === me?.group.id;
   const [y, m] = invoice.month.split("-").map(Number);
   // Only the owner pays, the whole invoice, in her personal space (RF-21, RF-83).
   const canPay = invoice.canPay;
@@ -421,9 +425,9 @@ function InvoiceCard({
               <button
                 type="button"
                 className="min-w-0 flex-1 text-left"
-                onClick={() => it.kind === "purchase" && onEdit(it)}
-                disabled={it.kind !== "purchase"}
-                aria-label={it.kind === "purchase" ? `Editar ${it.merchant}` : undefined}
+                onClick={() => it.kind === "purchase" && mine(it) && onEdit(it)}
+                disabled={it.kind !== "purchase" || !mine(it)}
+                aria-label={it.kind === "purchase" && mine(it) ? `Editar ${it.merchant}` : undefined}
               >
                 <span className="block truncate text-sm font-medium">{it.merchant}</span>
                 <span className="block truncate text-xs text-muted-foreground">{itemSubtitle(invoice.full ? it : { ...it, groupName: undefined })}</span>
@@ -432,7 +436,7 @@ function InvoiceCard({
                 <Money cents={it.amountCents} className={cn("text-sm font-medium", it.amountCents < 0 && "text-success")} />
                 {it.count > 1 && <span className="text-[0.7rem] text-muted-foreground">{`${it.number}/${it.count}`}</span>}
               </span>
-              {it.kind !== "recurrence" ? (
+              {it.kind !== "recurrence" && mine(it) ? (
                 <Button variant="ghost" size="icon-sm" aria-label={`Excluir ${it.merchant}`} onClick={() => onDelete(it)} className="text-muted-foreground">
                   <Trash2 />
                 </Button>

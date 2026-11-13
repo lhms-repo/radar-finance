@@ -3579,6 +3579,10 @@ components:
         groupName:
           description: Space of the entry, on the full statement of the holder (RF-83).
           type: string
+        groupId:
+          description: Id of the space of the entry; only entries of the active space can be changed there (RF-83).
+          type: integer
+          format: int64
 
     Statement:
       type: object
@@ -3990,6 +3994,10 @@ components:
         groupName:
           description: Space of the line, on the full invoice of the owner (RF-83).
           type: string
+        groupId:
+          description: Id of the space of the line; only lines of the active space can be changed there (RF-83).
+          type: integer
+          format: int64
         thirdPartyCents:
           $ref: "#/components/schemas/Cents"
         shares:
