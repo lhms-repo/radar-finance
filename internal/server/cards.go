@@ -296,12 +296,18 @@ func optionalMonth(s *string) (*civil.Month, error) {
 
 // toCard converts a card to the API model.
 func toCard(c card.Card) gen.Card {
-	return gen.Card{
+	out := gen.Card{
 		Id: c.ID, Name: c.Name, PersonId: c.PersonID, PersonName: c.PersonName, LimitCents: c.LimitCents,
 		ClosingDay: c.ClosingDay, DueDay: c.DueDay, LastDigits: optional(c.LastDigits), Color: gen.CardColor(c.Color),
-		Finish: gen.CardFinish(c.Finish), Active: c.Active, LimitUsedCents: c.LimitUsedCents, LimitFreeCents: c.LimitFreeCents,
+		Finish: gen.CardFinish(c.Finish), Active: c.Active, Owned: c.Owned,
 		CurrentInvoice: c.CurrentInvoice.String(), CurrentInvoiceDueOn: apiDate(c.CurrentInvoiceDueOn),
 	}
+	// The use of the limit tells the purchases of every space, so only the holder reads it (RF-83).
+	if c.Owned {
+		used, free := c.LimitUsedCents, c.LimitFreeCents
+		out.LimitUsedCents, out.LimitFreeCents = &used, &free
+	}
+	return out
 }
 
 // toInvoice converts an invoice to the API model.
@@ -310,7 +316,7 @@ func toInvoice(inv card.Invoice) gen.Invoice {
 		CardId: inv.CardID, Month: inv.Month.String(), ClosingOn: apiDate(inv.ClosingOn), DueOn: apiDate(inv.DueOn),
 		Status: gen.InvoiceStatus(inv.Status), TotalCents: inv.TotalCents, ThirdPartyCents: inv.ThirdPartyCents,
 		ReceivedCents: inv.ReceivedCents, PendingCents: inv.PendingCents, NetCents: inv.NetCents,
-		Items: make([]gen.InvoiceItem, 0, len(inv.Items)), PaymentOutdated: inv.PaymentOutdated,
+		Items: make([]gen.InvoiceItem, 0, len(inv.Items)), PaymentOutdated: inv.PaymentOutdated, Full: inv.Full, CanPay: inv.CanPay,
 	}
 	for _, it := range inv.Items {
 		item := gen.InvoiceItem{
@@ -318,6 +324,7 @@ func toInvoice(inv card.Invoice) gen.Invoice {
 			Merchant: it.Merchant, Description: it.Description, CategoryId: it.CategoryID, CategoryName: optional(it.CategoryName),
 			ParentCategoryName: optional(it.ParentCategoryName), CategoryIcon: optional(it.CategoryIcon), Number: it.Number,
 			Count: it.Count, AmountCents: it.AmountCents, BuyerPersonId: it.BuyerPersonID, BuyerName: optional(it.BuyerName), CreatedByName: optional(it.CreatedByName),
+			GroupName: optional(it.GroupName),
 		}
 		if it.PurchaseTotalCents != 0 {
 			total := it.PurchaseTotalCents

@@ -62,7 +62,8 @@ SELECT i.id, i.purchase_id, i.number, i.amount_cents, p.kind, p.purchased_on, p.
        coalesce(pc.name, '') AS parent_category_name,
        coalesce(pc.icon, '') AS category_icon,
        coalesce(bp.name, '') AS buyer_name,
-       up.name AS created_by_name
+       up.name AS created_by_name,
+       coalesce(g.name, '') AS group_name
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 LEFT JOIN categories c ON c.id = p.category_id
@@ -70,24 +71,27 @@ LEFT JOIN categories pc ON pc.id = c.parent_id
 LEFT JOIN persons bp ON bp.id = p.buyer_person_id
 JOIN users u ON u.id = p.created_by
 JOIN persons up ON up.id = u.person_id
-WHERE p.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND i.card_id = sqlc.arg(card_id) AND i.invoice_month = sqlc.arg(invoice_month)
+LEFT JOIN groups g ON g.id = p.group_id
+-- With full set, the owner of the card reads the lines of every space, her personal one included (RF-83).
+WHERE (CAST(sqlc.arg(full) AS INTEGER) = 1 OR p.group_id = CAST(sqlc.arg(group_id) AS INTEGER)) AND i.card_id = sqlc.arg(card_id) AND i.invoice_month = sqlc.arg(invoice_month)
 ORDER BY p.purchased_on DESC, i.id DESC;
 
 -- name: SumInstallmentsByMonth :many
 SELECT i.invoice_month, CAST(sum(i.amount_cents) AS INTEGER) AS total_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE p.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND i.card_id = sqlc.arg(card_id)
+WHERE (CAST(sqlc.arg(full) AS INTEGER) = 1 OR p.group_id = CAST(sqlc.arg(group_id) AS INTEGER)) AND i.card_id = sqlc.arg(card_id)
 GROUP BY i.invoice_month
 ORDER BY i.invoice_month;
 
 -- name: ListCardRecurrences :many
 SELECT r.*, coalesce(c.name, '') AS category_name, coalesce(pc.name, '') AS parent_category_name,
-       coalesce(pc.icon, '') AS category_icon
+       coalesce(pc.icon, '') AS category_icon, coalesce(g.name, '') AS group_name
 FROM recurrences r
 JOIN categories c ON c.id = r.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
-WHERE r.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND r.card_id = sqlc.arg(card_id)
+LEFT JOIN groups g ON g.id = r.group_id
+WHERE (CAST(sqlc.arg(full) AS INTEGER) = 1 OR r.group_id = CAST(sqlc.arg(group_id) AS INTEGER)) AND r.card_id = sqlc.arg(card_id)
 ORDER BY r.description COLLATE NOCASE, r.id;
 
 -- name: GetRecurrence :one
@@ -113,7 +117,7 @@ WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 SELECT rp.*
 FROM recurrence_prices rp
 JOIN recurrences r ON r.id = rp.recurrence_id
-WHERE r.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND r.card_id = sqlc.arg(card_id)
+WHERE (CAST(sqlc.arg(full) AS INTEGER) = 1 OR r.group_id = CAST(sqlc.arg(group_id) AS INTEGER)) AND r.card_id = sqlc.arg(card_id)
 ORDER BY rp.recurrence_id, rp.from_month;
 
 -- name: UpsertRecurrencePrice :exec
@@ -130,7 +134,8 @@ SELECT ip.id, ip.invoice_month, ip.entry_id, ip.amount_cents, e.occurred_on, e.a
 FROM invoice_payments ip
 JOIN entries e ON e.id = ip.entry_id
 JOIN accounts a ON a.id = e.account_id
-WHERE ip.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND e.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND ip.card_id = sqlc.arg(card_id)
+-- The owner pays the whole invoice once, so every space of the card sees the same payment (RF-83).
+WHERE ip.card_id = sqlc.arg(card_id)
 ORDER BY ip.invoice_month;
 
 -- name: CreateInvoicePayment :exec

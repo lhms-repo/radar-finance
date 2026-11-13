@@ -109,7 +109,8 @@ func (s *Service) Forecast(ctx context.Context, m civil.Month) (Forecast, error)
 		return Forecast{}, err
 	}
 	for _, c := range cards {
-		inv, err := s.cards.Invoice(ctx, c.ID, m)
+		// Only the part of the active space: the owner pays the rest for other spaces (RF-83).
+		inv, err := s.cards.InvoicePart(ctx, c.ID, m)
 		if err != nil {
 			return Forecast{}, err
 		}
@@ -315,8 +316,16 @@ func (s *Service) NetWorth(ctx context.Context) (NetWorth, error) {
 	if err != nil {
 		return NetWorth{}, err
 	}
-	if n.AccountsCents, err = store.New(s.conn).AccountsTotal(ctx, groupID); err != nil {
-		return NetWorth{}, fmt.Errorf("accounts total: %w", err)
+	q := store.New(s.conn)
+	g, err := q.GetGroup(ctx, groupID)
+	if err != nil {
+		return NetWorth{}, fmt.Errorf("active group: %w", err)
+	}
+	// A group does not see the balances of its members; the personal space adds the real balance of her accounts (RF-83).
+	if g.Kind == "personal" {
+		if n.AccountsCents, err = q.AccountsTotal(ctx, groupID); err != nil {
+			return NetWorth{}, fmt.Errorf("accounts total: %w", err)
+		}
 	}
 	boxes, err := savings.NewService(s.conn).Month(ctx, s.today().MonthOf())
 	if err != nil {

@@ -25,6 +25,8 @@ type Recurrence struct {
 	CategoryName       string
 	ParentCategoryName string
 	CategoryIcon       string
+	// GroupName is the space of the recurrence, shown on the full invoice of the owner (RF-83).
+	GroupName string
 	// AmountCents is the price on the current invoice, or on the first one when it has not started yet.
 	AmountCents int64
 	StartMonth  civil.Month
@@ -177,7 +179,7 @@ func (s *Service) DeleteRecurrence(ctx context.Context, id int64) error {
 		if err != nil {
 			return err
 		}
-		payments, err := q.ListCardPayments(ctx, store.ListCardPaymentsParams{GroupID: groupID, CardID: r.CardID})
+		payments, err := q.ListCardPayments(ctx, r.CardID)
 		if err != nil {
 			return err
 		}
@@ -234,11 +236,16 @@ func (s *Service) recurrences(ctx context.Context, q *store.Queries, c Card) ([]
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.ListCardRecurrences(ctx, store.ListCardRecurrencesParams{GroupID: groupID, CardID: c.ID})
+	return s.recurrencesIn(ctx, q, c, view{groupID: groupID})
+}
+
+// recurrencesIn returns the recurrences of the card that view v reads, with their prices (RF-83).
+func (s *Service) recurrencesIn(ctx context.Context, q *store.Queries, c Card, v view) ([]Recurrence, error) {
+	rows, err := q.ListCardRecurrences(ctx, store.ListCardRecurrencesParams{Full: v.fullFlag(), GroupID: v.groupID, CardID: c.ID})
 	if err != nil {
 		return nil, fmt.Errorf("list recurrences: %w", err)
 	}
-	prices, err := q.ListRecurrencePrices(ctx, store.ListRecurrencePricesParams{GroupID: groupID, CardID: c.ID})
+	prices, err := q.ListRecurrencePrices(ctx, store.ListRecurrencePricesParams{Full: v.fullFlag(), GroupID: v.groupID, CardID: c.ID})
 	if err != nil {
 		return nil, fmt.Errorf("list recurrence prices: %w", err)
 	}
@@ -259,7 +266,7 @@ func (s *Service) recurrences(ctx context.Context, q *store.Queries, c Card) ([]
 		}
 		rec := Recurrence{
 			ID: r.ID, CardID: r.CardID, Description: r.Description, CategoryID: r.CategoryID, CategoryName: r.CategoryName,
-			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, StartMonth: start, prices: byID[r.ID],
+			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, GroupName: r.GroupName, StartMonth: start, prices: byID[r.ID],
 		}
 		if r.EndMonth.Valid {
 			end, err := civil.ParseMonth(r.EndMonth.String)

@@ -130,7 +130,8 @@ func newWorld(t *testing.T) *world {
 	must(err)
 	_, err = w.savings.Deposit(ctx, w.userID, savings.Move{BoxID: box.ID, Month: nov, AmountCents: 45_000, AccountID: w.nubank, Date: d(2026, time.November, 6)})
 	must(err)
-	_, err = w.cards.Pay(ctx, w.userID, card.Payment{CardID: c.ID, Month: nov, AccountID: w.nubank, Date: d(2026, time.November, 10)})
+	// The owner pays the invoice in her personal space (RF-83); Ana has id 2 there, after Casa.
+	_, err = w.cards.Pay(scope.WithGroup(context.Background(), 2), w.userID, card.Payment{CardID: c.ID, Month: nov, AccountID: w.nubank, Date: d(2026, time.November, 10)})
 	must(err)
 	people, err := w.recv.List(ctx)
 	must(err)

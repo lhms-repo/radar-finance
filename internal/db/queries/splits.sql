@@ -46,7 +46,7 @@ FROM split_installments si
 JOIN splits s ON s.id = si.split_id
 JOIN parties p ON p.id = s.party_id
 JOIN purchases pu ON pu.id = s.purchase_id
-WHERE pu.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND si.card_id = sqlc.arg(card_id) AND si.invoice_month = sqlc.arg(invoice_month)
+WHERE (CAST(sqlc.arg(full) AS INTEGER) = 1 OR pu.group_id = CAST(sqlc.arg(group_id) AS INTEGER)) AND si.card_id = sqlc.arg(card_id) AND si.invoice_month = sqlc.arg(invoice_month)
 ORDER BY p.name COLLATE NOCASE;
 
 -- name: ListReceivables :many

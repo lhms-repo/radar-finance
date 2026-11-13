@@ -341,7 +341,8 @@ func TestMonthFlow(t *testing.T) {
 	}
 }
 
-// TestStatement lists the month of an account with opening and closing balances (RF-03, RF-05).
+// TestStatement lists the month of an account: the group reads its movements without balances, and the holder
+// reads in her personal space the movements of every space with opening and closing balances (RF-03, RF-05, RF-83).
 func TestStatement(t *testing.T) {
 	f := newFixture(t)
 	ctx := groupCtx
@@ -357,13 +358,34 @@ func TestStatement(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.insertIncome(t, a.ID, 50_000, "2026-11-25", false)
+	// Ana is the holder; her personal space has id 2, after Casa.
+	personal := scope.WithGroup(context.Background(), 2)
+	if _, err := f.s.AddExpense(personal, f.userID, NewExpense{AccountID: a.ID, AmountCents: 1_000, Date: day(t, "2026-11-04"), CategoryID: f.delivery, Description: "Pessoal"}); err != nil {
+		t.Fatal(err)
+	}
+	nov := civil.Month{Year: 2026, Month: time.November}
 
-	st, err := f.s.Statement(ctx, a.ID, civil.Month{Year: 2026, Month: time.November})
+	if group, err := f.s.Statement(ctx, a.ID, nov); err != nil || group.Full || group.OpeningCents != 0 || group.ClosingCents != 0 || len(group.Entries) != 3 {
+		t.Fatalf("statement in the group = %+v, %v; want the 3 entries of the group without balances", group, err)
+	}
+	full, err := f.s.Statement(personal, a.ID, nov)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.OpeningCents != 90_000 || st.ClosingCents != 80_000 {
-		t.Fatalf("opening, closing = %d, %d; want 90000, 80000", st.OpeningCents, st.ClosingCents)
+	if !full.Full || full.OpeningCents != 90_000 || full.ClosingCents != 79_000 || len(full.Entries) != 4 {
+		t.Fatalf("full statement = %+v; want 4 entries, opening 90000 and closing 79000", full)
+	}
+	if full.Entries[2].Description != "Pessoal" || full.Entries[2].GroupName != "Pessoal" || full.Entries[1].GroupName != "Casa" {
+		t.Fatalf("spaces on the full statement = %+v", full.Entries)
+	}
+	// The balance is real in every space: the group sees the account, the API hides the number from others.
+	if got := f.balance(t, a.ID); got != 79_000 {
+		t.Fatalf("real balance = %d, want 79000", got)
+	}
+
+	st, err := f.s.Statement(ctx, a.ID, nov)
+	if err != nil {
+		t.Fatal(err)
 	}
 	tests := []struct {
 		kind        Kind

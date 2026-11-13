@@ -66,6 +66,14 @@ func TestCardRoutes(t *testing.T) {
 		t.Fatalf("first invoice = %+v (RN-03)", inv)
 	}
 
+	// The group cannot pay the invoice; Ana pays it whole in her personal space, id 2 after Casa (RF-83).
+	if resp := send(t, c, srv, http.MethodPost, fmt.Sprintf("/api/cards/%d/invoices/%s/payment", card.ID, purchase.FirstInvoice), fmt.Sprintf(`{"accountId":%d,"date":%q}`, acc.ID, today)); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("pay in the group = %d, want 409", resp.StatusCode)
+	}
+	if resp := send(t, c, srv, http.MethodPut, "/api/me/group", `{"groupId":2}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("switch to the personal space = %d", resp.StatusCode)
+	}
+
 	tests := []struct {
 		name, method, path, body string
 		wantStatus               int

@@ -1,6 +1,8 @@
 package report
 
 import (
+	"context"
+	"github.com/italogfx/radar-finance/internal/scope"
 	"testing"
 	"time"
 
@@ -103,8 +105,26 @@ func TestNetWorth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.AccountsCents != 1_427_720 || n.SavingsCents != 45_000 || n.FinancingCents != 27_850_000 || n.CardDebtCents != 0 || n.NetCents != 1_427_720+45_000-27_850_000 {
+	// A group does not add the balances of its members (RF-83).
+	if n.AccountsCents != 0 || n.SavingsCents != 45_000 || n.FinancingCents != 27_850_000 || n.CardDebtCents != 0 || n.NetCents != 45_000-27_850_000 {
 		t.Fatalf("net worth = %+v", n)
+	}
+	// The personal space of Ana, id 2, adds the real balance of her accounts and nothing of the group.
+	personal := scope.WithGroup(context.Background(), 2)
+	mine, err := s.NetWorth(personal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := w.ledger.ListAccounts(personal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var real int64
+	for _, a := range accounts {
+		real += a.BalanceCents
+	}
+	if mine.AccountsCents != real || real == 0 || mine.SavingsCents != 0 || mine.FinancingCents != 0 || mine.NetCents != real {
+		t.Fatalf("personal net worth = %+v, real accounts %d", mine, real)
 	}
 	// On December 5 the December invoice is closed and unpaid: air conditioner 100,00 and streaming 21,90.
 	w.cards.WithToday(func() civil.Date { return d(2026, time.December, 5) })

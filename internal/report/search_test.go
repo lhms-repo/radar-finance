@@ -17,7 +17,8 @@ func TestSearch(t *testing.T) {
 		in   Filter
 		want int
 	}{
-		{name: "whole November", in: Filter{From: nov.First(), To: nov.Last()}, want: 10},
+		// The invoice payment is in the personal space of the owner, not in the group (RF-83).
+		{name: "whole November", in: Filter{From: nov.First(), To: nov.Last()}, want: 9},
 		{name: "top level category takes its subcategories", in: Filter{From: nov.First(), To: nov.Last(), CategoryID: w.cat["Alimentação"]}, want: 2},
 		{name: "subcategory", in: Filter{From: nov.First(), To: nov.Last(), CategoryID: w.cat["Energia"]}, want: 1},
 		{name: "account", in: Filter{From: nov.First(), To: nov.Last(), AccountID: w.inter}, want: 1},

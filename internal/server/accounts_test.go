@@ -71,8 +71,9 @@ func TestAccountRoutes(t *testing.T) {
 	}
 
 	var st struct {
-		OpeningCents int64 `json:"openingCents"`
-		ClosingCents int64 `json:"closingCents"`
+		Full         bool   `json:"full"`
+		OpeningCents *int64 `json:"openingCents"`
+		ClosingCents *int64 `json:"closingCents"`
 		Entries      []struct {
 			Kind                   string `json:"kind"`
 			AmountCents            int64  `json:"amountCents"`
@@ -81,8 +82,21 @@ func TestAccountRoutes(t *testing.T) {
 			CreatedByName          string `json:"createdByName"`
 		}
 	}
+	// In the group the statement has the movements of the group and no balances (RF-83).
 	_ = json.NewDecoder(get(t, c, fmt.Sprintf("%s/api/accounts/%d/statement?month=2026-11", srv.URL, nubank)).Body).Decode(&st)
-	if st.OpeningCents != 100_000 || st.ClosingCents != 85_410 || len(st.Entries) != 2 ||
+	if st.Full || st.OpeningCents != nil || st.ClosingCents != nil || len(st.Entries) != 2 {
+		t.Fatalf("statement in the group = %+v", st)
+	}
+	// Ana holds the account and reads it in full in her personal space, id 2.
+	if resp := send(t, c, srv, http.MethodPut, "/api/me/group", `{"groupId":2}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("switch to the personal space = %d", resp.StatusCode)
+	}
+	st.OpeningCents, st.ClosingCents = nil, nil
+	_ = json.NewDecoder(get(t, c, fmt.Sprintf("%s/api/accounts/%d/statement?month=2026-11", srv.URL, nubank)).Body).Decode(&st)
+	if resp := send(t, c, srv, http.MethodPut, "/api/me/group", `{"groupId":1}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("switch back to the group = %d", resp.StatusCode)
+	}
+	if !st.Full || st.OpeningCents == nil || *st.OpeningCents != 100_000 || *st.ClosingCents != 85_410 || len(st.Entries) != 2 ||
 		st.Entries[0].Kind != "transfer" || st.Entries[0].CounterpartAccountName != "Inter Bruno" || st.Entries[1].Date != "2026-11-11" ||
 		st.Entries[1].CreatedByName != "Ana Ficticia" {
 		t.Fatalf("statement = %+v", st)

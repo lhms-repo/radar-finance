@@ -54,6 +54,8 @@ type Item struct {
 	BuyerPersonID      *int64
 	BuyerName          string
 	CreatedByName      string
+	// GroupName is the space the line belongs to, shown on the full invoice of the owner (RF-83).
+	GroupName string
 	// ThirdPartyCents is the part of this line owed by other people (RN-05).
 	ThirdPartyCents int64
 	Shares          []ItemShare
@@ -86,6 +88,24 @@ type Invoice struct {
 	Payment         *PaymentInfo
 	// PaymentOutdated is true when the total changed after the payment was recorded.
 	PaymentOutdated bool
+	// Full is the whole invoice, every space included, which only the owner reads in her personal space (RF-83).
+	Full bool
+	// CanPay tells the owner may pay it now: full, closed, unpaid and with something to pay.
+	CanPay bool
+}
+
+// view is how a space reads a card: only its own lines, or every line for the owner in her personal space (RF-83).
+type view struct {
+	groupID int64
+	full    bool
+}
+
+// fullFlag turns the full view into the integer the queries compare.
+func (v view) fullFlag() int64 {
+	if v.full {
+		return 1
+	}
+	return 0
 }
 
 // Summary is the total of an invoice for the forecast (RF-23).
@@ -104,23 +124,47 @@ type Payment struct {
 	Date      civil.Date
 }
 
-// Invoice returns the invoice of the card in month m, with every line (RF-19).
+// Invoice returns the invoice of the card in month m as the active space reads it: its own lines, or the whole
+// invoice for the owner in her personal space (RF-19, RF-83).
 func (s *Service) Invoice(ctx context.Context, cardID int64, m civil.Month) (Invoice, error) {
-	return s.invoiceTx(ctx, store.New(s.conn), cardID, m)
+	return s.invoiceTx(ctx, store.New(s.conn), cardID, m, false)
 }
 
-// invoiceTx builds the invoice with the given queries, inside or outside a transaction.
-func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64, m civil.Month) (Invoice, error) {
+// InvoicePart returns only the lines of the active space, even for the owner, for the forecast of the month (RF-58, RF-83).
+func (s *Service) InvoicePart(ctx context.Context, cardID int64, m civil.Month) (Invoice, error) {
+	return s.invoiceTx(ctx, store.New(s.conn), cardID, m, true)
+}
+
+// viewOf tells how the active space reads card c: in full only in the personal space of its owner (RF-83).
+func (s *Service) viewOf(ctx context.Context, q *store.Queries, c Card) (view, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return view{}, err
+	}
+	g, err := q.GetGroup(ctx, groupID)
+	if err != nil {
+		return view{}, fmt.Errorf("active group: %w", err)
+	}
+	full := g.Kind == "personal" && g.OwnerPersonID.Valid && g.OwnerPersonID.Int64 == c.PersonID
+	return view{groupID: groupID, full: full}, nil
+}
+
+// invoiceTx builds the invoice with the given queries, inside or outside a transaction; part keeps it to the
+// lines of the active space.
+func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64, m civil.Month, part bool) (Invoice, error) {
 	c, err := getCard(ctx, q, cardID)
 	if err != nil {
 		return Invoice{}, err
 	}
-	inv := Invoice{CardID: c.ID, Month: m, ClosingOn: c.Cycle().Closing(m), DueOn: c.Cycle().Due(m), Items: []Item{}}
-	groupID, err := scope.Group(ctx)
+	v, err := s.viewOf(ctx, q, c)
 	if err != nil {
 		return Invoice{}, err
 	}
-	rows, err := q.ListInvoiceInstallments(ctx, store.ListInvoiceInstallmentsParams{GroupID: groupID, CardID: c.ID, InvoiceMonth: m.String()})
+	if part {
+		v.full = false
+	}
+	inv := Invoice{CardID: c.ID, Month: m, ClosingOn: c.Cycle().Closing(m), DueOn: c.Cycle().Due(m), Items: []Item{}, Full: v.full}
+	rows, err := q.ListInvoiceInstallments(ctx, store.ListInvoiceInstallmentsParams{Full: v.fullFlag(), GroupID: v.groupID, CardID: c.ID, InvoiceMonth: m.String()})
 	if err != nil {
 		return Invoice{}, fmt.Errorf("list installments: %w", err)
 	}
@@ -138,14 +182,14 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 			Kind: kind, PurchaseID: &pid, Date: &on, Merchant: r.Merchant, Description: r.Description, CategoryID: idPtr(r.CategoryID),
 			CategoryName: r.CategoryName, ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon,
 			Number: int(r.Number), Count: int(r.InstallmentCount), AmountCents: r.AmountCents, PurchaseTotalCents: r.TotalCents,
-			BuyerPersonID: idPtr(r.BuyerPersonID), BuyerName: r.BuyerName, CreatedByName: r.CreatedByName,
+			BuyerPersonID: idPtr(r.BuyerPersonID), BuyerName: r.BuyerName, CreatedByName: r.CreatedByName, GroupName: r.GroupName,
 		})
 		inv.TotalCents += r.AmountCents
 	}
-	if err := s.addShares(ctx, q, &inv); err != nil {
+	if err := s.addShares(ctx, q, &inv, v); err != nil {
 		return Invoice{}, err
 	}
-	recs, err := s.recurrences(ctx, q, c)
+	recs, err := s.recurrencesIn(ctx, q, c, v)
 	if err != nil {
 		return Invoice{}, err
 	}
@@ -157,7 +201,7 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 		rid, cid := r.ID, r.CategoryID
 		inv.Items = append(inv.Items, Item{
 			Kind: ItemRecurrence, RecurrenceID: &rid, Merchant: r.Description, CategoryID: &cid, CategoryName: r.CategoryName,
-			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, AmountCents: amount,
+			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, AmountCents: amount, GroupName: r.GroupName,
 		})
 		inv.TotalCents += amount
 	}
@@ -165,22 +209,21 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 	if err != nil {
 		return Invoice{}, err
 	}
-	if p, ok := payments[m]; ok {
+	p, paid := payments[m]
+	// A space reads only that the owner paid; the account and the amount stay on her full invoice.
+	if paid && v.full {
 		inv.Payment = &p
 		inv.PaymentOutdated = p.AmountCents != inv.TotalCents
 	}
-	inv.Status = s.status(c, m, inv.Payment != nil, inv.TotalCents)
+	inv.Status = s.status(c, m, paid, inv.TotalCents)
+	inv.CanPay = v.full && !paid && inv.TotalCents > 0 && (inv.Status == StatusClosed || inv.Status == StatusOverdue)
 	inv.NetCents = inv.TotalCents - inv.ThirdPartyCents
 	return inv, nil
 }
 
 // addShares puts the shares of other people on the lines and in the totals: owed, received and pending (RN-05, RN-06).
-func (s *Service) addShares(ctx context.Context, q *store.Queries, inv *Invoice) error {
-	groupID, err := scope.Group(ctx)
-	if err != nil {
-		return err
-	}
-	rows, err := q.ListInvoiceSplitInstallments(ctx, store.ListInvoiceSplitInstallmentsParams{GroupID: groupID, CardID: inv.CardID, InvoiceMonth: inv.Month.String()})
+func (s *Service) addShares(ctx context.Context, q *store.Queries, inv *Invoice, v view) error {
+	rows, err := q.ListInvoiceSplitInstallments(ctx, store.ListInvoiceSplitInstallmentsParams{Full: v.fullFlag(), GroupID: v.groupID, CardID: inv.CardID, InvoiceMonth: inv.Month.String()})
 	if err != nil {
 		return fmt.Errorf("list shares: %w", err)
 	}
@@ -218,18 +261,21 @@ func (s *Service) status(c Card, m civil.Month, paid bool, total int64) Status {
 	}
 }
 
-// Pay records the full payment of a closed invoice as an entry in the account (RF-21, RN-07).
+// Pay records the payment of the whole closed invoice as an entry in an account of the owner, made in her
+// personal space (RF-21, RF-83, RN-07).
 func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, error) {
 	groupID, err := scope.Group(ctx)
 	if err != nil {
 		return Invoice{}, err
 	}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		inv, err := s.invoiceTx(ctx, q, p.CardID, p.Month)
+		inv, err := s.invoiceTx(ctx, q, p.CardID, p.Month, false)
 		if err != nil {
 			return err
 		}
 		switch {
+		case !inv.Full:
+			return ErrPayInPersonal
 		case inv.Payment != nil:
 			return ErrAlreadyPaid
 		case inv.Status == StatusOpen:
@@ -266,14 +312,18 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, er
 	return s.Invoice(ctx, p.CardID, p.Month)
 }
 
-// Forecast returns the totals of the next n invoices from the current one (RF-23).
+// Forecast returns the totals of the next n invoices from the current one, as the active space reads them (RF-23).
 func (s *Service) Forecast(ctx context.Context, cardID int64, n int) ([]Summary, error) {
 	q := store.New(s.conn)
 	c, err := getCard(ctx, q, cardID)
 	if err != nil {
 		return nil, err
 	}
-	totals, err := s.monthTotals(ctx, q, c)
+	v, err := s.viewOf(ctx, q, c)
+	if err != nil {
+		return nil, err
+	}
+	totals, err := s.monthTotals(ctx, q, c, v)
 	if err != nil {
 		return nil, err
 	}
@@ -292,9 +342,11 @@ func (s *Service) Forecast(ctx context.Context, cardID int64, n int) ([]Summary,
 }
 
 // limitUsed sums what is left to pay on every invoice, future installments included (RF-20, RN-17).
-// Recurrences only count up to the current invoice, since later charges are not made yet.
+// Recurrences only count up to the current invoice, since later charges are not made yet. The limit is of the
+// whole card, so every space counts (RF-83).
 func (s *Service) limitUsed(ctx context.Context, q *store.Queries, c Card) (int64, error) {
-	totals, err := s.monthTotals(ctx, q, c)
+	all := view{full: true}
+	totals, err := s.monthTotals(ctx, q, c, all)
 	if err != nil {
 		return 0, err
 	}
@@ -303,7 +355,7 @@ func (s *Service) limitUsed(ctx context.Context, q *store.Queries, c Card) (int6
 		return 0, err
 	}
 	current := c.Cycle().InvoiceFor(s.today())
-	recs, err := s.recurrences(ctx, q, c)
+	recs, err := s.recurrencesIn(ctx, q, c, all)
 	if err != nil {
 		return 0, err
 	}
@@ -323,13 +375,9 @@ func (s *Service) limitUsed(ctx context.Context, q *store.Queries, c Card) (int6
 }
 
 // monthTotals returns the invoice total of every month with installments, plus recurrence charges
-// from their start up to their end or one year after the current invoice.
-func (s *Service) monthTotals(ctx context.Context, q *store.Queries, c Card) (map[civil.Month]int64, error) {
-	groupID, err := scope.Group(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := q.SumInstallmentsByMonth(ctx, store.SumInstallmentsByMonthParams{GroupID: groupID, CardID: c.ID})
+// from their start up to their end or one year after the current invoice, in the lines view v reads.
+func (s *Service) monthTotals(ctx context.Context, q *store.Queries, c Card, v view) (map[civil.Month]int64, error) {
+	rows, err := q.SumInstallmentsByMonth(ctx, store.SumInstallmentsByMonthParams{Full: v.fullFlag(), GroupID: v.groupID, CardID: c.ID})
 	if err != nil {
 		return nil, fmt.Errorf("sum installments: %w", err)
 	}
@@ -341,7 +389,7 @@ func (s *Service) monthTotals(ctx context.Context, q *store.Queries, c Card) (ma
 		}
 		totals[m] += r.TotalCents
 	}
-	recs, err := s.recurrences(ctx, q, c)
+	recs, err := s.recurrencesIn(ctx, q, c, v)
 	if err != nil {
 		return nil, err
 	}
@@ -358,13 +406,10 @@ func (s *Service) monthTotals(ctx context.Context, q *store.Queries, c Card) (ma
 	return totals, nil
 }
 
-// paymentsByMonth returns the recorded payments of the card keyed by invoice month.
+// paymentsByMonth returns the recorded payments of the card keyed by invoice month; the owner pays the whole
+// invoice, so they are the same in every space (RF-83).
 func paymentsByMonth(ctx context.Context, q *store.Queries, cardID int64) (map[civil.Month]PaymentInfo, error) {
-	groupID, err := scope.Group(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := q.ListCardPayments(ctx, store.ListCardPaymentsParams{GroupID: groupID, CardID: cardID})
+	rows, err := q.ListCardPayments(ctx, cardID)
 	if err != nil {
 		return nil, fmt.Errorf("list payments: %w", err)
 	}
@@ -384,7 +429,8 @@ func paymentsByMonth(ctx context.Context, q *store.Queries, cardID int64) (map[c
 }
 
 // ClosedDebt sums what is left to pay on every closed or overdue invoice of every card, for the net worth (RF-62).
-// Open invoices and future installments are not debt yet; they are commitments (RF-60).
+// Open invoices and future installments are not debt yet; they are commitments (RF-60). Each space counts the
+// lines it reads, so the owner sees in her personal space the whole debt of her cards (RF-83).
 func (s *Service) ClosedDebt(ctx context.Context) (int64, error) {
 	groupID, err := scope.Group(ctx)
 	if err != nil {
@@ -397,8 +443,12 @@ func (s *Service) ClosedDebt(ctx context.Context) (int64, error) {
 	}
 	var debt int64
 	for _, r := range rows {
-		c := Card{ID: r.ID, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
-		totals, err := s.monthTotals(ctx, q, c)
+		c := Card{ID: r.ID, PersonID: r.PersonID, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
+		v, err := s.viewOf(ctx, q, c)
+		if err != nil {
+			return 0, err
+		}
+		totals, err := s.monthTotals(ctx, q, c, v)
 		if err != nil {
 			return 0, err
 		}
@@ -411,7 +461,7 @@ func (s *Service) ClosedDebt(ctx context.Context) (int64, error) {
 			if st := s.status(c, m, paid, total); st != StatusClosed && st != StatusOverdue {
 				continue
 			}
-			debt += max(0, total-payments[m].AmountCents)
+			debt += max(0, total)
 		}
 	}
 	return debt, nil

@@ -45,6 +45,8 @@ type Item struct {
 	SuggestedBalanceCents int64
 	// Invoice only: its state.
 	InvoiceStatus card.Status
+	// Payable is false for the part of an invoice a group reads: only the owner pays it, in her personal space (RF-83).
+	Payable bool
 }
 
 // Day counts the items due on one day of the month, for the calendar chips.
@@ -86,7 +88,7 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (Month, error) {
 	}
 	for _, b := range bills.Bills {
 		items = append(items, Item{
-			Kind: KindBill, RefID: b.BillID, Name: b.Name, Icon: b.CategoryIcon, AccountID: b.AccountID, AccountName: b.AccountName,
+			Kind: KindBill, Payable: true, RefID: b.BillID, Name: b.Name, Icon: b.CategoryIcon, AccountID: b.AccountID, AccountName: b.AccountName,
 			DueOn: b.DueOn, AmountCents: b.AmountCents, Paid: b.Paid, EntryID: b.EntryID, PaidOn: b.PaidOn,
 			ExpectedCents: b.ExpectedCents, ActualCents: b.ActualCents,
 		})
@@ -97,7 +99,7 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (Month, error) {
 	}
 	for _, f := range installments {
 		items = append(items, Item{
-			Kind: KindFinancing, RefID: f.FinancingID, Name: f.Name, Icon: f.CategoryIcon, AccountID: f.AccountID, AccountName: f.AccountName,
+			Kind: KindFinancing, Payable: true, RefID: f.FinancingID, Name: f.Name, Icon: f.CategoryIcon, AccountID: f.AccountID, AccountName: f.AccountName,
 			DueOn: f.DueOn, AmountCents: f.AmountCents, Paid: f.Paid, EntryID: f.EntryID, PaidOn: f.PaidOn,
 			Number: f.Number, Total: f.Total, SuggestedBalanceCents: f.SuggestedBalanceCents,
 		})
@@ -116,7 +118,7 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (Month, error) {
 		}
 		it := Item{
 			Kind: KindInvoice, RefID: c.ID, Name: c.Name, Icon: "credit-card", DueOn: inv.DueOn, AmountCents: inv.TotalCents,
-			Paid: inv.Payment != nil, InvoiceStatus: inv.Status,
+			Paid: inv.Status == card.StatusPaid, InvoiceStatus: inv.Status, Payable: inv.Full,
 		}
 		if p := inv.Payment; p != nil {
 			on, entry := p.PaidOn, p.EntryID

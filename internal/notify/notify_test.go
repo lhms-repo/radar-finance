@@ -108,7 +108,6 @@ func TestNotifications(t *testing.T) {
 		title    string
 	}{
 		{key: "g1:overdue:bill:2:2026-11", kind: KindOverdue, severity: SeverityDanger, title: "Conta atrasada: Internet"},
-		{key: "g1:overdue:invoice:1:2026-11", kind: KindOverdue, severity: SeverityDanger, title: "Fatura atrasada: Nubank"},
 		{key: "g1:budget_over:" + itoa(cat["Lazer"]) + ":2026-11", kind: KindBudgetOver, severity: SeverityDanger, title: "Orçamento de Lazer estourado"},
 		{key: "g1:due_soon:bill:1:2026-11", kind: KindDueSoon, severity: SeverityWarning, title: "Vence em breve: Água"},
 		{key: "g1:budget_warning:" + itoa(cat["Alimentação"]) + ":2026-11", kind: KindBudgetWarning, severity: SeverityWarning, title: "Orçamento de Alimentação em 90%"},
@@ -117,6 +116,10 @@ func TestNotifications(t *testing.T) {
 	}
 	if len(list.Items) != len(want) || list.Unread != len(want) {
 		t.Fatalf("notifications = %d, unread %d: %+v", len(list.Items), list.Unread, list.Items)
+	}
+	// The overdue invoice warns only the owner, in her personal space, where she pays it (RF-83).
+	if mine, err := s.List(scope.WithGroup(context.Background(), 2), ana.ID); err != nil || len(mine.Items) != 1 || mine.Items[0].Key != "g2:overdue:invoice:1:2026-11" || mine.Items[0].Title != "Fatura atrasada: Nubank" {
+		t.Fatalf("personal notifications = %+v, %v", mine.Items, err)
 	}
 	for i, w := range want {
 		n := list.Items[i]
