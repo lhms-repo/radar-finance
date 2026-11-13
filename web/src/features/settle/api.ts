@@ -54,5 +54,8 @@ export function useMemberSplit(kind: MemberSplitKind, id: number | undefined) {
     queryKey: ["member-split", kind, id],
     queryFn: async () => unwrap(await api.GET("/member-splits/{kind}/{id}", { params: { path: { kind, id: id! } } })),
     enabled: id !== undefined,
+    // Another tab or person may have changed it; a form always starts from what is saved now.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }

@@ -269,7 +269,7 @@ export function PurchaseDialog({
 
   /** Validates and sends the form. */
   const submit = form.handleSubmit((v) => {
-    const body = { ...v, buyerPersonId: v.buyerPersonId || undefined, split: splitBody(v.split), memberSplit: memberSplit.value };
+    const body = { ...v, buyerPersonId: v.buyerPersonId || undefined, split: splitBody(v.split), memberSplit: memberSplit.payload(where.space) };
     if (item?.purchaseId) update.mutate({ id: item.purchaseId, body }, { onSuccess: close });
     else add.mutate({ cardId: card.id, body, space: where.target }, { onSuccess: close });
   });
@@ -441,8 +441,8 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   /** Validates and sends the form. */
   const submit = form.handleSubmit((v) => {
     const endMonth = v.endMonth || undefined;
-    if (recurrence) update.mutate({ id: recurrence.id, body: { description: v.description, amountCents: v.amountCents, categoryId: v.categoryId, endMonth, memberSplit: split.value } }, { onSuccess: close });
-    else add.mutate({ cardId: card.id, body: { ...v, endMonth, memberSplit: split.value } }, { onSuccess: close });
+    if (recurrence) update.mutate({ id: recurrence.id, body: { description: v.description, amountCents: v.amountCents, categoryId: v.categoryId, endMonth, memberSplit: split.payload() } }, { onSuccess: close });
+    else add.mutate({ cardId: card.id, body: { ...v, endMonth, memberSplit: split.payload() } }, { onSuccess: close });
   });
 
   return (

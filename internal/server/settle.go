@@ -94,10 +94,14 @@ func toSettlementPayment(p settle.Payment) gen.SettlementPayment {
 	return gen.SettlementPayment{Id: p.ID, FromPersonId: p.FromPersonID, FromName: p.FromName, ToPersonId: p.ToPersonID, ToName: p.ToName, AmountCents: p.AmountCents, Date: apiDate(p.Date)}
 }
 
-// fromMemberSplit converts the division chosen in a form, nil when it follows the weights (RN-28).
+// fromMemberSplit converts the division sent with a form: nil when absent, which keeps the one saved, and an explicit
+// rule otherwise, weights included, so a form that did not load the division never erases it (RN-28).
 func fromMemberSplit(m *gen.MemberSplit) *membersplit.Rule {
-	if m == nil || m.Mode == gen.MemberSplitModeWeights {
+	if m == nil {
 		return nil
+	}
+	if m.Mode == gen.MemberSplitModeWeights {
+		return &membersplit.Rule{Mode: membersplit.ModeWeights}
 	}
 	r := &membersplit.Rule{Mode: membersplit.Mode(m.Mode)}
 	if m.Members != nil {

@@ -1966,7 +1966,7 @@ export interface components {
         };
         /** @enum {string} */
         MemberSplitKind: "entry" | "purchase" | "recurrence" | "bill" | "financing" | "alelo";
-        /** @description Division of an expense between the members of the group; weights when absent (RN-28). */
+        /** @description Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved. */
         MemberSplit: {
             /** @enum {string} */
             mode: "weights" | "equal" | "custom";

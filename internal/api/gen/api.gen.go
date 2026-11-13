@@ -868,7 +868,7 @@ type AleloPurchaseCreate struct {
 	Date        openapi_types.Date `json:"date"`
 	Description string             `json:"description"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 }
 
@@ -957,7 +957,7 @@ type BillInput struct {
 	// ExpectedCents Amount in cents (RN-21).
 	ExpectedCents Cents `json:"expectedCents"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 	Name        string       `json:"name"`
 
@@ -1288,7 +1288,7 @@ type ExpenseCreate struct {
 	Date        openapi_types.Date `json:"date"`
 	Description *string            `json:"description,omitempty"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 }
 
@@ -1341,7 +1341,7 @@ type FinancingInput struct {
 	// InstallmentCents Amount in cents (RN-21).
 	InstallmentCents Cents `json:"installmentCents"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 	Name        string       `json:"name"`
 
@@ -1369,7 +1369,7 @@ type FinancingUpdate struct {
 	CategoryId int64 `json:"categoryId"`
 	DueDay     int   `json:"dueDay"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 	Name        string       `json:"name"`
 }
@@ -1990,7 +1990,7 @@ type MemberShare struct {
 	ShareCents *Cents `json:"shareCents,omitempty"`
 }
 
-// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 type MemberSplit struct {
 	// Members Who takes part, in equal mode; the value of each member, in custom mode, adding up to the part of the group.
 	Members *[]MemberShare  `json:"members,omitempty"`
@@ -2219,7 +2219,7 @@ type PurchaseInput struct {
 	Description   *string            `json:"description,omitempty"`
 	Installments  int                `json:"installments"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 	Merchant    string       `json:"merchant"`
 
@@ -2397,7 +2397,7 @@ type RecurrenceInput struct {
 	// EndMonth Example: 2026-11
 	EndMonth *Month `json:"endMonth,omitempty"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 
 	// StartDate The first charge goes to the invoice of this date.
@@ -2414,7 +2414,7 @@ type RecurrenceUpdate struct {
 	// EndMonth Example: 2026-11
 	EndMonth *Month `json:"endMonth,omitempty"`
 
-	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	// MemberSplit Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
 	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 }
 

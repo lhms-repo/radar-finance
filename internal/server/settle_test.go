@@ -117,3 +117,49 @@ func TestSettlementRoutes(t *testing.T) {
 		t.Fatalf("settlement of the personal space = %d, want 409", r.StatusCode)
 	}
 }
+
+// TestMemberSplitKeptOnEdit keeps the division of a bill when an edit does not send it, and clears it only when the
+// edit asks for the weights, so a form that did not load it never erases it (RN-28).
+func TestMemberSplitKeptOnEdit(t *testing.T) {
+	srv, conn := testServer(t)
+	c := newClient(t)
+	signIn(t, c, srv, "ana")
+	var energy int64
+	if err := conn.QueryRow(`SELECT id FROM categories WHERE name = 'Energia'`).Scan(&energy); err != nil {
+		t.Fatal(err)
+	}
+	resp := postJSON(t, c, srv, "/api/accounts", fmt.Sprintf(`{"name":"Nubank Ana","personId":%d,"initialBalanceCents":100000}`, testUserIDs["ana"]))
+	var acc struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&acc)
+	month := time.Now().Format("2006-01")
+	body := func(split string) string {
+		return fmt.Sprintf(`{"name":"Energia","categoryId":%d,"accountId":%d,"dueDay":10,"expectedCents":18000,"startMonth":%q%s}`, energy, acc.ID, month, split)
+	}
+	resp = postJSON(t, c, srv, "/api/bills", body(fmt.Sprintf(`,"memberSplit":{"mode":"equal","members":[{"personId":%d}]}`, testUserIDs["ana"])))
+	var b struct {
+		ID int64 `json:"id"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&b)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("bill = %d", resp.StatusCode)
+	}
+	mode := func() string {
+		var m struct{ Mode string }
+		_ = json.NewDecoder(get(t, c, fmt.Sprintf("%s/api/member-splits/bill/%d", srv.URL, b.ID)).Body).Decode(&m)
+		return m.Mode
+	}
+	if r := send(t, c, srv, http.MethodPut, fmt.Sprintf("/api/bills/%d", b.ID), body("")); r.StatusCode != http.StatusOK {
+		t.Fatalf("edit without division = %d", r.StatusCode)
+	}
+	if got := mode(); got != "equal" {
+		t.Fatalf("division after an edit without it = %q, want equal", got)
+	}
+	if r := send(t, c, srv, http.MethodPut, fmt.Sprintf("/api/bills/%d", b.ID), body(`,"memberSplit":{"mode":"weights"}`)); r.StatusCode != http.StatusOK {
+		t.Fatalf("edit back to the weights = %d", r.StatusCode)
+	}
+	if got := mode(); got != "weights" {
+		t.Fatalf("division after choosing the weights = %q, want weights", got)
+	}
+}
