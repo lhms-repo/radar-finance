@@ -167,3 +167,38 @@ func (a *API) groupDetail(ctx context.Context, groupID int64) (gen.GroupDetail, 
 	}
 	return out, nil
 }
+
+// SetGroupWeights sets the weight of every member in the settlement, in force from today; administrators only (RF-79, RN-28).
+func (a *API) SetGroupWeights(ctx context.Context, req gen.SetGroupWeightsRequestObject) (gen.SetGroupWeightsResponseObject, error) {
+	if req.Body == nil {
+		return nil, errNoBody
+	}
+	groupID, err := a.requireAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	members, err := a.d.Accounts.Members(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	person := map[int64]int64{}
+	for _, m := range members {
+		person[m.UserID] = m.PersonID
+	}
+	weights := map[int64]int64{}
+	for _, w := range req.Body.Weights {
+		p, ok := person[w.UserId]
+		if !ok {
+			return nil, account.ErrWeights
+		}
+		weights[p] = int64(w.WeightBp)
+	}
+	if err := a.d.Accounts.SetWeights(ctx, groupID, weights); err != nil {
+		return nil, err
+	}
+	g, err := a.groupDetail(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return gen.SetGroupWeights200JSONResponse(g), nil
+}

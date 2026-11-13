@@ -99,3 +99,14 @@ SELECT id, transfer_id
 FROM settlements
 WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
+
+-- name: SplitItemInGroup :one
+-- Whether an item that may carry a division between members belongs to the group (RN-28).
+SELECT CAST(CASE CAST(sqlc.arg(kind) AS TEXT)
+    WHEN 'entry' THEN EXISTS (SELECT 1 FROM entries x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
+    WHEN 'purchase' THEN EXISTS (SELECT 1 FROM purchases x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
+    WHEN 'recurrence' THEN EXISTS (SELECT 1 FROM recurrences x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
+    WHEN 'bill' THEN EXISTS (SELECT 1 FROM bills x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
+    WHEN 'financing' THEN EXISTS (SELECT 1 FROM financings x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
+    WHEN 'alelo' THEN EXISTS (SELECT 1 FROM alelo_purchases x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
+    ELSE 0 END AS INTEGER) AS found;

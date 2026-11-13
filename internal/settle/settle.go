@@ -473,3 +473,23 @@ func (s *Service) DeletePayment(ctx context.Context, id int64) error {
 		return q.DeleteTransfer(ctx, store.DeleteTransferParams{ID: p.TransferID, GroupID: groupID})
 	})
 }
+
+// ErrItemNotFound tells the item is not an expense of the active group.
+var ErrItemNotFound = problem.NotFound("member_split_item", "Gasto não encontrado neste grupo.")
+
+// MemberSplit returns the division of one expense of the active group, nil when it follows the weights (RN-28).
+func (s *Service) MemberSplit(ctx context.Context, kind membersplit.Kind, id int64) (*membersplit.Rule, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	q := store.New(s.conn)
+	found, err := q.SplitItemInGroup(ctx, store.SplitItemInGroupParams{Kind: string(kind), ItemID: id, GroupID: groupID})
+	if err != nil {
+		return nil, err
+	}
+	if found == 0 {
+		return nil, ErrItemNotFound
+	}
+	return membersplit.Load(ctx, q, kind, id)
+}

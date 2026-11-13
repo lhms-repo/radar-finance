@@ -361,6 +361,57 @@ func (e MarketPriceSource) Valid() bool {
 	}
 }
 
+// Defines values for MemberSplitMode.
+const (
+	MemberSplitModeCustom  MemberSplitMode = "custom"
+	MemberSplitModeEqual   MemberSplitMode = "equal"
+	MemberSplitModeWeights MemberSplitMode = "weights"
+)
+
+// Valid indicates whether the value is a known member of the MemberSplitMode enum.
+func (e MemberSplitMode) Valid() bool {
+	switch e {
+	case MemberSplitModeCustom:
+		return true
+	case MemberSplitModeEqual:
+		return true
+	case MemberSplitModeWeights:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MemberSplitKind.
+const (
+	MemberSplitKindAlelo      MemberSplitKind = "alelo"
+	MemberSplitKindBill       MemberSplitKind = "bill"
+	MemberSplitKindEntry      MemberSplitKind = "entry"
+	MemberSplitKindFinancing  MemberSplitKind = "financing"
+	MemberSplitKindPurchase   MemberSplitKind = "purchase"
+	MemberSplitKindRecurrence MemberSplitKind = "recurrence"
+)
+
+// Valid indicates whether the value is a known member of the MemberSplitKind enum.
+func (e MemberSplitKind) Valid() bool {
+	switch e {
+	case MemberSplitKindAlelo:
+		return true
+	case MemberSplitKindBill:
+		return true
+	case MemberSplitKindEntry:
+		return true
+	case MemberSplitKindFinancing:
+		return true
+	case MemberSplitKindPurchase:
+		return true
+	case MemberSplitKindRecurrence:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for NotificationKind.
 const (
 	NotificationKindBudgetOver     NotificationKind = "budget_over"
@@ -532,6 +583,27 @@ func (e SearchLineSource) Valid() bool {
 	}
 }
 
+// Defines values for SettlementLineKind.
+const (
+	SettlementLineKindAccount SettlementLineKind = "account"
+	SettlementLineKindAlelo   SettlementLineKind = "alelo"
+	SettlementLineKindCard    SettlementLineKind = "card"
+)
+
+// Valid indicates whether the value is a known member of the SettlementLineKind enum.
+func (e SettlementLineKind) Valid() bool {
+	switch e {
+	case SettlementLineKindAccount:
+		return true
+	case SettlementLineKindAlelo:
+		return true
+	case SettlementLineKindCard:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SpaceMoveKind.
 const (
 	SpaceMoveKindBill      SpaceMoveKind = "bill"
@@ -564,16 +636,16 @@ func (e SpaceMoveKind) Valid() bool {
 
 // Defines values for SplitInputMode.
 const (
-	Custom SplitInputMode = "custom"
-	Equal  SplitInputMode = "equal"
+	SplitInputModeCustom SplitInputMode = "custom"
+	SplitInputModeEqual  SplitInputMode = "equal"
 )
 
 // Valid indicates whether the value is a known member of the SplitInputMode enum.
 func (e SplitInputMode) Valid() bool {
 	switch e {
-	case Custom:
+	case SplitInputModeCustom:
 		return true
-	case Equal:
+	case SplitInputModeEqual:
 		return true
 	default:
 		return false
@@ -795,6 +867,9 @@ type AleloPurchaseCreate struct {
 	AmountCents Cents              `json:"amountCents"`
 	Date        openapi_types.Date `json:"date"`
 	Description string             `json:"description"`
+
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 }
 
 // AleloStyle Look of the card drawing, the classic green or the Alelo Tudo identity.
@@ -880,8 +955,11 @@ type BillInput struct {
 	EndMonth *Month `json:"endMonth,omitempty"`
 
 	// ExpectedCents Amount in cents (RN-21).
-	ExpectedCents Cents  `json:"expectedCents"`
-	Name          string `json:"name"`
+	ExpectedCents Cents `json:"expectedCents"`
+
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
+	Name        string       `json:"name"`
 
 	// StartMonth Example: 2026-11
 	StartMonth Month `json:"startMonth"`
@@ -1209,6 +1287,9 @@ type ExpenseCreate struct {
 	CategoryId  int64              `json:"categoryId"`
 	Date        openapi_types.Date `json:"date"`
 	Description *string            `json:"description,omitempty"`
+
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 }
 
 // Financing defines model for Financing.
@@ -1258,8 +1339,11 @@ type FinancingInput struct {
 	DueDay       int   `json:"dueDay"`
 
 	// InstallmentCents Amount in cents (RN-21).
-	InstallmentCents Cents  `json:"installmentCents"`
-	Name             string `json:"name"`
+	InstallmentCents Cents `json:"installmentCents"`
+
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
+	Name        string       `json:"name"`
 
 	// NextMonth Example: 2026-11
 	NextMonth         Month `json:"nextMonth"`
@@ -1281,10 +1365,13 @@ type FinancingPaymentCreate struct {
 
 // FinancingUpdate defines model for FinancingUpdate.
 type FinancingUpdate struct {
-	AccountId  int64  `json:"accountId"`
-	CategoryId int64  `json:"categoryId"`
-	DueDay     int    `json:"dueDay"`
-	Name       string `json:"name"`
+	AccountId  int64 `json:"accountId"`
+	CategoryId int64 `json:"categoryId"`
+	DueDay     int   `json:"dueDay"`
+
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
+	Name        string       `json:"name"`
 }
 
 // Forecast defines model for Forecast.
@@ -1381,6 +1468,16 @@ type GroupSummary struct {
 // GroupSwitch defines model for GroupSwitch.
 type GroupSwitch struct {
 	GroupId int64 `json:"groupId"`
+}
+
+// GroupWeights defines model for GroupWeights.
+type GroupWeights struct {
+	Weights []struct {
+		UserId int64 `json:"userId"`
+
+		// WeightBp Weight in basis points; all of them add up to 10000.
+		WeightBp int `json:"weightBp"`
+	} `json:"weights"`
 }
 
 // Health defines model for Health.
@@ -1882,6 +1979,27 @@ type Me struct {
 	Theme   Theme          `json:"theme"`
 }
 
+// MemberShare defines model for MemberShare.
+type MemberShare struct {
+	PersonId int64 `json:"personId"`
+
+	// ShareCents Amount in cents (RN-21).
+	ShareCents *Cents `json:"shareCents,omitempty"`
+}
+
+// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+type MemberSplit struct {
+	// Members Who takes part, in equal mode; the value of each member, in custom mode, adding up to the part of the group.
+	Members *[]MemberShare  `json:"members,omitempty"`
+	Mode    MemberSplitMode `json:"mode"`
+}
+
+// MemberSplitMode defines model for MemberSplit.Mode.
+type MemberSplitMode string
+
+// MemberSplitKind defines model for MemberSplitKind.
+type MemberSplitKind string
+
 // Month Example: 2026-11
 type Month = string
 
@@ -2097,7 +2215,10 @@ type PurchaseInput struct {
 	Date          openapi_types.Date `json:"date"`
 	Description   *string            `json:"description,omitempty"`
 	Installments  int                `json:"installments"`
-	Merchant      string             `json:"merchant"`
+
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
+	Merchant    string       `json:"merchant"`
 
 	// PerInstallment amountCents is the value of each installment instead of the total.
 	PerInstallment *bool `json:"perInstallment,omitempty"`
@@ -2273,6 +2394,9 @@ type RecurrenceInput struct {
 	// EndMonth Example: 2026-11
 	EndMonth *Month `json:"endMonth,omitempty"`
 
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
+
 	// StartDate The first charge goes to the invoice of this date.
 	StartDate openapi_types.Date `json:"startDate"`
 }
@@ -2286,6 +2410,9 @@ type RecurrenceUpdate struct {
 
 	// EndMonth Example: 2026-11
 	EndMonth *Month `json:"endMonth,omitempty"`
+
+	// MemberSplit Division of an expense between the members of the group; weights when absent (RN-28).
+	MemberSplit *MemberSplit `json:"memberSplit,omitempty"`
 }
 
 // SavingsBox defines model for SavingsBox.
@@ -2408,6 +2535,89 @@ type SearchLine struct {
 
 // SearchLineSource defines model for SearchLine.Source.
 type SearchLineSource string
+
+// Settlement defines model for Settlement.
+type Settlement struct {
+	// From Day the settlement of the group started (RN-31).
+	From        *openapi_types.Date    `json:"from,omitempty"`
+	Lines       []SettlementLine       `json:"lines"`
+	Members     []SettlementMember     `json:"members"`
+	Payments    []SettlementPayment    `json:"payments"`
+	Suggestions []SettlementSuggestion `json:"suggestions"`
+}
+
+// SettlementLine defines model for SettlementLine.
+type SettlementLine struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents              `json:"amountCents"`
+	Date        openapi_types.Date `json:"date"`
+	Description string             `json:"description"`
+	Kind        SettlementLineKind `json:"kind"`
+	PayerName   string             `json:"payerName"`
+	Shares      []struct {
+		// Cents Amount in cents (RN-21).
+		Cents    Cents  `json:"cents"`
+		Name     string `json:"name"`
+		PersonId int64  `json:"personId"`
+	} `json:"shares"`
+
+	// Source Account, card or Alelo that paid.
+	Source string `json:"source"`
+}
+
+// SettlementLineKind defines model for SettlementLine.Kind.
+type SettlementLineKind string
+
+// SettlementMember defines model for SettlementMember.
+type SettlementMember struct {
+	// BalanceCents Amount in cents (RN-21).
+	BalanceCents Cents  `json:"balanceCents"`
+	Name         string `json:"name"`
+
+	// PaidCents Amount in cents (RN-21).
+	PaidCents Cents `json:"paidCents"`
+	PersonId  int64 `json:"personId"`
+
+	// ReceivedCents Amount in cents (RN-21).
+	ReceivedCents Cents `json:"receivedCents"`
+
+	// SentCents Amount in cents (RN-21).
+	SentCents Cents `json:"sentCents"`
+
+	// ShareCents Amount in cents (RN-21).
+	ShareCents Cents `json:"shareCents"`
+}
+
+// SettlementPayment defines model for SettlementPayment.
+type SettlementPayment struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents  Cents              `json:"amountCents"`
+	Date         openapi_types.Date `json:"date"`
+	FromName     string             `json:"fromName"`
+	FromPersonId int64              `json:"fromPersonId"`
+	Id           int64              `json:"id"`
+	ToName       string             `json:"toName"`
+	ToPersonId   int64              `json:"toPersonId"`
+}
+
+// SettlementPaymentCreate defines model for SettlementPaymentCreate.
+type SettlementPaymentCreate struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents   Cents              `json:"amountCents"`
+	Date          openapi_types.Date `json:"date"`
+	FromAccountId int64              `json:"fromAccountId"`
+	ToAccountId   int64              `json:"toAccountId"`
+}
+
+// SettlementSuggestion defines model for SettlementSuggestion.
+type SettlementSuggestion struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents  Cents  `json:"amountCents"`
+	FromName     string `json:"fromName"`
+	FromPersonId int64  `json:"fromPersonId"`
+	ToName       string `json:"toName"`
+	ToPersonId   int64  `json:"toPersonId"`
+}
 
 // ShoppingList defines model for ShoppingList.
 type ShoppingList struct {
@@ -2672,6 +2882,12 @@ type SearchEntriesParams struct {
 	Text       *string            `form:"text,omitempty" json:"text,omitempty"`
 }
 
+// GetSettlementParams defines parameters for GetSettlement.
+type GetSettlementParams struct {
+	// Month Month of the expenses listed, as YYYY-MM.
+	Month Month `form:"month" json:"month"`
+}
+
 // CreateAccountJSONRequestBody defines body for CreateAccount for application/json ContentType.
 type CreateAccountJSONRequestBody = AccountCreate
 
@@ -2777,6 +2993,9 @@ type ResetGroupMemberPinJSONRequestBody = PinChange
 // CreateGroupPersonJSONRequestBody defines body for CreateGroupPerson for application/json ContentType.
 type CreateGroupPersonJSONRequestBody = GroupPersonCreate
 
+// SetGroupWeightsJSONRequestBody defines body for SetGroupWeights for application/json ContentType.
+type SetGroupWeightsJSONRequestBody = GroupWeights
+
 // CreateGroupJSONRequestBody defines body for CreateGroup for application/json ContentType.
 type CreateGroupJSONRequestBody = GroupName
 
@@ -2869,6 +3088,9 @@ type DepositSavingsJSONRequestBody = SavingsDepositCreate
 
 // WithdrawSavingsJSONRequestBody defines body for WithdrawSavings for application/json ContentType.
 type WithdrawSavingsJSONRequestBody = SavingsWithdrawalCreate
+
+// CreateSettlementPaymentJSONRequestBody defines body for CreateSettlementPayment for application/json ContentType.
+type CreateSettlementPaymentJSONRequestBody = SettlementPaymentCreate
 
 // MoveToSpaceJSONRequestBody defines body for MoveToSpace for application/json ContentType.
 type MoveToSpaceJSONRequestBody = SpaceMove
@@ -3076,6 +3298,9 @@ type ServerInterface interface {
 	// CreateGroupPerson Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80).
 	// (POST /group/people)
 	CreateGroupPerson(w http.ResponseWriter, r *http.Request)
+	// SetGroupWeights Sets the weight of every member in the settlement, in force from today; administrators only (RF-79, RN-28).
+	// (PUT /group/weights)
+	SetGroupWeights(w http.ResponseWriter, r *http.Request)
 	// CreateGroup Creates another group with the caller as its administrator; administrators of the active group only (RF-78, RF-80).
 	// (POST /groups)
 	CreateGroup(w http.ResponseWriter, r *http.Request)
@@ -3205,6 +3430,9 @@ type ServerInterface interface {
 	// UpdatePreferences Changes theme and haptic feedback (RNF-14, RNF-25).
 	// (PATCH /me/preferences)
 	UpdatePreferences(w http.ResponseWriter, r *http.Request)
+	// GetMemberSplit Division between members of one expense of the active group, weights when none was chosen (RN-28).
+	// (GET /member-splits/{kind}/{id})
+	GetMemberSplit(w http.ResponseWriter, r *http.Request, kind MemberSplitKind, id Id)
 	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
 	// (GET /month-flow)
 	GetMonthFlow(w http.ResponseWriter, r *http.Request, params GetMonthFlowParams)
@@ -3274,6 +3502,15 @@ type ServerInterface interface {
 	// SearchEntries Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
 	// (GET /search)
 	SearchEntries(w http.ResponseWriter, r *http.Request, params SearchEntriesParams)
+	// GetSettlement Balances of the members, who pays whom, the payments made and the expenses of the month (RF-84, RN-29).
+	// (GET /settlement)
+	GetSettlement(w http.ResponseWriter, r *http.Request, params GetSettlementParams)
+	// CreateSettlementPayment Records a payment between members as a transfer between their accounts (RN-30).
+	// (POST /settlement/payments)
+	CreateSettlementPayment(w http.ResponseWriter, r *http.Request)
+	// DeleteSettlementPayment Undoes a payment between members with its transfer.
+	// (DELETE /settlement/payments/{id})
+	DeleteSettlementPayment(w http.ResponseWriter, r *http.Request, id Id)
 	// MoveToSpace Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83).
 	// (POST /spaces/{id}/moves)
 	MoveToSpace(w http.ResponseWriter, r *http.Request, id Id)
@@ -5037,6 +5274,20 @@ func (siw *ServerInterfaceWrapper) CreateGroupPerson(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// SetGroupWeights operation middleware
+func (siw *ServerInterfaceWrapper) SetGroupWeights(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetGroupWeights(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateGroup operation middleware
 func (siw *ServerInterfaceWrapper) CreateGroup(w http.ResponseWriter, r *http.Request) {
 
@@ -5937,6 +6188,41 @@ func (siw *ServerInterfaceWrapper) UpdatePreferences(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetMemberSplit operation middleware
+func (siw *ServerInterfaceWrapper) GetMemberSplit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "kind" -------------
+	var kind MemberSplitKind
+
+	err = runtime.BindStyledParameterWithOptions("simple", "kind", r.PathValue("kind"), &kind, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMemberSplit(w, r, kind, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMonthFlow operation middleware
 func (siw *ServerInterfaceWrapper) GetMonthFlow(w http.ResponseWriter, r *http.Request) {
 
@@ -6592,6 +6878,79 @@ func (siw *ServerInterfaceWrapper) SearchEntries(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetSettlement operation middleware
+func (siw *ServerInterfaceWrapper) GetSettlement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetSettlementParams
+
+	// ------------- Required query parameter "month" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "month", r.URL.Query(), &params.Month, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "month"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "month", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSettlement(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSettlementPayment operation middleware
+func (siw *ServerInterfaceWrapper) CreateSettlementPayment(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSettlementPayment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSettlementPayment operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSettlementPayment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSettlementPayment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // MoveToSpace operation middleware
 func (siw *ServerInterfaceWrapper) MoveToSpace(w http.ResponseWriter, r *http.Request) {
 
@@ -6829,6 +7188,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/group", wrapper.GetGroup)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/group", wrapper.RenameGroup)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/groups", wrapper.CreateGroup)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/group/weights", wrapper.SetGroupWeights)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/settlement", wrapper.GetSettlement)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/settlement/payments", wrapper.CreateSettlementPayment)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/settlement/payments/{id}", wrapper.DeleteSettlementPayment)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/member-splits/{kind}/{id}", wrapper.GetMemberSplit)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/group/members", wrapper.AddGroupMember)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/group/people", wrapper.CreateGroupPerson)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/group/members/{id}", wrapper.SetGroupMemberRole)
@@ -10922,6 +11286,84 @@ func (response CreateGroupPerson409JSONResponse) VisitCreateGroupPersonResponse(
 	return err
 }
 
+type SetGroupWeightsRequestObject struct {
+	Body *SetGroupWeightsJSONRequestBody
+}
+
+type SetGroupWeightsResponseObject interface {
+	VisitSetGroupWeightsResponse(w http.ResponseWriter) error
+}
+
+type SetGroupWeights200JSONResponse GroupDetail
+
+func (response SetGroupWeights200JSONResponse) VisitSetGroupWeightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupWeights400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SetGroupWeights400JSONResponse) VisitSetGroupWeightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupWeights401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetGroupWeights401JSONResponse) VisitSetGroupWeightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupWeights403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetGroupWeights403JSONResponse) VisitSetGroupWeightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGroupWeights409JSONResponse struct{ ConflictJSONResponse }
+
+func (response SetGroupWeights409JSONResponse) VisitSetGroupWeightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type CreateGroupRequestObject struct {
 	Body *CreateGroupJSONRequestBody
 }
@@ -13357,6 +13799,57 @@ func (response UpdatePreferences401JSONResponse) VisitUpdatePreferencesResponse(
 	return err
 }
 
+type GetMemberSplitRequestObject struct {
+	Kind MemberSplitKind `json:"kind"`
+	Id   Id              `json:"id"`
+}
+
+type GetMemberSplitResponseObject interface {
+	VisitGetMemberSplitResponse(w http.ResponseWriter) error
+}
+
+type GetMemberSplit200JSONResponse MemberSplit
+
+func (response GetMemberSplit200JSONResponse) VisitGetMemberSplitResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMemberSplit401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMemberSplit401JSONResponse) VisitGetMemberSplitResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMemberSplit404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetMemberSplit404JSONResponse) VisitGetMemberSplitResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMonthFlowRequestObject struct {
 	Params GetMonthFlowParams
 }
@@ -14568,6 +15061,192 @@ func (response SearchEntries401JSONResponse) VisitSearchEntriesResponse(w http.R
 	return err
 }
 
+type GetSettlementRequestObject struct {
+	Params GetSettlementParams
+}
+
+type GetSettlementResponseObject interface {
+	VisitGetSettlementResponse(w http.ResponseWriter) error
+}
+
+type GetSettlement200JSONResponse Settlement
+
+func (response GetSettlement200JSONResponse) VisitGetSettlementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSettlement400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetSettlement400JSONResponse) VisitGetSettlementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSettlement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSettlement401JSONResponse) VisitGetSettlementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSettlement409JSONResponse struct{ ConflictJSONResponse }
+
+func (response GetSettlement409JSONResponse) VisitGetSettlementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSettlementPaymentRequestObject struct {
+	Body *CreateSettlementPaymentJSONRequestBody
+}
+
+type CreateSettlementPaymentResponseObject interface {
+	VisitCreateSettlementPaymentResponse(w http.ResponseWriter) error
+}
+
+type CreateSettlementPayment201JSONResponse SettlementPayment
+
+func (response CreateSettlementPayment201JSONResponse) VisitCreateSettlementPaymentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSettlementPayment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateSettlementPayment400JSONResponse) VisitCreateSettlementPaymentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSettlementPayment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateSettlementPayment401JSONResponse) VisitCreateSettlementPaymentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSettlementPayment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateSettlementPayment404JSONResponse) VisitCreateSettlementPaymentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSettlementPayment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateSettlementPayment409JSONResponse) VisitCreateSettlementPaymentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSettlementPaymentRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type DeleteSettlementPaymentResponseObject interface {
+	VisitDeleteSettlementPaymentResponse(w http.ResponseWriter) error
+}
+
+type DeleteSettlementPayment204Response struct {
+}
+
+func (response DeleteSettlementPayment204Response) VisitDeleteSettlementPaymentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSettlementPayment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteSettlementPayment401JSONResponse) VisitDeleteSettlementPaymentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSettlementPayment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteSettlementPayment404JSONResponse) VisitDeleteSettlementPaymentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type MoveToSpaceRequestObject struct {
 	Id   Id `json:"id"`
 	Body *MoveToSpaceJSONRequestBody
@@ -15101,6 +15780,9 @@ type StrictServerInterface interface {
 	// CreateGroupPerson Registers a new person with login and PIN and adds it to the active group; administrators only (RF-80).
 	// (POST /group/people)
 	CreateGroupPerson(ctx context.Context, request CreateGroupPersonRequestObject) (CreateGroupPersonResponseObject, error)
+	// SetGroupWeights Sets the weight of every member in the settlement, in force from today; administrators only (RF-79, RN-28).
+	// (PUT /group/weights)
+	SetGroupWeights(ctx context.Context, request SetGroupWeightsRequestObject) (SetGroupWeightsResponseObject, error)
 	// CreateGroup Creates another group with the caller as its administrator; administrators of the active group only (RF-78, RF-80).
 	// (POST /groups)
 	CreateGroup(ctx context.Context, request CreateGroupRequestObject) (CreateGroupResponseObject, error)
@@ -15230,6 +15912,9 @@ type StrictServerInterface interface {
 	// UpdatePreferences Changes theme and haptic feedback (RNF-14, RNF-25).
 	// (PATCH /me/preferences)
 	UpdatePreferences(ctx context.Context, request UpdatePreferencesRequestObject) (UpdatePreferencesResponseObject, error)
+	// GetMemberSplit Division between members of one expense of the active group, weights when none was chosen (RN-28).
+	// (GET /member-splits/{kind}/{id})
+	GetMemberSplit(ctx context.Context, request GetMemberSplitRequestObject) (GetMemberSplitResponseObject, error)
 	// GetMonthFlow Confirmed income and spending of the month in the accounts, without transfers and adjustments (RN-08).
 	// (GET /month-flow)
 	GetMonthFlow(ctx context.Context, request GetMonthFlowRequestObject) (GetMonthFlowResponseObject, error)
@@ -15299,6 +15984,15 @@ type StrictServerInterface interface {
 	// SearchEntries Finds entries, card purchases and Alelo purchases by period, category, account, card, person and text (RF-63).
 	// (GET /search)
 	SearchEntries(ctx context.Context, request SearchEntriesRequestObject) (SearchEntriesResponseObject, error)
+	// GetSettlement Balances of the members, who pays whom, the payments made and the expenses of the month (RF-84, RN-29).
+	// (GET /settlement)
+	GetSettlement(ctx context.Context, request GetSettlementRequestObject) (GetSettlementResponseObject, error)
+	// CreateSettlementPayment Records a payment between members as a transfer between their accounts (RN-30).
+	// (POST /settlement/payments)
+	CreateSettlementPayment(ctx context.Context, request CreateSettlementPaymentRequestObject) (CreateSettlementPaymentResponseObject, error)
+	// DeleteSettlementPayment Undoes a payment between members with its transfer.
+	// (DELETE /settlement/payments/{id})
+	DeleteSettlementPayment(ctx context.Context, request DeleteSettlementPaymentRequestObject) (DeleteSettlementPaymentResponseObject, error)
 	// MoveToSpace Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83).
 	// (POST /spaces/{id}/moves)
 	MoveToSpace(ctx context.Context, request MoveToSpaceRequestObject) (MoveToSpaceResponseObject, error)
@@ -17296,6 +17990,37 @@ func (sh *strictHandler) CreateGroupPerson(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// SetGroupWeights operation middleware
+func (sh *strictHandler) SetGroupWeights(w http.ResponseWriter, r *http.Request) {
+	var request SetGroupWeightsRequestObject
+
+	var body SetGroupWeightsJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetGroupWeights(ctx, request.(SetGroupWeightsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetGroupWeights")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetGroupWeightsResponseObject); ok {
+		if err := validResponse.VisitSetGroupWeightsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateGroup operation middleware
 func (sh *strictHandler) CreateGroup(w http.ResponseWriter, r *http.Request) {
 	var request CreateGroupRequestObject
@@ -18535,6 +19260,33 @@ func (sh *strictHandler) UpdatePreferences(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// GetMemberSplit operation middleware
+func (sh *strictHandler) GetMemberSplit(w http.ResponseWriter, r *http.Request, kind MemberSplitKind, id Id) {
+	var request GetMemberSplitRequestObject
+
+	request.Kind = kind
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMemberSplit(ctx, request.(GetMemberSplitRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMemberSplit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMemberSplitResponseObject); ok {
+		if err := validResponse.VisitGetMemberSplitResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMonthFlow operation middleware
 func (sh *strictHandler) GetMonthFlow(w http.ResponseWriter, r *http.Request, params GetMonthFlowParams) {
 	var request GetMonthFlowRequestObject
@@ -19168,6 +19920,89 @@ func (sh *strictHandler) SearchEntries(w http.ResponseWriter, r *http.Request, p
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SearchEntriesResponseObject); ok {
 		if err := validResponse.VisitSearchEntriesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSettlement operation middleware
+func (sh *strictHandler) GetSettlement(w http.ResponseWriter, r *http.Request, params GetSettlementParams) {
+	var request GetSettlementRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSettlement(ctx, request.(GetSettlementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSettlement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSettlementResponseObject); ok {
+		if err := validResponse.VisitGetSettlementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateSettlementPayment operation middleware
+func (sh *strictHandler) CreateSettlementPayment(w http.ResponseWriter, r *http.Request) {
+	var request CreateSettlementPaymentRequestObject
+
+	var body CreateSettlementPaymentJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateSettlementPayment(ctx, request.(CreateSettlementPaymentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateSettlementPayment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSettlementPaymentResponseObject); ok {
+		if err := validResponse.VisitCreateSettlementPaymentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSettlementPayment operation middleware
+func (sh *strictHandler) DeleteSettlementPayment(w http.ResponseWriter, r *http.Request, id Id) {
+	var request DeleteSettlementPaymentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSettlementPayment(ctx, request.(DeleteSettlementPaymentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSettlementPayment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSettlementPaymentResponseObject); ok {
+		if err := validResponse.VisitDeleteSettlementPaymentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

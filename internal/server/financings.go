@@ -35,6 +35,7 @@ func (a *API) CreateFinancing(ctx context.Context, req gen.CreateFinancingReques
 	f, err := a.d.Financings.Create(ctx, auth.UserID(ctx), financing.Input{
 		Name: b.Name, CategoryID: b.CategoryId, AccountID: b.AccountId, DueDay: b.DueDay, InstallmentCents: b.InstallmentCents,
 		TotalInstallments: b.TotalInstallments, PaidInstallments: b.PaidInstallments, BalanceCents: b.BalanceCents, NextMonth: next,
+		Members: fromMemberSplit(b.MemberSplit),
 	})
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func (a *API) UpdateFinancing(ctx context.Context, req gen.UpdateFinancingReques
 		return nil, errNoBody
 	}
 	b := req.Body
-	f, err := a.d.Financings.Update(ctx, req.Id, financing.Changes{Name: b.Name, CategoryID: b.CategoryId, AccountID: b.AccountId, DueDay: b.DueDay})
+	f, err := a.d.Financings.Update(ctx, req.Id, financing.Changes{Name: b.Name, CategoryID: b.CategoryId, AccountID: b.AccountId, DueDay: b.DueDay, Members: fromMemberSplit(b.MemberSplit)})
 	if err != nil {
 		return nil, err
 	}

@@ -37,6 +37,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/receivable"
 	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
+	"github.com/italogfx/radar-finance/internal/settle"
 	"github.com/italogfx/radar-finance/internal/space"
 )
 
@@ -89,6 +90,7 @@ func testServer(t *testing.T) (*httptest.Server, *sql.DB) {
 		Spaces:        space.NewService(conn),
 		Incomes:       income.NewService(conn),
 		Cards:         cards,
+		Settle:        settle.NewService(conn, cards),
 		Bills:         bills,
 		Financings:    financings,
 		Agenda:        agenda.NewService(bills, financings, cards),

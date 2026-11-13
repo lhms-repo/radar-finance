@@ -489,6 +489,31 @@ func (q *Queries) SettlementExpenses(ctx context.Context, arg SettlementExpenses
 	return items, nil
 }
 
+const splitItemInGroup = `-- name: SplitItemInGroup :one
+SELECT CAST(CASE CAST(?1 AS TEXT)
+    WHEN 'entry' THEN EXISTS (SELECT 1 FROM entries x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
+    WHEN 'purchase' THEN EXISTS (SELECT 1 FROM purchases x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
+    WHEN 'recurrence' THEN EXISTS (SELECT 1 FROM recurrences x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
+    WHEN 'bill' THEN EXISTS (SELECT 1 FROM bills x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
+    WHEN 'financing' THEN EXISTS (SELECT 1 FROM financings x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
+    WHEN 'alelo' THEN EXISTS (SELECT 1 FROM alelo_purchases x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
+    ELSE 0 END AS INTEGER) AS found
+`
+
+type SplitItemInGroupParams struct {
+	Kind    string
+	ItemID  int64
+	GroupID int64
+}
+
+// Whether an item that may carry a division between members belongs to the group (RN-28).
+func (q *Queries) SplitItemInGroup(ctx context.Context, arg SplitItemInGroupParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, splitItemInGroup, arg.Kind, arg.ItemID, arg.GroupID)
+	var found int64
+	err := row.Scan(&found)
+	return found, err
+}
+
 const upsertGroupWeight = `-- name: UpsertGroupWeight :exec
 INSERT INTO group_weights (group_id, person_id, weight_bp, from_day)
 VALUES (CAST(?1 AS INTEGER), ?2, ?3, ?4)

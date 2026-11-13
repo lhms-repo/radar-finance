@@ -144,7 +144,7 @@ func fromBillInput(b gen.BillInput) (bill.Input, error) {
 	}
 	return bill.Input{
 		Name: b.Name, CategoryID: b.CategoryId, AccountID: b.AccountId, DueDay: b.DueDay, ExpectedCents: b.ExpectedCents,
-		StartMonth: start, EndMonth: end,
+		StartMonth: start, EndMonth: end, Members: fromMemberSplit(b.MemberSplit),
 	}, nil
 }
 

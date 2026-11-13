@@ -38,6 +38,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/report"
 	"github.com/italogfx/radar-finance/internal/savings"
 	"github.com/italogfx/radar-finance/internal/scope"
+	"github.com/italogfx/radar-finance/internal/settle"
 	"github.com/italogfx/radar-finance/internal/space"
 )
 
@@ -125,6 +126,7 @@ type Deps struct {
 	Imports       *importer.Service
 	Market        *market.Service
 	Spaces        *space.Service
+	Settle        *settle.Service
 	// Events carries the changes to the open screens; one is created when nil.
 	Events    *events.Hub
 	Sessions  *scs.SessionManager
