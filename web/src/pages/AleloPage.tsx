@@ -1,7 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MemberSplitField, useSplitState } from "@/features/settle/MemberSplitField";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, Pencil, Plus, ShoppingBasket, Trash2, Undo2, Utensils } from "lucide-react";
+import { ArrowRightLeft, Check, Pencil, Plus, ShoppingBasket, Trash2, Undo2, Utensils } from "lucide-react";
+import { useMe } from "@/app/session";
+import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -29,6 +31,7 @@ import {
   useUndoAleloCredit,
   useUpdateAlelo,
   type AleloCard,
+  type AleloMonth,
 } from "@/features/alelo/api";
 import { formatDate, formatDayMonth, monthName, monthParam, todayISO } from "@/lib/format";
 import { haptic } from "@/lib/haptics";
@@ -36,7 +39,8 @@ import { fade, spring } from "@/lib/motion";
 import { useMonth } from "@/lib/month";
 import { cn } from "@/lib/utils";
 
-/** Alelo screen: balance carried over, monthly credit and purchases of each card (RF-31 to RF-34). */
+/** Alelo screen: balance carried over, monthly credit and purchases of each card (RF-31 to RF-34). The balance goes
+ * only to the holder; the full month, with credit and every space, stays in the personal space of the holder (RF-83). */
 export function AleloPage() {
   const cards = useAleloCards();
   const list = cards.data ?? [];
@@ -91,7 +95,7 @@ export function AleloPage() {
                   <AleloTudoVisual personName={c.personName} name={c.name} className={cn(active && "ring-3 ring-primary/40")} />
                   <span className="flex items-baseline justify-between gap-2 px-1">
                     <span className="text-xs text-muted-foreground">Saldo</span>
-                    <MoneyFlow cents={c.balanceCents} className="text-base font-semibold" />
+                    {c.balanceCents !== undefined ? <MoneyFlow cents={c.balanceCents} className="text-base font-semibold" /> : <span className="text-xs text-muted-foreground">só para quem é titular</span>}
                   </span>
                 </motion.button>
               );
@@ -119,7 +123,7 @@ export function AleloPage() {
                   <Utensils className="size-4 shrink-0" />
                 </span>
                 <span className="text-[0.7rem] uppercase tracking-wider opacity-70">Saldo</span>
-                <MoneyFlow cents={c.balanceCents} className="text-xl font-semibold" />
+                {c.balanceCents !== undefined ? <MoneyFlow cents={c.balanceCents} className="text-xl font-semibold" /> : <span className="text-xs opacity-80">só para quem é titular</span>}
                 <span className="truncate text-xs opacity-80">{c.personName}</span>
               </motion.button>
             );
@@ -135,7 +139,8 @@ export function AleloPage() {
   );
 }
 
-/** The selected month of a card: balance carried in, credit, purchases and balance carried out (RN-15). */
+/** The selected month of a card: balance carried in, credit, purchases and balance carried out (RN-15). A group reads
+ * only its purchases; the holder reads the full month in the personal space (RF-83). */
 function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void; onEdit: () => void }) {
   const { year, month } = useMonth();
   const param = monthParam(year, month);
@@ -143,7 +148,11 @@ function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void
   const confirm = useConfirmAleloCredit();
   const undo = useUndoAleloCredit();
   const remove = useDeleteAleloPurchase();
+  const me = useMe();
+  const [moving, setMoving] = useState<AleloMonth["purchases"][number] | null>(null);
   const v = view.data;
+  /** Tells a purchase of the active space, the only ones changed here; the full month also shows the other spaces. */
+  const mine = (p: AleloMonth["purchases"][number]) => !v?.full || p.groupId === me?.group.id;
   return (
     <Card className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
@@ -158,7 +167,19 @@ function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void
         </Button>
       </div>
 
-      {v && (
+      {v && !v.full && (
+        <div className="flex flex-col gap-1 rounded-xl bg-muted p-3 text-sm">
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="text-xs text-muted-foreground">Compras deste espaço</span>
+            <Money cents={-v.spentCents} className="font-medium" />
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {card.owned ? "O saldo, o crédito e as compras de todos os espaços ficam no seu Pessoal." : `O saldo e o crédito ficam com ${card.personName}, no Pessoal.`}
+          </span>
+        </div>
+      )}
+
+      {v && v.full && v.openingCents !== undefined && v.closingCents !== undefined && (
         <>
           <dl className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-3 text-sm sm:grid-cols-4">
             <div>
@@ -186,6 +207,11 @@ function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void
               </dd>
             </div>
           </dl>
+        </>
+      )}
+
+      {v && (
+        <>
 
           {v.hasCredit &&
             (v.creditConfirmed ? (
@@ -202,7 +228,7 @@ function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void
             ) : (
               <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed px-3 py-2 text-sm">
                 <span className="text-muted-foreground">
-                  Crédito de <Money cents={v.expectedCreditCents} /> previsto para {formatDayMonth(v.expectedCreditOn)}
+                  Crédito de <Money cents={v.expectedCreditCents ?? 0} /> previsto para {v.expectedCreditOn ? formatDayMonth(v.expectedCreditOn) : ""}
                 </span>
                 <Button size="sm" disabled={confirm.isPending} onClick={() => confirm.mutate({ id: card.id, month: param, body: {} })}>
                   <Check />
@@ -239,12 +265,22 @@ function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{p.description}</span>
-                    <span className="block truncate text-xs text-muted-foreground">Compras para casa{p.createdByName ? ` · por ${p.createdByName}` : ""}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      Compras para casa{p.createdByName ? ` · por ${p.createdByName}` : ""}
+                      {v.full && p.groupName ? ` · ${p.groupName}` : ""}
+                    </span>
                   </span>
                   <Money cents={-p.amountCents} className="text-sm font-medium" />
-                  <Button variant="ghost" size="icon-sm" aria-label={`Excluir ${p.description}`} disabled={remove.isPending} onClick={() => remove.mutate(p.id)} className="text-muted-foreground">
-                    <Trash2 />
-                  </Button>
+                  {mine(p) && (
+                    <>
+                      <Button variant="ghost" size="icon-sm" aria-label={`Mover ${p.description}`} onClick={() => setMoving(p)} className="text-muted-foreground">
+                        <ArrowRightLeft />
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" aria-label={`Excluir ${p.description}`} disabled={remove.isPending} onClick={() => remove.mutate(p.id)} className="text-muted-foreground">
+                        <Trash2 />
+                      </Button>
+                    </>
+                  )}
                 </motion.li>
               ))}
             </AnimatePresence>
@@ -252,6 +288,14 @@ function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void
           {v.purchases.length === 0 && <p className="py-2 text-center text-sm text-muted-foreground">Nenhuma compra neste mês.</p>}
         </>
       )}
+      <Dialog open={moving !== null} onOpenChange={(o) => !o && setMoving(null)} title={moving ? `Mover ${moving.description}` : "Mover compra"} description="A compra sai deste espaço; a divisão entre membros fica para trás.">
+        {moving && <MoveToSpace kind="alelo" itemId={moving.id} onMoved={() => setMoving(null)} />}
+        <DialogActions>
+          <Button variant="ghost" onClick={() => setMoving(null)}>
+            Fechar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Card>
   );
 }
@@ -395,6 +439,7 @@ const purchaseSchema = z.object({
 function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCard; onClose: () => void }) {
   const add = useAddAleloPurchase();
   const split = useSplitState("alelo");
+  const where = useSpaceChoice();
   const form = useForm<z.infer<typeof purchaseSchema>>({ resolver: zodResolver(purchaseSchema), resetOptions: { keepDirtyValues: true }, values: { description: "", amountCents: 0, date: todayISO() } });
   const errors = form.formState.errors;
 
@@ -407,7 +452,7 @@ function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCar
   };
 
   /** Validates and sends the form. */
-  const submit = form.handleSubmit((v) => add.mutate({ id: card.id, body: { ...v, memberSplit: split.payload() } }, { onSuccess: close }));
+  const submit = form.handleSubmit((v) => add.mutate({ id: card.id, body: { ...v, memberSplit: split.payload(where.space) }, space: where.target }, { onSuccess: close }));
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={`Compra no ${card.name}`} description="Entra no gasto como Alimentação, Compras para casa.">
@@ -423,7 +468,8 @@ function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCar
             <Input id="alelo-date" type="date" {...form.register("date")} />
           </Field>
         </div>
-        <MemberSplitField value={split.value} onChange={split.onChange} />
+        <SpaceField value={where.space} onChange={where.setSpace} />
+        <MemberSplitField value={split.value} onChange={split.onChange} space={where.space} />
         <FieldError message={add.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

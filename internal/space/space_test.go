@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/italogfx/radar-finance/internal/alelo"
 	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/bill"
 	"github.com/italogfx/radar-finance/internal/card"
@@ -14,6 +15,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/financing"
 	"github.com/italogfx/radar-finance/internal/income"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/membersplit"
 	"github.com/italogfx/radar-finance/internal/savings"
 	"github.com/italogfx/radar-finance/internal/scope"
 	"github.com/italogfx/radar-finance/internal/testutil"
@@ -123,6 +125,22 @@ func newWorld(t *testing.T) world {
 	must(err)
 	ids["savings bruno"] = shared.ID
 
+	meals := alelo.NewService(conn)
+	for _, h := range []struct {
+		key    string
+		person int64
+	}{{"alelo ana", ana.PersonID}, {"alelo bruno", bruno.PersonID}} {
+		al, err := meals.Create(ctx, ana.ID, alelo.Input{Name: h.key, PersonID: h.person, MonthlyCreditCents: 80_000, CreditDay: 5, Style: "tudo"})
+		must(err)
+		// The purchase on the card of Ana goes divided in equal parts, a division of Casa only.
+		buy, err := meals.AddPurchase(ctx, ana.ID, alelo.Purchase{
+			AleloID: al.ID, Date: day(7), Description: "Feira", AmountCents: 4_000,
+			Members: &membersplit.Rule{Mode: membersplit.ModeEqual, Members: []membersplit.Member{{PersonID: ana.PersonID}, {PersonID: bruno.PersonID}}},
+		})
+		must(err)
+		ids[h.key] = buy.ID
+	}
+
 	return world{s: NewService(conn), conn: conn, ctx: ctx, ids: ids}
 }
 
@@ -188,9 +206,15 @@ func TestMove(t *testing.T) {
 		}},
 		{name: "savings box with a deposit of bruno", kind: KindSavings, item: "savings bruno", target: anaPersonal, wantErr: ErrCannotMove},
 		{name: "personal space of someone else", kind: KindEntry, item: "expense bruno", target: brunoPersona, wantErr: ErrNotMember},
-		{name: "unknown kind", kind: "alelo", item: "expense ana", target: anaPersonal, wantErr: ErrUnknownKind},
+		{name: "alelo purchase on her card, without the division of Casa", kind: KindAlelo, item: "alelo ana", target: anaPersonal, check: func(t *testing.T) {
+			if n := w.count(t, `SELECT count(*) FROM member_splits WHERE item_kind = 'alelo' AND item_id = ?`, w.ids["alelo ana"]); n != 0 {
+				t.Fatalf("divisions left on the moved purchase = %d, want 0", n)
+			}
+		}},
+		{name: "alelo purchase on the card of bruno", kind: KindAlelo, item: "alelo bruno", target: anaPersonal, wantErr: ErrCannotMove},
+		{name: "recurrences do not move", kind: "recurrence", item: "expense ana", target: anaPersonal, wantErr: ErrUnknownKind},
 	}
-	tables := map[Kind]string{KindEntry: "entries", KindPurchase: "purchases", KindBill: "bills", KindFinancing: "financings", KindIncome: "incomes", KindSavings: "savings_boxes"}
+	tables := map[Kind]string{KindEntry: "entries", KindPurchase: "purchases", KindBill: "bills", KindFinancing: "financings", KindIncome: "incomes", KindSavings: "savings_boxes", KindAlelo: "alelo_purchases"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			id := w.ids[tt.item]

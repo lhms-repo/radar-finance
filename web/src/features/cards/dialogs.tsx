@@ -417,6 +417,7 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   const update = useUpdateRecurrence();
   const mutation = recurrence ? update : add;
   const split = useSplitState("recurrence", recurrence?.id);
+  const where = useSpaceChoice();
   const form = useForm<z.infer<typeof recurrenceSchema>>({
     resolver: zodResolver(recurrenceSchema),
     resetOptions: { keepDirtyValues: true },
@@ -442,7 +443,7 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   const submit = form.handleSubmit((v) => {
     const endMonth = v.endMonth || undefined;
     if (recurrence) update.mutate({ id: recurrence.id, body: { description: v.description, amountCents: v.amountCents, categoryId: v.categoryId, endMonth, memberSplit: split.payload() } }, { onSuccess: close });
-    else add.mutate({ cardId: card.id, body: { ...v, endMonth, memberSplit: split.payload() } }, { onSuccess: close });
+    else add.mutate({ cardId: card.id, body: { ...v, endMonth, memberSplit: split.payload(where.space) }, space: where.target }, { onSuccess: close });
   });
 
   return (
@@ -472,7 +473,12 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
             <Input id="recurrence-end" type="month" {...form.register("endMonth")} />
           </Field>
         </div>
-        <MemberSplitField value={split.value} onChange={split.onChange} />
+        {recurrence ? (
+          <p className="text-xs text-muted-foreground">Para levar a recorrência a outro espaço, encerre esta e crie outra lá: faturas fechadas não mudam.</p>
+        ) : (
+          <SpaceField value={where.space} onChange={where.setSpace} />
+        )}
+        <MemberSplitField value={split.value} onChange={split.onChange} space={recurrence ? undefined : where.space} />
         <FieldError message={mutation.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

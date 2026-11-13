@@ -10,6 +10,7 @@ SELECT CAST(CASE CAST(sqlc.arg(kind) AS TEXT)
     WHEN 'financing' THEN EXISTS (SELECT 1 FROM financings x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
     WHEN 'income' THEN EXISTS (SELECT 1 FROM incomes x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
     WHEN 'savings' THEN EXISTS (SELECT 1 FROM savings_boxes x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
+    WHEN 'alelo' THEN EXISTS (SELECT 1 FROM alelo_purchases x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
     ELSE 0 END AS INTEGER) AS found;
 
 -- name: MoveEntry :execrows
@@ -96,6 +97,14 @@ UPDATE entries
 SET group_id = CAST(sqlc.arg(target) AS INTEGER)
 WHERE id IN (SELECT sm.entry_id FROM savings_moves sm WHERE sm.box_id = sqlc.arg(item_id));
 
+-- name: MoveAleloPurchase :execrows
+-- A purchase on an Alelo card whose holder is in the target space; its division between members stays behind.
+UPDATE alelo_purchases
+SET group_id = CAST(sqlc.arg(target) AS INTEGER)
+WHERE alelo_purchases.id = sqlc.arg(item_id) AND alelo_purchases.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+  AND EXISTS (SELECT 1 FROM alelo_cards c JOIN group_members gm ON gm.person_id = c.person_id
+              WHERE c.id = alelo_purchases.alelo_id AND gm.group_id = CAST(sqlc.arg(target) AS INTEGER));
+
 -- name: ItemCreator :one
 -- Who recorded the item, the only one who moves it to another space (RF-83).
 SELECT CAST(CASE CAST(sqlc.arg(kind) AS TEXT)
@@ -105,4 +114,5 @@ SELECT CAST(CASE CAST(sqlc.arg(kind) AS TEXT)
     WHEN 'financing' THEN (SELECT x.created_by FROM financings x WHERE x.id = sqlc.arg(item_id))
     WHEN 'income' THEN (SELECT x.created_by FROM incomes x WHERE x.id = sqlc.arg(item_id))
     WHEN 'savings' THEN (SELECT x.created_by FROM savings_boxes x WHERE x.id = sqlc.arg(item_id))
+    WHEN 'alelo' THEN (SELECT x.created_by FROM alelo_purchases x WHERE x.id = sqlc.arg(item_id))
     ELSE 0 END AS INTEGER) AS created_by;

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { ACCOUNT_KEYS } from "@/features/accounts/api";
 import { haptic } from "@/lib/haptics";
 
@@ -80,8 +81,8 @@ export function useUndoAleloCredit() {
 /** Records a purchase with a free description (RF-33). */
 export function useAddAleloPurchase() {
   return useAleloMutation(
-    async ({ id, body }: { id: number; body: components["schemas"]["AleloPurchaseCreate"] }) =>
-      unwrap(await api.POST("/alelo/{id}/purchases", { params: { path: { id } }, body })),
+    async ({ id, body, space }: { id: number; body: components["schemas"]["AleloPurchaseCreate"] } & SpaceTarget) =>
+      unwrap(await api.POST("/alelo/{id}/purchases", { params: { path: { id }, header: spaceHeader(space) }, body })),
     "Compra no Alelo lançada",
   );
 }

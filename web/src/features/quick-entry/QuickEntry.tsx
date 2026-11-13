@@ -241,13 +241,13 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         );
         break;
       case "recurrence":
-        recurrence.mutate({ cardId: v.cardId, body: { description: v.description, categoryId: v.categoryId, amountCents: v.amountCents, startDate: v.date, memberSplit: memberSplit.payload() } }, done);
+        recurrence.mutate({ cardId: v.cardId, body: { description: v.description, categoryId: v.categoryId, amountCents: v.amountCents, startDate: v.date, memberSplit: memberSplit.payload(where.space) }, space: where.target }, done);
         break;
       case "expense":
         expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description, memberSplit: memberSplit.payload(where.space) }, space: where.target }, done);
         break;
       case "alelo":
-        aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents, memberSplit: memberSplit.payload() } }, done);
+        aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents, memberSplit: memberSplit.payload(where.space) }, space: where.target }, done);
         break;
       case "bill":
         bill.mutate(
@@ -382,10 +382,9 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
           </motion.div>
         </LayoutGroup>
 
-        {/* Recurrences and Alelo purchases stay in the active space. */}
-        {combo !== "recurrence" && combo !== "alelo" && <SpaceField value={where.space} onChange={where.setSpace} />}
+        <SpaceField value={where.space} onChange={where.setSpace} />
         {combo !== "oneOffIncome" && combo !== "recurringIncome" && (
-          <MemberSplitField value={memberSplit.value} onChange={memberSplit.onChange} space={combo === "recurrence" || combo === "alelo" ? undefined : where.space} />
+          <MemberSplitField value={memberSplit.value} onChange={memberSplit.onChange} space={where.space} />
         )}
         <FieldError message={mutation.error?.message} />
         <ConfirmButton done={done} pending={saving} />

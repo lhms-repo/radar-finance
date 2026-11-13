@@ -10,7 +10,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { haptic } from "@/lib/haptics";
 
 /** What can be personal or of a group (RF-83). */
-export type SpaceKind = "entry" | "purchase" | "bill" | "financing" | "income" | "savings";
+export type SpaceKind = "entry" | "purchase" | "bill" | "financing" | "income" | "savings" | "alelo";
 
 /** Optional space a new item goes to, instead of the active one (RF-83). */
 export type SpaceTarget = { space?: number };
