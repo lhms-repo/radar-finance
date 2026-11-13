@@ -48,7 +48,7 @@ test("cash flow shows closing, net worth and the search filters the entries (RF-
 
 test("budgets are set per top level category (RF-51)", async ({ page }, testInfo) => {
   // Projects share one database; each one writes a different value so the change is always real.
-  const value = { "iphone-webkit": "50000", "desktop-webkit": "51000", "desktop-chromium": "52000" }[testInfo.project.name] ?? "53000";
+  const value = { "iphone-webkit": "50000", "desktop-webkit": "51000", "desktop-chromium": "52000", "android-chromium": "53000" }[testInfo.project.name] ?? "54000";
   await page.goto("/settings/budgets");
   await page.getByLabel("Orçamento de Lazer", { exact: true }).fill(value);
   await page.getByRole("button", { name: "Salvar orçamento de Lazer" }).click();

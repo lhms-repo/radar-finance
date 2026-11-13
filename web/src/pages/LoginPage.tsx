@@ -183,7 +183,7 @@ export function LoginPage() {
   );
 }
 
-/** PIN field with the numeric keyboard of the iPhone; a wrong PIN clears it so the next try starts clean. */
+/** PIN field with the numeric keyboard of the phone; a wrong PIN clears it so the next try starts clean. */
 function PinForm({
   name,
   color,

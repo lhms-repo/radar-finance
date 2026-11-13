@@ -16,7 +16,7 @@ const LONG_PRESS_MS = 420;
 const EXPANDED_LINGER_MS = 1400;
 
 /**
- * iPhone bottom bar with five items and Add in the center (section 5.5).
+ * Bottom bar of the phone with five items and Add in the center (section 5.5).
  * Pressing and holding anywhere on the bar expands every label, inspired by
  * the Playful Bottom Nav reference. The active label is always visible.
  */

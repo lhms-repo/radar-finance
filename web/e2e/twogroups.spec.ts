@@ -3,7 +3,7 @@ import { isPhone, login, openShortcuts, switchSpace } from "./helpers";
 
 /** Fixture address of the fictional receipt, with an access key and a CNPJ of the project apart from market.spec.ts. */
 function receiptLink(project: string) {
-  const idx = { "iphone-webkit": 1, "desktop-webkit": 2, "desktop-chromium": 3 }[project] ?? 9;
+  const idx = { "iphone-webkit": 1, "desktop-webkit": 2, "desktop-chromium": 3, "android-chromium": 4 }[project] ?? 9;
   return `https://nfce.fixture.gov.br/?p=fictional%7C${String(idx).repeat(43)}7%7C1122233300015${idx}`;
 }
 

@@ -4,6 +4,7 @@ import { useMe } from "@/app/session";
 import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { AnimatePresence, motion } from "motion/react";
 import { DropdownMenu } from "radix-ui";
+import { MenuRoot } from "@/components/ui/menu-root";
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronLeft, CreditCard, Eye, HandCoins, EyeOff, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Scale, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -177,7 +178,7 @@ function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: 
 function AccountMenu({ account, onEdit, onToggle, onDelete }: { account: Account; onEdit: () => void; onToggle: () => void; onDelete: () => void }) {
   const item = "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent";
   return (
-    <DropdownMenu.Root>
+    <MenuRoot>
       <DropdownMenu.Trigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label="Ações da conta">
           <MoreHorizontal />
@@ -199,7 +200,7 @@ function AccountMenu({ account, onEdit, onToggle, onDelete }: { account: Account
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    </MenuRoot>
   );
 }
 

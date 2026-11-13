@@ -132,11 +132,11 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-/** Items shown directly in the iPhone bottom bar, around the Add button (section 5.5). */
+/** Items shown directly in the bottom bar of the phone, around the Add button (section 5.5). */
 export const BOTTOM_LEFT = ["overview", "cards"];
 export const BOTTOM_RIGHT = ["savings"];
 
-/** Screens reached through the More sheet on the iPhone, in the order of section 5.5. */
+/** Screens reached through the More sheet on the phone, in the order of section 5.5. */
 export const MORE_ITEMS = ["cash-flow", "alelo", "market", "bills", "receivables", "settlement", "settings"];
 
 /** Finds a navigation item by ID. */

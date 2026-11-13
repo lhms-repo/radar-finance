@@ -1,6 +1,7 @@
 import NumberFlow from "@number-flow/react";
 import { AnimatePresence, motion } from "motion/react";
 import { Popover } from "radix-ui";
+import { useCloseOnBack } from "@/lib/back";
 import { AlertTriangle, Bell, CircleAlert, Info } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -33,6 +34,7 @@ export function NotificationsButton() {
     navigate(n.link);
   };
 
+  useCloseOnBack(open, () => setOpen(false));
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>

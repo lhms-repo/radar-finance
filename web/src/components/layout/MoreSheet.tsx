@@ -4,12 +4,14 @@ import { ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink } from "react-router";
 import { MORE_ITEMS, navItem } from "@/app/nav";
+import { useCloseOnBack } from "@/lib/back";
 import { haptic } from "@/lib/haptics";
 import { softSpring } from "@/lib/motion";
 
-/** Bottom sheet with the screens that do not fit in the bar (section 5.5). */
+/** Bottom sheet with the screens that do not fit in the bar (section 5.5); back closes it first (RNF-26). */
 export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const me = useMe();
+  useCloseOnBack(open, onClose);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -55,8 +57,10 @@ export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => voi
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...softSpring, delay: 0.03 * i }}
                   >
+                    {/* Replacing the step of the sheet, back returns to the screen it was opened on. */}
                     <NavLink
                       to={item.path}
+                      replace
                       onClick={() => {
                         haptic();
                         onClose();

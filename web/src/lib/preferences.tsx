@@ -28,9 +28,29 @@ function resolveTheme(theme: Theme): "light" | "dark" {
   return theme;
 }
 
-/** Applies the resolved theme to the root element. */
+/** Background of each theme, also used by Android for the system bar (RNF-23); public/theme-init.js repeats it. */
+const THEME_COLORS = { light: "#f4f5f7", dark: "#0b0d12" } as const;
+
+/** Applies the resolved theme to the root element and to the color of the system bar. */
 function applyTheme(resolved: "light" | "dark") {
   document.documentElement.classList.toggle("dark", resolved === "dark");
+  applyThemeColor(resolved);
+}
+
+/** Leaves a single theme color with the theme chosen in the app, instead of the one of the operating system. */
+function applyThemeColor(resolved: "light" | "dark") {
+  const metas = document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]');
+  metas.forEach((m, i) => {
+    if (i > 0) m.remove();
+  });
+  let meta = metas[0];
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = "theme-color";
+    document.head.appendChild(meta);
+  }
+  meta.removeAttribute("media");
+  meta.content = THEME_COLORS[resolved];
 }
 
 /** Runs a DOM update with a circular reveal from origin, when supported (section 8.6). */

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { DropdownMenu } from "radix-ui";
+import { MenuRoot } from "@/components/ui/menu-root";
 import { CalendarClock, CreditCard, MoreHorizontal, Pencil, Plus, Receipt, Scale } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -191,7 +192,7 @@ function FinancingsCard({ onEdit, onCorrect }: { onEdit: (f: Financing) => void;
                 <span className="truncate text-sm font-medium">{f.name}</span>
                 {f.done && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[0.7rem] font-medium text-success">Quitado</span>}
               </div>
-              <DropdownMenu.Root>
+              <MenuRoot>
                 <DropdownMenu.Trigger asChild>
                   <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${f.name}`} className="-my-1">
                     <MoreHorizontal />
@@ -209,7 +210,7 @@ function FinancingsCard({ onEdit, onCorrect }: { onEdit: (f: Financing) => void;
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
-              </DropdownMenu.Root>
+              </MenuRoot>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-background" role="meter" aria-label={`Parcelas pagas de ${f.name}`} aria-valuemin={0} aria-valuemax={f.totalInstallments} aria-valuenow={f.paidInstallments}>
               <motion.div className="h-full rounded-full bg-gradient-to-r from-success-strong to-success-soft" initial={{ width: 0 }} animate={{ width: `${progress}%` }} transition={spring} />

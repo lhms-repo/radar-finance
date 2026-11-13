@@ -13,7 +13,7 @@ import { useLiveUpdates } from "@/lib/live";
 import { usePreferences } from "@/lib/preferences";
 import { fade } from "@/lib/motion";
 
-/** Authenticated layout: sidebar on desktop, bottom bar on iPhone (section 5). */
+/** Authenticated layout: sidebar on desktop, bottom bar on the phone (section 5). */
 export function AppShell() {
   const me = useMeQuery();
   const location = useLocation();
@@ -51,7 +51,7 @@ export function AppShell() {
   return <SignedInShell />;
 }
 
-/** Layout of a signed in user, listening to the changes made on the other iPhone. */
+/** Layout of a signed in user, listening to the changes made on the other phones. */
 function SignedInShell() {
   const location = useLocation();
   const me = useMeQuery();

@@ -103,7 +103,7 @@ function AppearanceCard() {
       <label className="flex items-center justify-between gap-4">
         <span>
           <span className="block text-sm font-medium">Resposta tátil</span>
-          <span className="block text-sm text-muted-foreground">Vibração leve nos toques do iPhone.</span>
+          <span className="block text-sm text-muted-foreground">Vibração leve nos toques do celular.</span>
         </span>
         <Switch
           checked={haptics}

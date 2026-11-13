@@ -20,6 +20,8 @@ export default defineConfig({
     { name: "iphone-webkit", use: { ...devices["iPhone 15"] } },
     { name: "desktop-webkit", use: { ...devices["Desktop Safari"] } },
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
+    // Chrome of Android with the screen and touch of a Pixel 7 (RNF-20).
+    { name: "android-chromium", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
     command: "bash e2e/server.sh",

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useQuickEntry, type QuickEntryPreset } from "@/features/quick-entry/QuickEntry";
+import { useCloseOnBack } from "@/lib/back";
 import { haptic } from "@/lib/haptics";
 import { spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ export function AddMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, () => setOpen(false), ref);
+  useCloseOnBack(open, () => setOpen(false));
   return (
     <div ref={ref} className="relative flex">
       <button
@@ -119,9 +121,10 @@ export function AddMenu() {
   );
 }
 
-/** Shortcuts fanned out above the iPhone Add button. */
+/** Shortcuts fanned out above the Add button of the phone; back closes them first (RNF-26). */
 export function AddFan({ open, onClose }: { open: boolean; onClose: () => void }) {
   const openShortcut = useOpenShortcut();
+  useCloseOnBack(open, onClose);
   return (
     <AnimatePresence>
       {open && (

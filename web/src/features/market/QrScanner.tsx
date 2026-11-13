@@ -55,7 +55,7 @@ export function QrScanner({ onRead }: { onRead: (text: string) => void }) {
         void v.play();
         frame = requestAnimationFrame(tick);
       })
-      .catch(() => setError("Não consegui abrir a câmera. Permita o acesso nos ajustes do Safari ou cole o link da nota abaixo."));
+      .catch(() => setError("Não consegui abrir a câmera. Permita o acesso à câmera nos ajustes do navegador ou cole o link da nota abaixo."));
     return () => {
       stopped = true;
       cancelAnimationFrame(frame);
