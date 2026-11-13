@@ -226,3 +226,19 @@ func TestMove(t *testing.T) {
 		t.Fatalf("expense back in %d, want %d", g, home)
 	}
 }
+
+// TestMoveOnlyByCreator keeps an item where it is when someone other than whoever recorded it tries to move it (RF-83).
+func TestMoveOnlyByCreator(t *testing.T) {
+	w := newWorld(t)
+	var bruno int64
+	if err := w.conn.QueryRow(`SELECT id FROM users WHERE login = 'bruno'`).Scan(&bruno); err != nil {
+		t.Fatal(err)
+	}
+	asBruno := auth.WithUserID(scope.WithGroup(context.Background(), home), bruno)
+	if err := w.s.Move(asBruno, KindEntry, w.ids["expense bruno"], brunoPersona); !errors.Is(err, ErrNotCreator) {
+		t.Fatalf("move by someone else: %v, want ErrNotCreator", err)
+	}
+	if g := w.groupOf(t, "entries", w.ids["expense bruno"]); g != home {
+		t.Fatalf("expense in %d, want %d", g, home)
+	}
+}

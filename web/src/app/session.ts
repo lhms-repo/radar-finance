@@ -1,14 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { api, clientId, unwrap, type Me, type Theme } from "@/api/client";
+import { api, clientId, setActiveSpace, unwrap, type Me, type Theme } from "@/api/client";
 
 export const ME_KEY = ["me"] as const;
 
 /** Fetches the logged in user, returning null when there is no session. */
 export async function fetchMe(): Promise<Me | null> {
   const res = await api.GET("/me");
-  if (res.response.status === 401) return null;
-  return unwrap(res);
+  if (res.response.status === 401) {
+    setActiveSpace(undefined);
+    return null;
+  }
+  const me = unwrap(res);
+  setActiveSpace(me.group.id);
+  return me;
 }
 
 /** Query of the logged in user. */
@@ -31,6 +36,7 @@ export function useLogout() {
     },
     onSettled: () => {
       qc.clear();
+      setActiveSpace(undefined);
       qc.setQueryData(ME_KEY, null);
       navigate("/login", { replace: true });
     },
@@ -54,6 +60,7 @@ export function useSwitchGroup() {
   return useMutation({
     mutationFn: async (groupId: number) => unwrap(await api.PUT("/me/group", { body: { groupId } })),
     onSuccess: (me) => {
+      setActiveSpace(me.group.id);
       qc.removeQueries({ predicate: (q) => q.queryKey[0] !== ME_KEY[0] });
       qc.setQueryData(ME_KEY, me);
       announceSessionChange();

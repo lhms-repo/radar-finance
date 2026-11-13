@@ -175,3 +175,27 @@ func TestNoTakeoverAcrossGroups(t *testing.T) {
 		t.Fatalf("ana login after the attempts = %d", resp.StatusCode)
 	}
 }
+
+// TestPersonalSpaceAdministersNothing refuses group management from the personal space, where everyone is the
+// administrator, so a member cannot create groups or people from there (RF-80, RF-83).
+func TestPersonalSpaceAdministersNothing(t *testing.T) {
+	srv, _ := testServer(t)
+	bruno := newClient(t)
+	signIn(t, bruno, srv, "bruno")
+	if resp := send(t, bruno, srv, http.MethodPost, "/api/groups", `{"name":"Grupo do Bruno"}`); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member creates a group in Casa = %d, want 403", resp.StatusCode)
+	}
+	// Bruno has the personal space 3, after Casa and the one of Ana.
+	if resp := send(t, bruno, srv, http.MethodPut, "/api/me/group", `{"groupId":3}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("switch to his personal space = %d", resp.StatusCode)
+	}
+	for _, c := range []struct{ method, path, body string }{
+		{http.MethodPost, "/api/groups", `{"name":"Grupo do Bruno"}`},
+		{http.MethodPut, "/api/group", `{"name":"Meu"}`},
+		{http.MethodPost, "/api/group/people", `{"name":"Carla Ficticia","login":"carla","pin":"9264","role":"member"}`},
+	} {
+		if resp := send(t, bruno, srv, c.method, c.path, c.body); resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s %s from the personal space = %d, want 403", c.method, c.path, resp.StatusCode)
+		}
+	}
+}

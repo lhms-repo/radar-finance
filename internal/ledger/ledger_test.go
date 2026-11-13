@@ -158,14 +158,19 @@ func TestBalance(t *testing.T) {
 	}
 }
 
-// TestAdjustBalance records the difference to the informed balance as an adjustment (RF-06).
+// TestAdjustBalance records the difference to the informed balance as an adjustment, made by the holder in her
+// personal space, since it tells the real balance (RF-06, RF-83).
 func TestAdjustBalance(t *testing.T) {
 	f := newFixture(t)
-	ctx := groupCtx
+	// Ana holds the accounts; her personal space has id 2, after Casa.
+	ctx := scope.WithGroup(context.Background(), 2)
 	a := f.newAccount(t, "Nubank Ana", 100_000)
 	closed := f.newAccount(t, "Antiga", 0)
-	if _, err := f.s.UpdateAccount(ctx, closed.ID, AccountChanges{Active: ptr(false)}); err != nil {
+	if _, err := f.s.UpdateAccount(groupCtx, closed.ID, AccountChanges{Active: ptr(false)}); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := f.s.AdjustBalance(groupCtx, f.userID, Adjustment{AccountID: a.ID, BalanceCents: 0, Date: day(t, "2026-11-11")}); !errors.Is(err, ErrAdjustInPersonal) {
+		t.Fatalf("adjust in the group: %v, want ErrAdjustInPersonal", err)
 	}
 
 	tests := []struct {
@@ -328,7 +333,7 @@ func TestMonthFlow(t *testing.T) {
 	if _, err := f.s.Transfer(ctx, f.userID, NewTransfer{FromAccountID: a.ID, ToAccountID: b.ID, AmountCents: 50_000, Date: day(t, "2026-11-10")}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.s.AdjustBalance(ctx, f.userID, Adjustment{AccountID: a.ID, BalanceCents: 1, Date: day(t, "2026-11-15")}); err != nil {
+	if _, err := f.s.AdjustBalance(scope.WithGroup(context.Background(), 2), f.userID, Adjustment{AccountID: a.ID, BalanceCents: 1, Date: day(t, "2026-11-15")}); err != nil {
 		t.Fatal(err)
 	}
 

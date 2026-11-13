@@ -478,3 +478,34 @@ func TestGroupIsolation(t *testing.T) {
 		t.Fatalf("imports of Ana = %d, want 1", len(got))
 	}
 }
+
+// TestPreviewSeesEverySpace flags as duplicates the lines already recorded in Casa when Ana imports in her personal
+// space, where she reads and pays the whole invoice, so nothing is recorded twice (RF-83, RN-20).
+func TestPreviewSeesEverySpace(t *testing.T) {
+	f := newFixture(t)
+	nov := func(d int) civil.Date { return civil.Date{Year: 2026, Month: time.November, Day: d} }
+	if _, err := f.cards.AddPurchase(groupCtx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: nov(4), Merchant: "Avulsa", CategoryID: f.cat["Delivery"], AmountCents: 10_000, Installments: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.cards.AddPurchase(groupCtx, f.userID, card.PurchaseInput{CardID: f.cardID, Date: civil.Date{Year: 2026, Month: time.September, Day: 20}, Merchant: "Loja Parcelada", CategoryID: f.cat["Delivery"], AmountCents: 40_000, Installments: 4}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.cards.AddRecurrence(groupCtx, f.userID, card.RecurrenceInput{CardID: f.cardID, Description: "Streaming", CategoryID: f.cat["Streaming"], AmountCents: 2_190, StartDate: nov(4)}); err != nil {
+		t.Fatal(err)
+	}
+	csv := "date,title,amount\n" +
+		"2026-11-04,Avulsa Ficticia,\"100,00\"\n" +
+		"2026-11-04,Loja Parcelada Ficticia - Parcela 3/4,\"100,00\"\n" +
+		"2026-11-04,Streaming Ficticio,\"21,90\"\n"
+	// Ana has the personal space 2, after Casa.
+	personal := auth.WithUserID(scope.WithGroup(context.Background(), 2), f.userID)
+	lines, err := f.s.Preview(personal, f.cardID, dec, csv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range lines {
+		if l.Duplicate == nil || !l.Skip {
+			t.Errorf("line %q recorded in Casa is not flagged in the personal space: %+v", l.Merchant, l)
+		}
+	}
+}

@@ -35,7 +35,7 @@ export function useSpaceChoice() {
   const { active } = useSpaces();
   const [chosen, setChosen] = useState<number | undefined>(undefined);
   const space = chosen ?? active;
-  return { space, setSpace: setChosen, target: space !== active ? space : undefined };
+  return { space, setSpace: setChosen, target: space || undefined };
 }
 
 /** Names a space for the person: Pessoal for the personal one, the group name otherwise. */

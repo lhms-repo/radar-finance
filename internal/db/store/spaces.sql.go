@@ -10,6 +10,30 @@ import (
 	"database/sql"
 )
 
+const itemCreator = `-- name: ItemCreator :one
+SELECT CAST(CASE CAST(?1 AS TEXT)
+    WHEN 'entry' THEN (SELECT x.created_by FROM entries x WHERE x.id = ?2)
+    WHEN 'purchase' THEN (SELECT x.created_by FROM purchases x WHERE x.id = ?2)
+    WHEN 'bill' THEN (SELECT x.created_by FROM bills x WHERE x.id = ?2)
+    WHEN 'financing' THEN (SELECT x.created_by FROM financings x WHERE x.id = ?2)
+    WHEN 'income' THEN (SELECT x.created_by FROM incomes x WHERE x.id = ?2)
+    WHEN 'savings' THEN (SELECT x.created_by FROM savings_boxes x WHERE x.id = ?2)
+    ELSE 0 END AS INTEGER) AS created_by
+`
+
+type ItemCreatorParams struct {
+	Kind   string
+	ItemID int64
+}
+
+// Who recorded the item, the only one who moves it to another space (RF-83).
+func (q *Queries) ItemCreator(ctx context.Context, arg ItemCreatorParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, itemCreator, arg.Kind, arg.ItemID)
+	var created_by int64
+	err := row.Scan(&created_by)
+	return created_by, err
+}
+
 const itemInGroup = `-- name: ItemInGroup :one
 
 SELECT CAST(CASE CAST(?1 AS TEXT)

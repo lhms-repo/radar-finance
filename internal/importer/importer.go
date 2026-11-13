@@ -404,15 +404,12 @@ type matched struct {
 
 // duplicate looks for a one-shot card purchase with the same amount bought within a day, or a recurrence with the same amount on the invoice (RN-20).
 // An installment line is matched only by number, count and amount on the invoice, since the CSV dates later installments
-// at the start of the cycle instead of the purchase day (RF-57). What matched one line is not used again.
+// at the start of the cycle instead of the purchase day (RF-57). What matched one line is not used again. Every
+// space of the card counts, so a line recorded in another space is not imported twice (RF-83).
 func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64, invoice civil.Month, l Line, recurring []card.Recurrence, used matched) (*Duplicate, error) {
-	groupID, err := scope.Group(ctx)
-	if err != nil {
-		return nil, err
-	}
 	if l.Installments > 0 && l.Kind == LinePurchase {
 		rows, err := q.CardInstallmentMatch(ctx, store.CardInstallmentMatchParams{
-			GroupID: groupID, CardID: cardID, InvoiceMonth: invoice.String(), Number: int64(l.Installment), InstallmentCount: int64(l.Installments), AmountCents: l.AmountCents,
+			CardID: cardID, InvoiceMonth: invoice.String(), Number: int64(l.Installment), InstallmentCount: int64(l.Installments), AmountCents: l.AmountCents,
 		})
 		if err != nil {
 			return nil, err
@@ -430,7 +427,7 @@ func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64,
 		}
 		return nil, nil
 	}
-	rows, err := q.CardItemsNear(ctx, store.CardItemsNearParams{GroupID: groupID, CardID: cardID, FirstDay: l.Date.AddDays(-1).String(), LastDay: l.Date.AddDays(1).String()})
+	rows, err := q.CardItemsNear(ctx, store.CardItemsNearParams{CardID: cardID, FirstDay: l.Date.AddDays(-1).String(), LastDay: l.Date.AddDays(1).String()})
 	if err != nil {
 		return nil, fmt.Errorf("items near: %w", err)
 	}

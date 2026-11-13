@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useNavigate, useOutlet } from "react-router";
-import { onUnauthorized } from "@/api/client";
+import { onUnauthorized, setActiveSpace } from "@/api/client";
 import { ME_KEY, useMeQuery, onSessionChange } from "@/app/session";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Logo } from "@/components/layout/Logo";
@@ -27,6 +27,7 @@ export function AppShell() {
       onUnauthorized(() => {
         // Data of the old session never shows to whoever enters next.
         qc.clear();
+        setActiveSpace(undefined);
         qc.setQueryData(ME_KEY, null);
         navigate("/login", { replace: true, state: { from: location.pathname } });
       }),

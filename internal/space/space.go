@@ -32,6 +32,7 @@ var (
 	ErrUnknownKind  = problem.Invalid("move_kind_invalid", "Escolha o que mover.")
 	ErrItemNotFound = problem.NotFound("move_item_not_found", "Item não encontrado neste espaço.")
 	ErrNotMember    = problem.Forbidden("move_target_forbidden", "Você não faz parte desse espaço.")
+	ErrNotCreator   = problem.Forbidden("move_not_creator", "Só quem lançou este item pode movê-lo para outro espaço.")
 	ErrCannotMove   = problem.Conflict("move_blocked", "Não dá para mover este item para esse espaço: a conta, o cartão ou a pessoa dele não fazem parte dele, ou ele está ligado a outro registro, como uma compra dividida ou o pagamento de uma conta fixa.")
 )
 
@@ -68,6 +69,14 @@ func (s *Service) Move(ctx context.Context, kind Kind, id, target int64) error {
 		}
 		if found == 0 {
 			return ErrItemNotFound
+		}
+		// Another member would take the item away from whoever recorded it, or show it in a group she chose not to.
+		creator, err := q.ItemCreator(ctx, store.ItemCreatorParams{Kind: string(kind), ItemID: id})
+		if err != nil {
+			return fmt.Errorf("item creator: %w", err)
+		}
+		if creator != auth.UserID(ctx) {
+			return ErrNotCreator
 		}
 		if target == groupID {
 			return nil

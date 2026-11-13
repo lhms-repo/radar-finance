@@ -63,7 +63,8 @@ SELECT i.id, i.purchase_id, i.number, i.amount_cents, p.kind, p.purchased_on, p.
        coalesce(pc.icon, '') AS category_icon,
        coalesce(bp.name, '') AS buyer_name,
        up.name AS created_by_name,
-       coalesce(g.name, '') AS group_name
+       coalesce(g.name, '') AS group_name,
+       CAST(coalesce(p.group_id, 0) AS INTEGER) AS group_id
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
 LEFT JOIN categories c ON c.id = p.category_id
@@ -86,7 +87,7 @@ ORDER BY i.invoice_month;
 
 -- name: ListCardRecurrences :many
 SELECT r.*, coalesce(c.name, '') AS category_name, coalesce(pc.name, '') AS parent_category_name,
-       coalesce(pc.icon, '') AS category_icon, coalesce(g.name, '') AS group_name
+       coalesce(pc.icon, '') AS category_icon, coalesce(g.name, '') AS group_name, CAST(coalesce(r.group_id, 0) AS INTEGER) AS space_id
 FROM recurrences r
 JOIN categories c ON c.id = r.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id

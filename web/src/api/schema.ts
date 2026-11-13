@@ -2074,6 +2074,11 @@ export interface components {
             createdAt: string;
             /** @description Space of the entry, on the full statement of the holder (RF-83). */
             groupName?: string;
+            /**
+             * Format: int64
+             * @description Id of the space of the entry; only entries of the active space can be changed there (RF-83).
+             */
+            groupId?: number;
         };
         Statement: {
             month: components["schemas"]["Month"];
@@ -2301,6 +2306,11 @@ export interface components {
             createdByName?: string;
             /** @description Space of the line, on the full invoice of the owner (RF-83). */
             groupName?: string;
+            /**
+             * Format: int64
+             * @description Id of the space of the line; only lines of the active space can be changed there (RF-83).
+             */
+            groupId?: number;
             thirdPartyCents?: components["schemas"]["Cents"];
             shares?: components["schemas"]["ItemShare"][];
         };

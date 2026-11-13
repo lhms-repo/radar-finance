@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { login } from "./helpers";
+import { login, switchSpace } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -50,6 +50,11 @@ test("accounts: balance, expense, transfer, adjustment and delete (RF-04 to RF-0
   await expect(balance).toContainText("R$ 874,50");
   await expect(page.getByText(`Transferência para ${b}`)).toBeVisible();
 
+  // The balance is adjusted by the holder in her personal space, which reads the real balance (RF-06, RF-83).
+  await expect(page.getByRole("button", { name: "Ajustar saldo" })).toHaveCount(0);
+  const detail = page.url();
+  await switchSpace(page, "Pessoal");
+  await page.goto(detail);
   await page.getByRole("button", { name: "Ajustar saldo" }).click();
   const adjust = page.getByRole("dialog", { name: "Ajustar saldo" });
   await adjust.getByLabel("Saldo real").fill("90000");
@@ -57,6 +62,9 @@ test("accounts: balance, expense, transfer, adjustment and delete (RF-04 to RF-0
   await expect(adjust).toBeHidden();
   await expect(balance).toContainText("R$ 900,00");
   await expect(page.getByText("Ajuste de saldo")).toBeVisible();
+  // The transfer was made in Casa, so it is deleted there.
+  await switchSpace(page, "Casa");
+  await page.goto(detail);
 
   await page.getByRole("button", { name: `Excluir Transferência para ${b}` }).click();
   const confirm = page.getByRole("dialog", { name: "Excluir lançamento?" });

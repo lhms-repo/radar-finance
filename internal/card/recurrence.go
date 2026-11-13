@@ -25,8 +25,9 @@ type Recurrence struct {
 	CategoryName       string
 	ParentCategoryName string
 	CategoryIcon       string
-	// GroupName is the space of the recurrence, shown on the full invoice of the owner (RF-83).
+	// GroupName and SpaceID are the space of the recurrence, on the full invoice of the owner (RF-83).
 	GroupName string
+	SpaceID   int64
 	// AmountCents is the price on the current invoice, or on the first one when it has not started yet.
 	AmountCents int64
 	StartMonth  civil.Month
@@ -266,7 +267,7 @@ func (s *Service) recurrencesIn(ctx context.Context, q *store.Queries, c Card, v
 		}
 		rec := Recurrence{
 			ID: r.ID, CardID: r.CardID, Description: r.Description, CategoryID: r.CategoryID, CategoryName: r.CategoryName,
-			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, GroupName: r.GroupName, StartMonth: start, prices: byID[r.ID],
+			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, GroupName: r.GroupName, SpaceID: r.SpaceID, StartMonth: start, prices: byID[r.ID],
 		}
 		if r.EndMonth.Valid {
 			end, err := civil.ParseMonth(r.EndMonth.String)

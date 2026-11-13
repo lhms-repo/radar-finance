@@ -62,22 +62,22 @@ WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 -- name: CardItemsNear :many
 -- One-shot purchases of the card bought within a day of the given date, for duplicates of one-shot CSV lines (RN-20).
 -- Installment purchases are left out: their CSV lines carry Parcela N/M and match by number (RF-57).
+-- Every space of the card counts, so a line recorded in another space is not imported twice (RF-83).
 SELECT i.id AS installment_id, p.id AS purchase_id, p.merchant, p.purchased_on, p.kind, i.amount_cents, i.number, p.installment_count, i.invoice_month
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE p.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
-  AND i.card_id = sqlc.arg(card_id)
+WHERE i.card_id = sqlc.arg(card_id)
   AND p.installment_count = 1
   AND p.purchased_on >= sqlc.arg(first_day) AND p.purchased_on <= sqlc.arg(last_day)
 ORDER BY i.id;
 
 -- name: CardInstallmentMatch :many
 -- Installments of the card on the invoice with the given number, count and amount, to link a CSV installment (RF-57).
+-- Every space of the card counts, as in CardItemsNear (RF-83).
 SELECT i.id AS installment_id, p.merchant, p.purchased_on, i.amount_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE p.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
-  AND i.card_id = sqlc.arg(card_id)
+WHERE i.card_id = sqlc.arg(card_id)
   AND i.invoice_month = sqlc.arg(invoice_month)
   AND i.number = sqlc.arg(number)
   AND p.installment_count = sqlc.arg(installment_count)

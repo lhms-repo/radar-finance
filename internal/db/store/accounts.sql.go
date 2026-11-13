@@ -360,7 +360,8 @@ SELECT e.id, e.account_id, e.kind, e.amount_cents, e.occurred_on, e.confirmed, e
              AND (CAST(?1 AS INTEGER) = 1 OR o.group_id = CAST(?2 AS INTEGER))
        ), '') AS TEXT) AS counterpart_account_name,
        p.name AS created_by_name,
-       coalesce(g.name, '') AS group_name
+       coalesce(g.name, '') AS group_name,
+       CAST(coalesce(e.group_id, 0) AS INTEGER) AS group_id
 FROM entries e
 LEFT JOIN categories c ON c.id = e.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
@@ -398,6 +399,7 @@ type ListAccountEntriesRow struct {
 	CounterpartAccountName string
 	CreatedByName          string
 	GroupName              string
+	GroupID                int64
 }
 
 // With full set, the holder reads the movements of every space in her personal space (RF-83).
@@ -433,6 +435,7 @@ func (q *Queries) ListAccountEntries(ctx context.Context, arg ListAccountEntries
 			&i.CounterpartAccountName,
 			&i.CreatedByName,
 			&i.GroupName,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}

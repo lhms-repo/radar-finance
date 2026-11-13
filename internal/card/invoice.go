@@ -54,8 +54,9 @@ type Item struct {
 	BuyerPersonID      *int64
 	BuyerName          string
 	CreatedByName      string
-	// GroupName is the space the line belongs to, shown on the full invoice of the owner (RF-83).
+	// GroupName and GroupID are the space the line belongs to, on the full invoice of the owner (RF-83).
 	GroupName string
+	GroupID   int64
 	// ThirdPartyCents is the part of this line owed by other people (RN-05).
 	ThirdPartyCents int64
 	Shares          []ItemShare
@@ -182,7 +183,7 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 			Kind: kind, PurchaseID: &pid, Date: &on, Merchant: r.Merchant, Description: r.Description, CategoryID: idPtr(r.CategoryID),
 			CategoryName: r.CategoryName, ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon,
 			Number: int(r.Number), Count: int(r.InstallmentCount), AmountCents: r.AmountCents, PurchaseTotalCents: r.TotalCents,
-			BuyerPersonID: idPtr(r.BuyerPersonID), BuyerName: r.BuyerName, CreatedByName: r.CreatedByName, GroupName: r.GroupName,
+			BuyerPersonID: idPtr(r.BuyerPersonID), BuyerName: r.BuyerName, CreatedByName: r.CreatedByName, GroupName: r.GroupName, GroupID: r.GroupID,
 		})
 		inv.TotalCents += r.AmountCents
 	}
@@ -201,7 +202,7 @@ func (s *Service) invoiceTx(ctx context.Context, q *store.Queries, cardID int64,
 		rid, cid := r.ID, r.CategoryID
 		inv.Items = append(inv.Items, Item{
 			Kind: ItemRecurrence, RecurrenceID: &rid, Merchant: r.Description, CategoryID: &cid, CategoryName: r.CategoryName,
-			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, AmountCents: amount, GroupName: r.GroupName,
+			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, AmountCents: amount, GroupName: r.GroupName, GroupID: r.SpaceID,
 		})
 		inv.TotalCents += amount
 	}

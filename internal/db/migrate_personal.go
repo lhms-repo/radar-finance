@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/pressly/goose/v3"
 )
@@ -37,16 +38,30 @@ SELECT g.id, g.owner_person_id, 'admin', 10000, g.created_at FROM groups g WHERE
 
 	// The owner pays the whole invoice of her card, so payments leave the shared groups for her personal one,
 	// and the account entry of each payment goes to the personal group of the account holder.
-	`UPDATE invoice_payments SET group_id = (
-    SELECT g.id FROM groups g JOIN cards c ON c.person_id = g.owner_person_id WHERE c.id = invoice_payments.card_id)`,
-	`UPDATE entries SET group_id = (
-    SELECT g.id FROM groups g JOIN accounts a ON a.person_id = g.owner_person_id WHERE a.id = entries.account_id)
+	`UPDATE invoice_payments SET group_id = coalesce((
+    SELECT g.id FROM groups g JOIN cards c ON c.person_id = g.owner_person_id WHERE c.id = invoice_payments.card_id), group_id)`,
+	`UPDATE entries SET group_id = coalesce((
+    SELECT g.id FROM groups g JOIN accounts a ON a.person_id = g.owner_person_id WHERE a.id = entries.account_id), group_id)
 WHERE kind = 'invoice_payment'`,
 }
 
 // personalMigration returns migration 22, run with foreign keys off since group_members cascades from groups.
 func personalMigration() *goose.Migration {
-	return goose.NewGoMigration(personalVersion, &goose.GoFunc{RunDB: rebuild("personal spaces", personalRebuild)}, &goose.GoFunc{RunDB: irreversiblePersonal})
+	return goose.NewGoMigration(personalVersion, &goose.GoFunc{RunDB: migratePersonal}, &goose.GoFunc{RunDB: irreversiblePersonal})
+}
+
+// migratePersonal refuses, with a message the owner can act on, a database where two groups paid the same invoice
+// of a card, which the owner now pays once; then it runs the rebuild.
+func migratePersonal(ctx context.Context, pool *sql.DB) error {
+	var twice int64
+	err := pool.QueryRowContext(ctx, `SELECT count(*) FROM (SELECT 1 FROM invoice_payments GROUP BY card_id, invoice_month HAVING count(*) > 1)`).Scan(&twice)
+	if err != nil {
+		return err
+	}
+	if twice > 0 {
+		return fmt.Errorf("migration 22: %d invoices of a card were paid in more than one group; undo all but one payment of each before upgrading", twice)
+	}
+	return runRebuild(ctx, pool, "personal spaces", personalRebuild)
 }
 
 // irreversiblePersonal refuses to undo migration 22: personal items would have no group to go back to.

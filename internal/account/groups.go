@@ -23,6 +23,9 @@ type Role string
 // kindPersonal marks the personal space of one person in groups.kind (RF-83).
 const kindPersonal = "personal"
 
+// personalName is the name of every personal space, which no shared group may take (RF-83).
+const personalName = "Pessoal"
+
 const (
 	RoleAdmin  Role = "admin"
 	RoleMember Role = "member"
@@ -54,6 +57,7 @@ var (
 	ErrLoginOrPIN         = problem.Invalid("login_or_pin_wrong", "Login ou PIN incorreto.")
 	ErrResetOutsideGroups = problem.Forbidden("pin_reset_other_groups", "Essa pessoa também está num grupo que você não administra. O PIN dela só pode ser redefinido por quem administra todos os grupos dela, ou pelo terminal.")
 	ErrPersonRequired     = problem.Invalid("person_required", "Informe o nome e o login da pessoa.")
+	ErrGroupNameReserved  = problem.Conflict("group_name_reserved", "Pessoal é o nome do espaço de cada pessoa. Escolha outro nome para o grupo.")
 	ErrPersonalGroup      = problem.Conflict("group_personal", "O espaço Pessoal é só seu: não tem outros membros, papéis nem outro nome.")
 )
 
@@ -479,6 +483,8 @@ func cleanGroupName(name string) (string, error) {
 		return "", ErrGroupNameRequired
 	case utf8.RuneCountInString(name) > maxGroupName:
 		return "", ErrGroupNameTooLong
+	case strings.EqualFold(name, personalName):
+		return "", ErrGroupNameReserved
 	}
 	return name, nil
 }
