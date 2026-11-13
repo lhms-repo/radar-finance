@@ -142,7 +142,9 @@ func (a *API) SwitchGroup(ctx context.Context, req gen.SwitchGroupRequestObject)
 	} else if !ok {
 		return nil, account.ErrNotMember
 	}
-	auth.SwitchGroup(ctx, a.d.Sessions, req.Body.GroupId)
+	if err := auth.SwitchGroup(ctx, a.d.Sessions, req.Body.GroupId); err != nil {
+		return nil, err
+	}
 	me, err := a.me(ctx, user, req.Body.GroupId)
 	if err != nil {
 		return nil, err

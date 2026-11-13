@@ -69,8 +69,27 @@ func SignIn(ctx context.Context, sm *scs.SessionManager, userID, groupID int64) 
 }
 
 // SwitchGroup changes the active group of the session; the caller checks the membership first (RF-81).
-func SwitchGroup(ctx context.Context, sm *scs.SessionManager, groupID int64) {
+// The group is also written beside the session data, where a request that loaded the session before the switch
+// and saves it after cannot bring the old group back.
+func SwitchGroup(ctx context.Context, sm *scs.SessionManager, groupID int64) error {
 	sm.Put(ctx, sessionGroupKey, groupID)
+	st, ok := sm.Store.(*SQLiteStore)
+	if !ok || sm.Token(ctx) == "" {
+		return nil
+	}
+	return db.WithTx(ctx, st.conn, func(q *store.Queries) error {
+		return q.SetSessionGroup(ctx, store.SetSessionGroupParams{GroupID: sql.NullInt64{Int64: groupID, Valid: true}, Token: sm.Token(ctx)})
+	})
+}
+
+// activeGroup returns the group of a session loaded in ctx: the one of the last switch, or the one chosen at the entry.
+func activeGroup(ctx context.Context, sm *scs.SessionManager) int64 {
+	if st, ok := sm.Store.(*SQLiteStore); ok && sm.Token(ctx) != "" {
+		if g, err := store.New(st.conn).SessionGroup(ctx, sm.Token(ctx)); err == nil && g > 0 {
+			return g
+		}
+	}
+	return sm.GetInt64(ctx, sessionGroupKey)
 }
 
 // SignOut destroys the current session.
@@ -87,7 +106,7 @@ func RequireUser(sm *scs.SessionManager, public func(*http.Request) bool, next h
 			return
 		}
 		id := sm.GetInt64(r.Context(), sessionUserKey)
-		group := sm.GetInt64(r.Context(), sessionGroupKey)
+		group := activeGroup(r.Context(), sm)
 		if id == 0 || group == 0 {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusUnauthorized)
@@ -235,7 +254,7 @@ func SessionUser(sm *scs.SessionManager, r *http.Request) (userID, groupID int64
 	if err != nil {
 		return 0, 0
 	}
-	return sm.GetInt64(ctx, sessionUserKey), sm.GetInt64(ctx, sessionGroupKey)
+	return sm.GetInt64(ctx, sessionUserKey), activeGroup(ctx, sm)
 }
 
 // CurrentUser returns the user of a session already loaded in the context, zero when signed out.
@@ -245,5 +264,5 @@ func CurrentUser(ctx context.Context, sm *scs.SessionManager) int64 {
 
 // CurrentGroup returns the active group of a session already loaded in the context, zero when there is none.
 func CurrentGroup(ctx context.Context, sm *scs.SessionManager) int64 {
-	return sm.GetInt64(ctx, sessionGroupKey)
+	return activeGroup(ctx, sm)
 }

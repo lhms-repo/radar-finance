@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 )
 
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :execrows
@@ -48,6 +49,36 @@ func (q *Queries) FindSession(ctx context.Context, arg FindSessionParams) ([]byt
 	var data []byte
 	err := row.Scan(&data)
 	return data, err
+}
+
+const sessionGroup = `-- name: SessionGroup :one
+SELECT CAST(coalesce(group_id, 0) AS INTEGER) AS group_id
+FROM sessions
+WHERE token = ?
+`
+
+func (q *Queries) SessionGroup(ctx context.Context, token string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, sessionGroup, token)
+	var group_id int64
+	err := row.Scan(&group_id)
+	return group_id, err
+}
+
+const setSessionGroup = `-- name: SetSessionGroup :exec
+UPDATE sessions
+SET group_id = ?
+WHERE token = ?
+`
+
+type SetSessionGroupParams struct {
+	GroupID sql.NullInt64
+	Token   string
+}
+
+// Only a group switch writes it; the commits of scs keep it (RF-81).
+func (q *Queries) SetSessionGroup(ctx context.Context, arg SetSessionGroupParams) error {
+	_, err := q.db.ExecContext(ctx, setSessionGroup, arg.GroupID, arg.Token)
+	return err
 }
 
 const upsertSession = `-- name: UpsertSession :exec

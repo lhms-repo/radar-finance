@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { api, unwrap, type Me, type Theme } from "@/api/client";
+import { api, clientId, unwrap, type Me, type Theme } from "@/api/client";
 
 export const ME_KEY = ["me"] as const;
 
@@ -69,7 +69,8 @@ const SESSION_CHANNEL = "radar-session";
 export function announceSessionChange() {
   if (typeof BroadcastChannel === "undefined") return;
   const channel = new BroadcastChannel(SESSION_CHANNEL);
-  channel.postMessage("changed");
+  // The id of this tab goes along: other channels of this same tab also hear it and must not reload it.
+  channel.postMessage(clientId);
   channel.close();
 }
 
@@ -77,6 +78,8 @@ export function announceSessionChange() {
 export function onSessionChange(fn: () => void) {
   if (typeof BroadcastChannel === "undefined") return () => {};
   const channel = new BroadcastChannel(SESSION_CHANNEL);
-  channel.onmessage = () => fn();
+  channel.onmessage = (e: MessageEvent<unknown>) => {
+    if (e.data !== clientId) fn();
+  };
   return () => channel.close();
 }
