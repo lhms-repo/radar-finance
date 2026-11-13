@@ -435,6 +435,7 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   const close = () => {
     mutation.reset();
     split.reset();
+    where.setSpace(undefined);
     form.reset();
     onClose();
   };

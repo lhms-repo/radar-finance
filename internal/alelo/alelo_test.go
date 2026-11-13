@@ -346,11 +346,17 @@ func TestHolderView(t *testing.T) {
 	if _, err := f.s.ConfirmCredit(anaPersonal, f.userID, Credit{AleloID: c.ID, Month: nov}); err != nil {
 		t.Fatal(err)
 	}
+	ana, err := account.NewService(f.conn).Get(groupCtx, f.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A second shared group of Ana, where she also uses the card.
+	beach := testutil.NewGroup(t, f.conn, "Praia", ana)
 	for _, p := range []struct {
 		ctx  context.Context
 		desc string
 		cost int64
-	}{{groupCtx, "Feira de Casa", 3_000}, {anaPersonal, "Lanche pessoal", 1_000}} {
+	}{{groupCtx, "Feira de Casa", 3_000}, {anaPersonal, "Lanche pessoal", 1_000}, {beach, "Peixe da praia", 500}} {
 		if _, err := f.s.AddPurchase(p.ctx, f.userID, Purchase{AleloID: c.ID, Date: date(2026, time.November, 11), Description: p.desc, AmountCents: p.cost}); err != nil {
 			t.Fatal(err)
 		}
@@ -365,7 +371,8 @@ func TestHolderView(t *testing.T) {
 		credit              int64
 	}{
 		{name: "group reads its purchases only", ctx: groupCtx, purchases: []string{"Feira de Casa"}, spent: 3_000},
-		{name: "holder reads every space in her personal space", ctx: anaPersonal, full: true, purchases: []string{"Lanche pessoal", "Feira de Casa"}, spent: 4_000, opening: 12_000, credit: 80_000, end: 88_000},
+		{name: "another group reads its purchases only", ctx: beach, purchases: []string{"Peixe da praia"}, spent: 500},
+		{name: "holder reads every space in her personal space", ctx: anaPersonal, full: true, purchases: []string{"Peixe da praia", "Lanche pessoal", "Feira de Casa"}, spent: 4_500, opening: 12_000, credit: 80_000, end: 87_500},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -384,7 +391,7 @@ func TestHolderView(t *testing.T) {
 					t.Fatalf("purchase %d = %q, want %q", i, v.Purchases[i].Description, want)
 				}
 			}
-			if tt.full && (v.Purchases[0].GroupName != "Pessoal" || v.Purchases[1].GroupName != "Casa") {
+			if tt.full && (v.Purchases[0].GroupName != "Praia" || v.Purchases[1].GroupName != "Pessoal" || v.Purchases[2].GroupName != "Casa") {
 				t.Fatalf("spaces of the purchases = %+v", v.Purchases)
 			}
 		})
@@ -406,8 +413,8 @@ func TestHolderView(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Owned != tt.owned || got.BalanceCents != 88_000 {
-			t.Fatalf("%s reads %+v; want owned %v and balance 88000", tt.name, got, tt.owned)
+		if got.Owned != tt.owned || got.BalanceCents != 87_500 {
+			t.Fatalf("%s reads %+v; want owned %v and balance 87500", tt.name, got, tt.owned)
 		}
 	}
 }

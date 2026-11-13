@@ -1,5 +1,6 @@
 import { Clock, History, Pencil, Plus, ReceiptText, Search, Store, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useSpaceWords } from "@/app/space";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription } from "@/components/ui/card";
 import { Dialog, DialogActions } from "@/components/ui/dialog";
@@ -334,6 +335,7 @@ function PriceCorrectionDialog({ price, onClose }: { price: MarketPrice | null; 
 /** Markets with neighborhood and number of prices (RF-65). */
 export function MarketsTab() {
   const markets = useMarkets();
+  const words = useSpaceWords();
   const [editing, setEditing] = useState<Market | "new" | null>(null);
   return (
     <div className="flex flex-col gap-3">
@@ -360,7 +362,7 @@ export function MarketsTab() {
               </Button>
             </li>
           ))}
-          {markets.data?.length === 0 && <li className="px-2 py-6 text-center text-sm text-muted-foreground">Cadastre os mercados onde vocês compram.</li>}
+          {markets.data?.length === 0 && <li className="px-2 py-6 text-center text-sm text-muted-foreground">{words.personal ? "Cadastre os mercados onde você compra." : "Cadastre os mercados onde o grupo compra."}</li>}
         </ul>
       </Card>
       <MarketDialog state={editing} onClose={() => setEditing(null)} />

@@ -168,3 +168,29 @@ func TestEventsStreamEndsOnHubClose(t *testing.T) {
 		t.Fatal("stream still open after the hub closed")
 	}
 }
+
+// TestOtherSpace finds the space a write also reached: the target of a move even with the active space in the
+// header, which the client sends on every call, and the header of a creation (RF-83).
+func TestOtherSpace(t *testing.T) {
+	tests := []struct {
+		name, path, header string
+		want               int64
+		ok                 bool
+	}{
+		{name: "move with the active space in the header", path: "/api/spaces/4/moves", header: "1", want: 4, ok: true},
+		{name: "creation in another space", path: "/api/alelo/7/purchases", header: "2", want: 2, ok: true},
+		{name: "no header", path: "/api/alelo/7/purchases", ok: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequest(http.MethodPost, tt.path, nil)
+			if tt.header != "" {
+				r.Header.Set("X-Radar-Space", tt.header)
+			}
+			got, ok := otherSpace(r)
+			if got != tt.want || ok != tt.ok {
+				t.Fatalf("otherSpace = %d, %v; want %d, %v", got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
