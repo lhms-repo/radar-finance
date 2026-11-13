@@ -576,14 +576,17 @@ type Account struct {
 	Active bool `json:"active"`
 
 	// BalanceCents Amount in cents (RN-21).
-	BalanceCents Cents `json:"balanceCents"`
-	Id           int64 `json:"id"`
+	BalanceCents *Cents `json:"balanceCents,omitempty"`
+	Id           int64  `json:"id"`
 
 	// InitialBalanceCents Amount in cents (RN-21).
 	InitialBalanceCents Cents  `json:"initialBalanceCents"`
 	Name                string `json:"name"`
-	PersonId            int64  `json:"personId"`
-	PersonName          string `json:"personName"`
+
+	// Owned Whether the user is the holder of the account (RF-83).
+	Owned      bool   `json:"owned"`
+	PersonId   int64  `json:"personId"`
+	PersonName string `json:"personName"`
 }
 
 // AccountCreate defines model for AccountCreate.
@@ -658,6 +661,9 @@ type AgendaItem struct {
 	Number        *int                `json:"number,omitempty"`
 	Paid          bool                `json:"paid"`
 	PaidOn        *openapi_types.Date `json:"paidOn,omitempty"`
+
+	// Payable False for the part of an invoice a group reads, paid only by the owner in her personal space (RF-83).
+	Payable *bool `json:"payable,omitempty"`
 
 	// RefId Id of the bill, financing or card.
 	RefId int64 `json:"refId"`
@@ -951,13 +957,16 @@ type Card struct {
 	LimitCents Cents `json:"limitCents"`
 
 	// LimitFreeCents Amount in cents (RN-21).
-	LimitFreeCents Cents `json:"limitFreeCents"`
+	LimitFreeCents *Cents `json:"limitFreeCents,omitempty"`
 
 	// LimitUsedCents Amount in cents (RN-21).
-	LimitUsedCents Cents  `json:"limitUsedCents"`
+	LimitUsedCents *Cents `json:"limitUsedCents,omitempty"`
 	Name           string `json:"name"`
-	PersonId       int64  `json:"personId"`
-	PersonName     string `json:"personName"`
+
+	// Owned Whether the user is the holder of the card (RF-83).
+	Owned      bool   `json:"owned"`
+	PersonId   int64  `json:"personId"`
+	PersonName string `json:"personName"`
 }
 
 // CardColor Color of the card drawing; nubank_croma draws the Nubank Croma face and ignores the finish.
@@ -1139,10 +1148,13 @@ type Entry struct {
 	CreatedByName          string             `json:"createdByName"`
 	Date                   openapi_types.Date `json:"date"`
 	Description            string             `json:"description"`
-	Id                     int64              `json:"id"`
-	Kind                   EntryKind          `json:"kind"`
-	ParentCategoryName     *string            `json:"parentCategoryName,omitempty"`
-	TransferId             *int64             `json:"transferId,omitempty"`
+
+	// GroupName Space of the entry, on the full statement of the holder (RF-83).
+	GroupName          *string   `json:"groupName,omitempty"`
+	Id                 int64     `json:"id"`
+	Kind               EntryKind `json:"kind"`
+	ParentCategoryName *string   `json:"parentCategoryName,omitempty"`
+	TransferId         *int64    `json:"transferId,omitempty"`
 }
 
 // EntryKind defines model for EntryKind.
@@ -1565,10 +1577,15 @@ type IncomeOccurrence struct {
 
 // Invoice defines model for Invoice.
 type Invoice struct {
+	// CanPay The owner may pay it now, in her personal space (RF-21, RF-83).
+	CanPay    bool               `json:"canPay"`
 	CardId    int64              `json:"cardId"`
 	ClosingOn openapi_types.Date `json:"closingOn"`
 	DueOn     openapi_types.Date `json:"dueOn"`
-	Items     []InvoiceItem      `json:"items"`
+
+	// Full The whole invoice of every space, read by the owner in her personal space; otherwise the part of the group (RF-83).
+	Full  bool          `json:"full"`
+	Items []InvoiceItem `json:"items"`
 
 	// Month Example: 2026-11
 	Month Month `json:"month"`
@@ -1611,8 +1628,11 @@ type InvoiceItem struct {
 	// Date Purchase date, kept only as information (RN-01).
 	Date        *openapi_types.Date `json:"date,omitempty"`
 	Description string              `json:"description"`
-	Kind        InvoiceItemKind     `json:"kind"`
-	Merchant    string              `json:"merchant"`
+
+	// GroupName Space of the line, on the full invoice of the owner (RF-83).
+	GroupName *string         `json:"groupName,omitempty"`
+	Kind      InvoiceItemKind `json:"kind"`
+	Merchant  string          `json:"merchant"`
 
 	// Number Installment number, zero for recurrences.
 	Number             int     `json:"number"`
@@ -2438,14 +2458,17 @@ type SplitShare struct {
 // Statement defines model for Statement.
 type Statement struct {
 	// ClosingCents Amount in cents (RN-21).
-	ClosingCents Cents   `json:"closingCents"`
+	ClosingCents *Cents  `json:"closingCents,omitempty"`
 	Entries      []Entry `json:"entries"`
+
+	// Full Every space with balances, for the holder in her personal space; otherwise the movements of the group only (RF-83).
+	Full bool `json:"full"`
 
 	// Month Example: 2026-11
 	Month Month `json:"month"`
 
 	// OpeningCents Amount in cents (RN-21).
-	OpeningCents Cents `json:"openingCents"`
+	OpeningCents *Cents `json:"openingCents,omitempty"`
 }
 
 // Theme defines model for Theme.

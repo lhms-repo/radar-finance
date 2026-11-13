@@ -113,7 +113,8 @@ func (s *Service) List(ctx context.Context, userID int64) (List, error) {
 			return List{}, err
 		}
 		for _, it := range ag.Items {
-			if it.Paid || it.AmountCents <= 0 {
+			// A group never warns about the invoice of a card: only the owner pays it, in her personal space (RF-83).
+			if it.Paid || !it.Payable || it.AmountCents <= 0 {
 				continue
 			}
 			if reg, ok := registered[string(it.Kind)+":"+strconv.FormatInt(it.RefID, 10)]; ok && monthIndex(it.DueOn.MonthOf()) < monthIndex(reg) {

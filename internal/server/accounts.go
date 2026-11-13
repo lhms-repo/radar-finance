@@ -100,9 +100,13 @@ func (a *API) GetAccountStatement(ctx context.Context, req gen.GetAccountStateme
 	for _, e := range st.Entries {
 		entries = append(entries, toEntry(e))
 	}
-	return gen.GetAccountStatement200JSONResponse{
-		Month: st.Month.String(), OpeningCents: st.OpeningCents, ClosingCents: st.ClosingCents, Entries: entries,
-	}, nil
+	out := gen.GetAccountStatement200JSONResponse{Month: st.Month.String(), Entries: entries, Full: st.Full}
+	// Balances only on the full statement of the holder (RF-83).
+	if st.Full {
+		opening, closing := st.OpeningCents, st.ClosingCents
+		out.OpeningCents, out.ClosingCents = &opening, &closing
+	}
+	return out, nil
 }
 
 // AdjustAccountBalance records an adjustment to the informed balance (RF-06).
@@ -172,10 +176,16 @@ func (a *API) GetMonthFlow(ctx context.Context, req gen.GetMonthFlowRequestObjec
 
 // toAccount converts an account to the API model.
 func toAccount(a ledger.Account) gen.Account {
-	return gen.Account{
+	out := gen.Account{
 		Id: a.ID, Name: a.Name, PersonId: a.PersonID, PersonName: a.PersonName,
-		InitialBalanceCents: a.InitialBalanceCents, BalanceCents: a.BalanceCents, Active: a.Active,
+		InitialBalanceCents: a.InitialBalanceCents, Active: a.Active, Owned: a.Owned,
 	}
+	// The real balance tells the movements of every space, so only the holder reads it (RF-83).
+	if a.Owned {
+		balance := a.BalanceCents
+		out.BalanceCents = &balance
+	}
+	return out
 }
 
 // toEntry converts an entry to the API model, leaving empty names out.
@@ -186,6 +196,7 @@ func toEntry(e ledger.Entry) gen.Entry {
 		CategoryName: optional(e.CategoryName), ParentCategoryName: optional(e.ParentCategoryName),
 		CategoryIcon: optional(e.CategoryIcon), Description: e.Description, TransferId: e.TransferID,
 		CounterpartAccountName: optional(e.CounterpartAccountName), CreatedByName: e.CreatedByName, CreatedAt: e.CreatedAt,
+		GroupName: optional(e.GroupName),
 	}
 }
 

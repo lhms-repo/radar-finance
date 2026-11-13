@@ -14,20 +14,20 @@ import (
 const accountBalance = `-- name: AccountBalance :one
 SELECT CAST(a.initial_balance_cents + coalesce((
            SELECT sum(e.amount_cents) FROM entries e
-           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(?1 AS INTEGER)
+           WHERE e.account_id = a.id AND e.confirmed
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
-WHERE a.id = ?2
-  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = a.person_id)
+WHERE a.id = ?1
+  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = a.person_id)
 `
 
 type AccountBalanceParams struct {
-	GroupID int64
 	ID      int64
+	GroupID int64
 }
 
 func (q *Queries) AccountBalance(ctx context.Context, arg AccountBalanceParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, accountBalance, arg.GroupID, arg.ID)
+	row := q.db.QueryRowContext(ctx, accountBalance, arg.ID, arg.GroupID)
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
 	return balance_cents, err
@@ -36,21 +36,21 @@ func (q *Queries) AccountBalance(ctx context.Context, arg AccountBalanceParams) 
 const accountBalanceBefore = `-- name: AccountBalanceBefore :one
 SELECT CAST(a.initial_balance_cents + coalesce((
            SELECT sum(e.amount_cents) FROM entries e
-           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(?1 AS INTEGER) AND e.occurred_on < ?2
+           WHERE e.account_id = a.id AND e.confirmed AND e.occurred_on < ?1
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
-WHERE a.id = ?3
-  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = a.person_id)
+WHERE a.id = ?2
+  AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?3 AS INTEGER) AND gm.person_id = a.person_id)
 `
 
 type AccountBalanceBeforeParams struct {
-	GroupID   int64
 	Day       string
 	AccountID int64
+	GroupID   int64
 }
 
 func (q *Queries) AccountBalanceBefore(ctx context.Context, arg AccountBalanceBeforeParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, accountBalanceBefore, arg.GroupID, arg.Day, arg.AccountID)
+	row := q.db.QueryRowContext(ctx, accountBalanceBefore, arg.Day, arg.AccountID, arg.GroupID)
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
 	return balance_cents, err
@@ -356,21 +356,25 @@ SELECT e.id, e.account_id, e.kind, e.amount_cents, e.occurred_on, e.confirmed, e
        coalesce(pc.icon, c.icon, '') AS category_icon,
        CAST(coalesce((
            SELECT oa.name FROM entries o JOIN accounts oa ON oa.id = o.account_id
-           WHERE o.transfer_id = e.transfer_id AND o.id <> e.id AND o.group_id = CAST(?1 AS INTEGER)
+           WHERE o.transfer_id = e.transfer_id AND o.id <> e.id
+             AND (CAST(?1 AS INTEGER) = 1 OR o.group_id = CAST(?2 AS INTEGER))
        ), '') AS TEXT) AS counterpart_account_name,
-       p.name AS created_by_name
+       p.name AS created_by_name,
+       coalesce(g.name, '') AS group_name
 FROM entries e
 LEFT JOIN categories c ON c.id = e.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
 JOIN users u ON u.id = e.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE e.group_id = CAST(?1 AS INTEGER)
-  AND e.account_id = ?2
-  AND e.occurred_on >= ?3 AND e.occurred_on <= ?4
+LEFT JOIN groups g ON g.id = e.group_id
+WHERE (CAST(?1 AS INTEGER) = 1 OR e.group_id = CAST(?2 AS INTEGER))
+  AND e.account_id = ?3
+  AND e.occurred_on >= ?4 AND e.occurred_on <= ?5
 ORDER BY e.occurred_on DESC, e.id DESC
 `
 
 type ListAccountEntriesParams struct {
+	Full      int64
 	GroupID   int64
 	AccountID int64
 	FirstDay  string
@@ -393,10 +397,13 @@ type ListAccountEntriesRow struct {
 	CategoryIcon           string
 	CounterpartAccountName string
 	CreatedByName          string
+	GroupName              string
 }
 
+// With full set, the holder reads the movements of every space in her personal space (RF-83).
 func (q *Queries) ListAccountEntries(ctx context.Context, arg ListAccountEntriesParams) ([]ListAccountEntriesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAccountEntries,
+		arg.Full,
 		arg.GroupID,
 		arg.AccountID,
 		arg.FirstDay,
@@ -425,6 +432,7 @@ func (q *Queries) ListAccountEntries(ctx context.Context, arg ListAccountEntries
 			&i.CategoryIcon,
 			&i.CounterpartAccountName,
 			&i.CreatedByName,
+			&i.GroupName,
 		); err != nil {
 			return nil, err
 		}
@@ -443,7 +451,7 @@ const listAccounts = `-- name: ListAccounts :many
 SELECT a.id, a.name, a.person_id, p.name AS person_name, a.initial_balance_cents, a.active,
        CAST(a.initial_balance_cents + coalesce((
            SELECT sum(e.amount_cents) FROM entries e
-           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(?1 AS INTEGER)
+           WHERE e.account_id = a.id AND e.confirmed
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
 JOIN persons p ON p.id = a.person_id
@@ -461,7 +469,8 @@ type ListAccountsRow struct {
 	BalanceCents        int64
 }
 
-// Accounts held by members of the group, with the balance made of the group's entries only (RF-82).
+// Accounts held by members of the group, with the real balance made of every movement in any space (RF-82, RF-83);
+// the API shows it only to the holder.
 func (q *Queries) ListAccounts(ctx context.Context, groupID int64) ([]ListAccountsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAccounts, groupID)
 	if err != nil {

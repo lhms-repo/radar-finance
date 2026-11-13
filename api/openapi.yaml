@@ -3419,7 +3419,7 @@ components:
 
     Account:
       type: object
-      required: [id, name, personId, personName, initialBalanceCents, balanceCents, active]
+      required: [id, name, personId, personName, initialBalanceCents, active, owned]
       properties:
         id:
           type: integer
@@ -3434,8 +3434,12 @@ components:
         initialBalanceCents:
           $ref: "#/components/schemas/Cents"
         balanceCents:
+          description: Real balance, with every movement in any space; only for the holder (RF-83).
           $ref: "#/components/schemas/Cents"
         active:
+          type: boolean
+        owned:
+          description: Whether the user is the holder of the account (RF-83).
           type: boolean
 
     AccountCreate:
@@ -3512,13 +3516,19 @@ components:
         createdAt:
           type: string
           format: date-time
+        groupName:
+          description: Space of the entry, on the full statement of the holder (RF-83).
+          type: string
 
     Statement:
       type: object
-      required: [month, openingCents, closingCents, entries]
+      required: [month, entries, full]
       properties:
         month:
           $ref: "#/components/schemas/Month"
+        full:
+          description: Every space with balances, for the holder in her personal space; otherwise the movements of the group only (RF-83).
+          type: boolean
         openingCents:
           $ref: "#/components/schemas/Cents"
         closingCents:
@@ -3819,7 +3829,7 @@ components:
 
     Card:
       type: object
-      required: [id, name, personId, personName, limitCents, closingDay, dueDay, color, finish, active, limitUsedCents, limitFreeCents, currentInvoice, currentInvoiceDueOn]
+      required: [id, name, personId, personName, limitCents, closingDay, dueDay, color, finish, active, owned, currentInvoice, currentInvoiceDueOn]
       properties:
         id:
           type: integer
@@ -3846,9 +3856,14 @@ components:
         active:
           type: boolean
         limitUsedCents:
+          description: Used limit of the whole card; only for the holder (RF-83).
           $ref: "#/components/schemas/Cents"
         limitFreeCents:
+          description: Free limit of the whole card; only for the holder (RF-83).
           $ref: "#/components/schemas/Cents"
+        owned:
+          description: Whether the user is the holder of the card (RF-83).
+          type: boolean
         currentInvoice:
           $ref: "#/components/schemas/Month"
         currentInvoiceDueOn:
@@ -3912,6 +3927,9 @@ components:
           type: string
         createdByName:
           type: string
+        groupName:
+          description: Space of the line, on the full invoice of the owner (RF-83).
+          type: string
         thirdPartyCents:
           $ref: "#/components/schemas/Cents"
         shares:
@@ -3939,7 +3957,7 @@ components:
 
     Invoice:
       type: object
-      required: [cardId, month, closingOn, dueOn, status, totalCents, thirdPartyCents, receivedCents, pendingCents, netCents, items, paymentOutdated]
+      required: [cardId, month, closingOn, dueOn, status, totalCents, thirdPartyCents, receivedCents, pendingCents, netCents, items, paymentOutdated, full, canPay]
       properties:
         cardId:
           type: integer
@@ -3973,6 +3991,12 @@ components:
         paymentOutdated:
           type: boolean
           description: The total changed after the payment was recorded.
+        full:
+          type: boolean
+          description: The whole invoice of every space, read by the owner in her personal space; otherwise the part of the group (RF-83).
+        canPay:
+          type: boolean
+          description: The owner may pay it now, in her personal space (RF-21, RF-83).
 
     InvoiceSummary:
       type: object
@@ -4499,6 +4523,9 @@ components:
           $ref: "#/components/schemas/Cents"
         invoiceStatus:
           $ref: "#/components/schemas/InvoiceStatus"
+        payable:
+          description: False for the part of an invoice a group reads, paid only by the owner in her personal space (RF-83).
+          type: boolean
 
     AgendaDay:
       type: object

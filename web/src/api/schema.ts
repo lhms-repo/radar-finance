@@ -1999,8 +1999,11 @@ export interface components {
             personId: number;
             personName: string;
             initialBalanceCents: components["schemas"]["Cents"];
-            balanceCents: components["schemas"]["Cents"];
+            /** @description Real balance, with every movement in any space; only for the holder (RF-83). */
+            balanceCents?: components["schemas"]["Cents"];
             active: boolean;
+            /** @description Whether the user is the holder of the account (RF-83). */
+            owned: boolean;
         };
         AccountCreate: {
             name: string;
@@ -2044,11 +2047,15 @@ export interface components {
             createdByName: string;
             /** Format: date-time */
             createdAt: string;
+            /** @description Space of the entry, on the full statement of the holder (RF-83). */
+            groupName?: string;
         };
         Statement: {
             month: components["schemas"]["Month"];
-            openingCents: components["schemas"]["Cents"];
-            closingCents: components["schemas"]["Cents"];
+            /** @description Every space with balances, for the holder in her personal space; otherwise the movements of the group only (RF-83). */
+            full: boolean;
+            openingCents?: components["schemas"]["Cents"];
+            closingCents?: components["schemas"]["Cents"];
             entries: components["schemas"]["Entry"][];
         };
         AdjustmentCreate: {
@@ -2218,8 +2225,12 @@ export interface components {
             color: components["schemas"]["CardColor"];
             finish: components["schemas"]["CardFinish"];
             active: boolean;
-            limitUsedCents: components["schemas"]["Cents"];
-            limitFreeCents: components["schemas"]["Cents"];
+            /** @description Used limit of the whole card; only for the holder (RF-83). */
+            limitUsedCents?: components["schemas"]["Cents"];
+            /** @description Free limit of the whole card; only for the holder (RF-83). */
+            limitFreeCents?: components["schemas"]["Cents"];
+            /** @description Whether the user is the holder of the card (RF-83). */
+            owned: boolean;
             currentInvoice: components["schemas"]["Month"];
             /**
              * Format: date
@@ -2263,6 +2274,8 @@ export interface components {
             buyerPersonId?: number;
             buyerName?: string;
             createdByName?: string;
+            /** @description Space of the line, on the full invoice of the owner (RF-83). */
+            groupName?: string;
             thirdPartyCents?: components["schemas"]["Cents"];
             shares?: components["schemas"]["ItemShare"][];
         };
@@ -2294,6 +2307,10 @@ export interface components {
             payment?: components["schemas"]["InvoicePayment"];
             /** @description The total changed after the payment was recorded. */
             paymentOutdated: boolean;
+            /** @description The whole invoice of every space, read by the owner in her personal space; otherwise the part of the group (RF-83). */
+            full: boolean;
+            /** @description The owner may pay it now, in her personal space (RF-21, RF-83). */
+            canPay: boolean;
         };
         InvoiceSummary: {
             month: components["schemas"]["Month"];
@@ -2571,6 +2588,8 @@ export interface components {
             total?: number;
             suggestedBalanceCents?: components["schemas"]["Cents"];
             invoiceStatus?: components["schemas"]["InvoiceStatus"];
+            /** @description False for the part of an invoice a group reads, paid only by the owner in her personal space (RF-83). */
+            payable?: boolean;
         };
         AgendaDay: {
             day: number;

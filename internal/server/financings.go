@@ -136,8 +136,8 @@ func (a *API) GetAgenda(ctx context.Context, req gen.GetAgendaRequestObject) (ge
 			item.Number, item.Total, item.SuggestedBalanceCents = &number, &total, &suggested
 		}
 		if it.InvoiceStatus != "" {
-			status := gen.InvoiceStatus(it.InvoiceStatus)
-			item.InvoiceStatus = &status
+			status, payable := gen.InvoiceStatus(it.InvoiceStatus), it.Payable
+			item.InvoiceStatus, item.Payable = &status, &payable
 		}
 		out.Items = append(out.Items, item)
 	}

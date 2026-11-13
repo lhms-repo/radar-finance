@@ -137,11 +137,12 @@ FROM split_installments si
 JOIN splits s ON s.id = si.split_id
 JOIN parties p ON p.id = s.party_id
 JOIN purchases pu ON pu.id = s.purchase_id
-WHERE pu.group_id = CAST(?1 AS INTEGER) AND si.card_id = ?2 AND si.invoice_month = ?3
+WHERE (CAST(?1 AS INTEGER) = 1 OR pu.group_id = CAST(?2 AS INTEGER)) AND si.card_id = ?3 AND si.invoice_month = ?4
 ORDER BY p.name COLLATE NOCASE
 `
 
 type ListInvoiceSplitInstallmentsParams struct {
+	Full         int64
 	GroupID      int64
 	CardID       int64
 	InvoiceMonth string
@@ -157,7 +158,12 @@ type ListInvoiceSplitInstallmentsRow struct {
 }
 
 func (q *Queries) ListInvoiceSplitInstallments(ctx context.Context, arg ListInvoiceSplitInstallmentsParams) ([]ListInvoiceSplitInstallmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listInvoiceSplitInstallments, arg.GroupID, arg.CardID, arg.InvoiceMonth)
+	rows, err := q.db.QueryContext(ctx, listInvoiceSplitInstallments,
+		arg.Full,
+		arg.GroupID,
+		arg.CardID,
+		arg.InvoiceMonth,
+	)
 	if err != nil {
 		return nil, err
 	}

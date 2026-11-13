@@ -34,6 +34,10 @@ type fixture struct {
 // groupCtx acts on the first group of a fresh database, created by every fixture.
 var groupCtx = scope.WithGroup(context.Background(), 1)
 
+// personalCtx acts on the personal space of Ana, the owner of the default card, where she pays its invoices (RF-83).
+// The fixture creates Casa with Ana first, so her personal space gets id 2 and the one of Bruno id 3.
+var personalCtx = scope.WithGroup(context.Background(), 2)
+
 // newFixture opens a fresh database for one test, with the group "Casa" of two fictional users.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
@@ -362,7 +366,7 @@ func TestDeleteRecurrence(t *testing.T) {
 	ctx := groupCtx
 	c := f.newCard(t)
 	r, _ := f.s.AddRecurrence(ctx, f.userID, RecurrenceInput{CardID: c.ID, Description: "Barbearia", CategoryID: f.streaming, AmountCents: 5_000, StartDate: d(2026, time.October, 15)})
-	if _, err := f.s.Pay(ctx, f.userID, Payment{CardID: c.ID, Month: civil.Month{Year: 2026, Month: time.November}, AccountID: f.accountID, Date: d(2026, time.November, 10)}); err != nil {
+	if _, err := f.s.Pay(personalCtx, f.userID, Payment{CardID: c.ID, Month: civil.Month{Year: 2026, Month: time.November}, AccountID: f.accountID, Date: d(2026, time.November, 10)}); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.s.DeleteRecurrence(ctx, r.ID); !errors.Is(err, ErrRecurrenceInUse) {
@@ -377,7 +381,6 @@ func TestDeleteRecurrence(t *testing.T) {
 // TestPay pays the whole invoice from an account without counting it as spending (RF-21, RN-07).
 func TestPay(t *testing.T) {
 	f := newFixture(t) // today 2026-11-11
-	ctx := groupCtx
 	c := f.newCard(t)
 	f.buy(t, c.ID, d(2026, time.October, 20), 12_345, 1) // November invoice, closed on Nov 3
 	f.buy(t, c.ID, d(2026, time.November, 5), 1_000, 1)  // December invoice, open
@@ -396,35 +399,42 @@ func TestPay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := f.s.Pay(ctx, f.userID, tt.in); !errors.Is(err, tt.wantErr) {
+			if _, err := f.s.Pay(personalCtx, f.userID, tt.in); !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}
 
-	inv := f.invoice(t, c.ID, 2026, time.November)
+	inv, _ := f.s.Invoice(personalCtx, c.ID, nov)
 	if inv.Status != StatusPaid || inv.Payment == nil || inv.Payment.AmountCents != 12_345 || inv.Payment.AccountName != "Nubank Ana" || inv.PaymentOutdated {
 		t.Fatalf("invoice = %+v", inv)
 	}
-	if a, _ := f.ledger.GetAccount(ctx, f.accountID); a.BalanceCents != 1_000_000-12_345 {
+	// The group reads that the invoice is paid, without the account of the owner.
+	if inv := f.invoice(t, c.ID, 2026, time.November); inv.Status != StatusPaid || inv.Payment != nil || inv.CanPay {
+		t.Fatalf("invoice in the group after the payment = %+v", inv)
+	}
+	if a, _ := f.ledger.GetAccount(personalCtx, f.accountID); a.BalanceCents != 1_000_000-12_345 {
 		t.Fatalf("balance = %d", a.BalanceCents)
 	}
-	if flow, _ := f.ledger.MonthFlow(ctx, nov); flow.ExpenseCents != 0 {
+	if flow, _ := f.ledger.MonthFlow(personalCtx, nov); flow.ExpenseCents != 0 {
 		t.Fatalf("invoice payment counted as spending: %+v (RN-07)", flow)
 	}
 
 	// A purchase registered late in a paid invoice flags the payment as outdated.
 	f.buy(t, c.ID, d(2026, time.October, 30), 500, 1)
-	if inv := f.invoice(t, c.ID, 2026, time.November); !inv.PaymentOutdated || inv.TotalCents != 12_845 {
+	if inv, _ := f.s.Invoice(personalCtx, c.ID, nov); !inv.PaymentOutdated || inv.TotalCents != 12_845 {
 		t.Fatalf("after late purchase = %+v", inv)
 	}
 
 	// Deleting the payment entry from the account undoes the payment.
-	if err := f.ledger.DeleteEntry(ctx, inv.Payment.EntryID); err != nil {
+	if err := f.ledger.DeleteEntry(personalCtx, inv.Payment.EntryID); err != nil {
 		t.Fatal(err)
 	}
 	if inv := f.invoice(t, c.ID, 2026, time.November); inv.Status != StatusOverdue || inv.Payment != nil {
 		t.Fatalf("after undo = %+v", inv)
+	}
+	if inv, _ := f.s.Invoice(personalCtx, c.ID, nov); !inv.CanPay {
+		t.Fatalf("the owner may pay again after the undo: %+v", inv)
 	}
 }
 
@@ -441,7 +451,7 @@ func TestLimit(t *testing.T) {
 		{name: "empty card", do: func(*testing.T) {}, want: 0},
 		{name: "purchase in 12 installments uses the whole amount", do: func(t *testing.T) { f.buy(t, c.ID, d(2026, time.October, 10), 120_000, 12) }, want: 120_000},
 		{name: "paying the November invoice frees one installment", do: func(t *testing.T) {
-			if _, err := f.s.Pay(ctx, f.userID, Payment{CardID: c.ID, Month: civil.Month{Year: 2026, Month: time.November}, AccountID: f.accountID, Date: d(2026, time.November, 10)}); err != nil {
+			if _, err := f.s.Pay(personalCtx, f.userID, Payment{CardID: c.ID, Month: civil.Month{Year: 2026, Month: time.November}, AccountID: f.accountID, Date: d(2026, time.November, 10)}); err != nil {
 				t.Fatal(err)
 			}
 		}, want: 110_000},
@@ -706,8 +716,9 @@ func TestGroupIsolation(t *testing.T) {
 }
 
 // TestSharedCardPaidPerGroup pays the same month of a card shared by a person in two groups once in each group:
-// each group has its own invoice of that card (RF-21, RF-82).
-func TestSharedCardPaidPerGroup(t *testing.T) {
+// TestFullInvoiceForOwner shows each group only its lines of a shared card, and the whole invoice, with the space
+// of each line, only to the owner in her personal space, where she pays it once (RF-83, Fase 9 criterion).
+func TestFullInvoiceForOwner(t *testing.T) {
 	f := newFixture(t)
 	c := f.newCard(t)
 	ana, err := account.NewService(f.conn).Get(groupCtx, f.userID)
@@ -715,22 +726,86 @@ func TestSharedCardPaidPerGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	beach := testutil.NewGroup(t, f.conn, "Praia", ana)
+	brunoPersonal := scope.WithGroup(context.Background(), 3)
 	nov := civil.Month{Year: 2026, Month: time.November}
-	for _, ctx := range []context.Context{groupCtx, beach} {
-		if _, err := f.s.AddPurchase(ctx, f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.October, 20), Merchant: "Loja Ficticia", CategoryID: f.delivery, AmountCents: 10_000, Installments: 1}); err != nil {
+	buys := []struct {
+		ctx   context.Context
+		cents int64
+	}{{groupCtx, 10_000}, {beach, 20_000}, {personalCtx, 5_000}}
+	for _, b := range buys {
+		if _, err := f.s.AddPurchase(b.ctx, f.userID, PurchaseInput{CardID: c.ID, Date: d(2026, time.October, 20), Merchant: "Loja Ficticia", CategoryID: f.delivery, AmountCents: b.cents, Installments: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for name, ctx := range map[string]context.Context{"Casa": groupCtx, "Praia": beach} {
-		t.Run(name, func(t *testing.T) {
-			inv, err := f.s.Pay(ctx, f.userID, Payment{CardID: c.ID, Month: nov, AccountID: f.accountID, Date: d(2026, time.November, 10)})
+
+	views := []struct {
+		name   string
+		ctx    context.Context
+		total  int64
+		full   bool
+		canPay bool
+		groups []string
+	}{
+		{"Casa", groupCtx, 10_000, false, false, []string{"Casa"}},
+		{"Praia", beach, 20_000, false, false, []string{"Praia"}},
+		{"Pessoal da dona", personalCtx, 35_000, true, true, []string{"Casa", "Praia", "Pessoal"}},
+	}
+	for _, v := range views {
+		t.Run(v.name, func(t *testing.T) {
+			inv, err := f.s.Invoice(v.ctx, c.ID, nov)
 			if err != nil {
-				t.Fatalf("pay in %s: %v", name, err)
+				t.Fatal(err)
 			}
-			if inv.Status != StatusPaid || inv.TotalCents != 10_000 {
-				t.Fatalf("invoice in %s = %+v", name, inv)
+			if inv.TotalCents != v.total || inv.Full != v.full || inv.CanPay != v.canPay || len(inv.Items) != len(v.groups) {
+				t.Fatalf("invoice = %+v, want total %d, full %v, can pay %v", inv, v.total, v.full, v.canPay)
+			}
+			seen := map[string]bool{}
+			for _, it := range inv.Items {
+				seen[it.GroupName] = true
+			}
+			for _, g := range v.groups {
+				if !seen[g] {
+					t.Fatalf("lines %+v miss the space %s", inv.Items, g)
+				}
+			}
+			// The forecast of the month counts only the part of the space, even for the owner (RF-58).
+			part, err := f.s.InvoicePart(v.ctx, c.ID, nov)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := map[string]int64{"Casa": 10_000, "Praia": 20_000, "Pessoal da dona": 5_000}[v.name]; part.TotalCents != want {
+				t.Fatalf("part = %d, want %d", part.TotalCents, want)
 			}
 		})
+	}
+	// Bruno never reads the card of Ana in his personal space.
+	if _, err := f.s.Invoice(brunoPersonal, c.ID, nov); !errors.Is(err, ErrCardNotFound) {
+		t.Fatalf("invoice in the personal space of bruno: %v, want ErrCardNotFound", err)
+	}
+
+	// Only the owner pays, once, the whole invoice.
+	for name, ctx := range map[string]context.Context{"Casa": groupCtx, "Praia": beach} {
+		if _, err := f.s.Pay(ctx, f.userID, Payment{CardID: c.ID, Month: nov, AccountID: f.accountID, Date: d(2026, time.November, 10)}); !errors.Is(err, ErrPayInPersonal) {
+			t.Fatalf("pay in %s: %v, want ErrPayInPersonal", name, err)
+		}
+	}
+	paid, err := f.s.Pay(personalCtx, f.userID, Payment{CardID: c.ID, Month: nov, AccountID: f.accountID, Date: d(2026, time.November, 10)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paid.Payment == nil || paid.Payment.AmountCents != 35_000 || paid.Status != StatusPaid {
+		t.Fatalf("payment = %+v", paid)
+	}
+	for name, ctx := range map[string]context.Context{"Casa": groupCtx, "Praia": beach} {
+		if inv, _ := f.s.Invoice(ctx, c.ID, nov); inv.Status != StatusPaid || inv.Payment != nil {
+			t.Fatalf("invoice in %s after the payment = %+v", name, inv)
+		}
+	}
+	// No space keeps a debt of a paid invoice.
+	for name, ctx := range map[string]context.Context{"Casa": groupCtx, "Praia": beach, "Pessoal": personalCtx} {
+		if debt, err := f.s.ClosedDebt(ctx); err != nil || debt != 0 {
+			t.Fatalf("debt in %s = %d, %v", name, debt, err)
+		}
 	}
 }
 

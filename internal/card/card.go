@@ -50,6 +50,7 @@ var (
 	ErrPersonNotFound      = problem.Invalid("card_person_not_found", "Escolha uma pessoa do casal.")
 	ErrCardInactive        = problem.Conflict("card_inactive", "Este cartão está desativado. Reative-o para lançar nele.")
 	ErrHolderUsedElsewhere = problem.Conflict("card_holder_used_elsewhere", "Este cartão tem compras em outro grupo, então o titular não pode mudar.")
+	ErrPayInPersonal       = problem.Conflict("invoice_pay_personal", "A fatura é paga inteira pela dona do cartão, no espaço Pessoal dela.")
 	ErrCardInUse           = problem.Conflict("card_in_use", "Este cartão já tem lançamentos e não pode ser excluído. Desative-o para tirá-lo das opções.")
 	ErrPurchaseNotFound    = problem.NotFound("purchase_not_found", "Compra não encontrada.")
 	ErrMerchantRequired    = problem.Invalid("purchase_merchant_required", "Informe o estabelecimento.")
@@ -79,6 +80,8 @@ type Card struct {
 	Finish         string
 	Active         bool
 	LimitUsedCents int64
+	// Owned tells the user reading it is the holder, the only one the limit use is shown to (RF-83).
+	Owned          bool
 	LimitFreeCents int64
 	// CurrentInvoice is the invoice a purchase made today would fall into.
 	CurrentInvoice civil.Month
@@ -128,12 +131,16 @@ func (s *Service) ListCards(ctx context.Context) ([]Card, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list cards: %w", err)
 	}
+	viewer, err := ledger.ViewerPerson(ctx, q)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Card, 0, len(rows))
 	for _, r := range rows {
 		c := Card{
 			ID: r.ID, Name: r.Name, PersonID: r.PersonID, PersonName: r.PersonName, LimitCents: r.LimitCents,
 			ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay), LastDigits: r.LastDigits.String,
-			Color: r.Color, Finish: r.Finish, Active: r.Active,
+			Color: r.Color, Finish: r.Finish, Active: r.Active, Owned: viewer != 0 && viewer == r.PersonID,
 		}
 		c.CurrentInvoice = c.Cycle().InvoiceFor(s.today())
 		c.CurrentInvoiceDueOn = c.Cycle().Due(c.CurrentInvoice)

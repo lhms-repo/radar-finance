@@ -6,11 +6,12 @@ JOIN group_members gm ON gm.person_id = p.id
 WHERE p.id = sqlc.arg(id) AND gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
 -- name: ListAccounts :many
--- Accounts held by members of the group, with the balance made of the group's entries only (RF-82).
+-- Accounts held by members of the group, with the real balance made of every movement in any space (RF-82, RF-83);
+-- the API shows it only to the holder.
 SELECT a.id, a.name, a.person_id, p.name AS person_name, a.initial_balance_cents, a.active,
        CAST(a.initial_balance_cents + coalesce((
            SELECT sum(e.amount_cents) FROM entries e
-           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+           WHERE e.account_id = a.id AND e.confirmed
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
 JOIN persons p ON p.id = a.person_id
@@ -42,7 +43,7 @@ WHERE id = sqlc.arg(id)
 -- name: AccountBalanceBefore :one
 SELECT CAST(a.initial_balance_cents + coalesce((
            SELECT sum(e.amount_cents) FROM entries e
-           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND e.occurred_on < sqlc.arg(day)
+           WHERE e.account_id = a.id AND e.confirmed AND e.occurred_on < sqlc.arg(day)
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
 WHERE a.id = sqlc.arg(account_id)
@@ -51,7 +52,7 @@ WHERE a.id = sqlc.arg(account_id)
 -- name: AccountBalance :one
 SELECT CAST(a.initial_balance_cents + coalesce((
            SELECT sum(e.amount_cents) FROM entries e
-           WHERE e.account_id = a.id AND e.confirmed AND e.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+           WHERE e.account_id = a.id AND e.confirmed
        ), 0) AS INTEGER) AS balance_cents
 FROM accounts a
 WHERE a.id = sqlc.arg(id)
@@ -91,15 +92,19 @@ SELECT e.id, e.account_id, e.kind, e.amount_cents, e.occurred_on, e.confirmed, e
        coalesce(pc.icon, c.icon, '') AS category_icon,
        CAST(coalesce((
            SELECT oa.name FROM entries o JOIN accounts oa ON oa.id = o.account_id
-           WHERE o.transfer_id = e.transfer_id AND o.id <> e.id AND o.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+           WHERE o.transfer_id = e.transfer_id AND o.id <> e.id
+             AND (CAST(sqlc.arg(full) AS INTEGER) = 1 OR o.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
        ), '') AS TEXT) AS counterpart_account_name,
-       p.name AS created_by_name
+       p.name AS created_by_name,
+       coalesce(g.name, '') AS group_name
 FROM entries e
 LEFT JOIN categories c ON c.id = e.category_id
 LEFT JOIN categories pc ON pc.id = c.parent_id
 JOIN users u ON u.id = e.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE e.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
+LEFT JOIN groups g ON g.id = e.group_id
+-- With full set, the holder reads the movements of every space in her personal space (RF-83).
+WHERE (CAST(sqlc.arg(full) AS INTEGER) = 1 OR e.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
   AND e.account_id = sqlc.arg(account_id)
   AND e.occurred_on >= sqlc.arg(first_day) AND e.occurred_on <= sqlc.arg(last_day)
 ORDER BY e.occurred_on DESC, e.id DESC;

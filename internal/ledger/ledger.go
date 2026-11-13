@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/category"
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/db"
@@ -62,7 +63,7 @@ var (
 	ErrSavingsNegative     = problem.Conflict("savings_deposit_withdrawn", "Este aporte já foi retirado da caixinha. Apague a retirada antes, senão a caixinha fica com saldo negativo.")
 )
 
-// Account is a bank account with its current balance (RF-05).
+// Account is a bank account with its real balance, made of every movement in any space (RF-05, RF-83).
 type Account struct {
 	ID                  int64
 	Name                string
@@ -71,6 +72,8 @@ type Account struct {
 	InitialBalanceCents int64
 	BalanceCents        int64
 	Active              bool
+	// Owned tells the user reading it is the holder, the only one the balance is shown to (RF-83).
+	Owned bool
 }
 
 // NewAccount is the input to register an account (RF-04).
@@ -105,6 +108,8 @@ type Entry struct {
 	CounterpartAccountName string
 	CreatedByName          string
 	CreatedAt              time.Time
+	// GroupName is the space of the entry, shown on the full statement of the holder (RF-83).
+	GroupName string
 }
 
 // NewExpense is a one off expense paid straight from an account (section 5.6).
@@ -146,6 +151,9 @@ type Statement struct {
 	OpeningCents int64
 	ClosingCents int64
 	Entries      []Entry
+	// Full is the statement of every space with balances, read only by the holder in her personal space; a group
+	// reads its own movements without balances (RF-83).
+	Full bool
 }
 
 // Flow sums the confirmed income and spending of a month, leaving out transfers and adjustments (RN-08).
@@ -171,18 +179,54 @@ func (s *Service) ListAccounts(ctx context.Context) ([]Account, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := store.New(s.conn).ListAccounts(ctx, groupID)
+	q := store.New(s.conn)
+	rows, err := q.ListAccounts(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list accounts: %w", err)
+	}
+	viewer, err := ViewerPerson(ctx, q)
+	if err != nil {
+		return nil, err
 	}
 	out := make([]Account, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, Account{
 			ID: r.ID, Name: r.Name, PersonID: r.PersonID, PersonName: r.PersonName,
 			InitialBalanceCents: r.InitialBalanceCents, BalanceCents: r.BalanceCents, Active: r.Active,
+			Owned: viewer != 0 && viewer == r.PersonID,
 		})
 	}
 	return out, nil
+}
+
+// ViewerPerson returns the person of the user in the request, or zero when none is known (RF-83).
+func ViewerPerson(ctx context.Context, q *store.Queries) (int64, error) {
+	userID := auth.UserID(ctx)
+	if userID == 0 {
+		return 0, nil
+	}
+	u, err := q.GetUserByID(ctx, userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("viewer: %w", err)
+	}
+	return u.PersonID, nil
+}
+
+// HolderSpace tells whether the active space is the personal space of the person holding an account or card,
+// where she reads it in full (RF-83).
+func HolderSpace(ctx context.Context, q *store.Queries, holderID int64) (bool, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return false, err
+	}
+	g, err := q.GetGroup(ctx, groupID)
+	if err != nil {
+		return false, fmt.Errorf("active group: %w", err)
+	}
+	return g.Kind == "personal" && g.OwnerPersonID.Valid && g.OwnerPersonID.Int64 == holderID, nil
 }
 
 // GetAccount returns one account with its balance.
@@ -408,6 +452,7 @@ func (s *Service) AdjustBalance(ctx context.Context, userID int64, in Adjustment
 		if err != nil {
 			return err
 		}
+		// The bank shows the real balance, so the adjustment compares with every movement (RF-83).
 		current, err := q.AccountBalance(ctx, store.AccountBalanceParams{ID: in.AccountID, GroupID: groupID})
 		if err != nil {
 			return fmt.Errorf("read balance: %w", err)
@@ -513,31 +558,40 @@ func (s *Service) DeleteEntry(ctx context.Context, id int64) error {
 	})
 }
 
-// Statement lists the entries of one account in the month, newest first, with balances (RF-05).
+// Statement lists the entries of one account in the month, newest first (RF-05). In her personal space the holder
+// reads the movements of every space with the balances; a group reads its own movements only (RF-83).
 func (s *Service) Statement(ctx context.Context, accountID int64, m civil.Month) (Statement, error) {
 	groupID, err := scope.Group(ctx)
 	if err != nil {
 		return Statement{}, err
 	}
 	q := store.New(s.conn)
-	if _, err := getAccount(ctx, q, accountID); err != nil {
+	a, err := getAccount(ctx, q, accountID)
+	if err != nil {
 		return Statement{}, err
 	}
-	opening, err := q.AccountBalanceBefore(ctx, store.AccountBalanceBeforeParams{Day: m.First().String(), AccountID: accountID, GroupID: groupID})
+	full, err := HolderSpace(ctx, q, a.PersonID)
 	if err != nil {
+		return Statement{}, err
+	}
+	entries, err := s.list(ctx, q, accountID, m, full)
+	if err != nil {
+		return Statement{}, err
+	}
+	st := Statement{Month: m, Entries: entries, Full: full}
+	if !full {
+		return st, nil
+	}
+	if st.OpeningCents, err = q.AccountBalanceBefore(ctx, store.AccountBalanceBeforeParams{Day: m.First().String(), AccountID: accountID, GroupID: groupID}); err != nil {
 		return Statement{}, fmt.Errorf("opening balance: %w", err)
 	}
-	entries, err := s.list(ctx, q, accountID, m)
-	if err != nil {
-		return Statement{}, err
-	}
-	closing := opening
+	st.ClosingCents = st.OpeningCents
 	for _, e := range entries {
 		if e.Confirmed {
-			closing += e.AmountCents
+			st.ClosingCents += e.AmountCents
 		}
 	}
-	return Statement{Month: m, OpeningCents: opening, ClosingCents: closing, Entries: entries}, nil
+	return st, nil
 }
 
 // MonthFlow sums confirmed income and spending of all accounts in the month (RN-08).
@@ -587,7 +641,7 @@ func (s *Service) Entry(ctx context.Context, id int64) (Entry, error) {
 	if err != nil {
 		return Entry{}, err
 	}
-	list, err := s.list(ctx, q, e.AccountID, d.MonthOf())
+	list, err := s.list(ctx, q, e.AccountID, d.MonthOf(), false)
 	if err != nil {
 		return Entry{}, err
 	}
@@ -599,14 +653,18 @@ func (s *Service) Entry(ctx context.Context, id int64) (Entry, error) {
 	return Entry{}, ErrEntryNotFound
 }
 
-// list reads the entries of an account in a month.
-func (s *Service) list(ctx context.Context, q *store.Queries, accountID int64, m civil.Month) ([]Entry, error) {
+// list reads the entries of an account in a month: of the active space, or of every space when full.
+func (s *Service) list(ctx context.Context, q *store.Queries, accountID int64, m civil.Month, full bool) ([]Entry, error) {
 	groupID, err := scope.Group(ctx)
 	if err != nil {
 		return nil, err
 	}
+	var flag int64
+	if full {
+		flag = 1
+	}
 	rows, err := q.ListAccountEntries(ctx, store.ListAccountEntriesParams{
-		GroupID: groupID, AccountID: accountID, FirstDay: m.First().String(), LastDay: m.Last().String(),
+		Full: flag, GroupID: groupID, AccountID: accountID, FirstDay: m.First().String(), LastDay: m.Last().String(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list entries: %w", err)
@@ -622,7 +680,7 @@ func (s *Service) list(ctx context.Context, q *store.Queries, accountID int64, m
 			Confirmed: r.Confirmed, CategoryID: idPtr(r.CategoryID), CategoryName: r.CategoryName,
 			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, Description: r.Description,
 			TransferID: idPtr(r.TransferID), CounterpartAccountName: r.CounterpartAccountName,
-			CreatedByName: r.CreatedByName, CreatedAt: r.CreatedAt,
+			CreatedByName: r.CreatedByName, CreatedAt: r.CreatedAt, GroupName: r.GroupName,
 		})
 	}
 	return out, nil

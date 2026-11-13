@@ -59,8 +59,13 @@ WHERE p.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND i.invoice_month >= sq
 GROUP BY i.invoice_month;
 
 -- name: AccountsTotal :one
--- Initial balances of the accounts visible in the group plus the group's confirmed entries.
-SELECT CAST(coalesce(sum(a.initial_balance_cents), 0) + coalesce((SELECT sum(amount_cents) FROM entries WHERE confirmed AND group_id = CAST(sqlc.arg(group_id) AS INTEGER)), 0) AS INTEGER) AS cents
+-- Real balance of the accounts of the members: initial balances plus every confirmed movement, in any space.
+-- Only the personal space adds it to the net worth (RF-62, RF-83).
+SELECT CAST(coalesce(sum(a.initial_balance_cents), 0) + coalesce((
+           SELECT sum(e.amount_cents) FROM entries e JOIN accounts ea ON ea.id = e.account_id
+           WHERE e.confirmed
+             AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND gm.person_id = ea.person_id)
+       ), 0) AS INTEGER) AS cents
 FROM accounts a
 WHERE EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND gm.person_id = a.person_id);
 
