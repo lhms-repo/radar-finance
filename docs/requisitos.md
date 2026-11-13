@@ -180,7 +180,7 @@ Módulo em tela própria para descobrir onde a compra do mês sai mais barata, c
 | RF-80 | O administrador do grupo renomeia o grupo, cria outros grupos, cadastra pessoas novas com login e PIN e define papéis. Para adicionar uma pessoa já cadastrada, a própria pessoa digita o PIN dela, como consentimento; login ou PIN errado dão a mesma resposta. O administrador só redefine o PIN de quem pertence apenas a grupos que ele administra; os demais PINs, só pelo terminal. O primeiro grupo e o primeiro administrador são criados pelo terminal. Regras de consentimento e de PIN decididas em 12/11/2026. |
 | RF-81 | Quem está em vários grupos troca o grupo ativo por um seletor, sem entrar de novo. Todas as telas mostram só os dados do grupo ativo. |
 | RF-82 | Contas bancárias, cartões de crédito e cartões Alelo pertencem à pessoa e aparecem nos grupos de que ela faz parte. |
-| RF-83 | Cada lançamento, compra no cartão, conta fixa, financiamento, renda e caixinha é pessoal ou de um grupo. O pessoal é visível só para quem o criou. |
+| RF-83 | Cada lançamento, compra no cartão, conta fixa, financiamento, renda e caixinha é pessoal ou de um grupo. O pessoal é visível só para quem o criou. Cada pessoa tem um espaço Pessoal, no topo do seletor de grupo, com visão geral e relatórios só dos itens pessoais; as telas de um grupo mostram só o que é do grupo. Ao lançar, vale o espaço ativo, e o formulário permite escolher o Pessoal ou outro grupo da pessoa; a edição move o item, com os lançamentos dele, entre esses espaços, exceto compra dividida com terceiros. A dona do cartão vê no Pessoal a fatura completa, com o grupo de cada linha, e paga a fatura inteira de uma conta dela; cada grupo vê só a parte dele, sem pagar. O saldo real da conta, com todos os movimentos, aparece só para a dona, e o extrato completo fica no Pessoal dela; o patrimônio do grupo não soma contas, o do Pessoal soma. A previsão do mês de cada espaço conta só a parte dele da fatura. Decidido em 13/11/2026. |
 | RF-84 | Exibir o saldo de acerto de cada membro do grupo e registrar o pagamento entre membros. |
 | RF-85 | Mercados, produtos, preços, notas fiscais e listas de compras são de cada grupo. |
 
@@ -384,7 +384,7 @@ O centro do modelo é o Lançamento: toda movimentação de dinheiro, prevista o
 | --- | --- | --- |
 | Usuário | nome, login, PIN, preferência de tema | cria Lançamentos |
 | Pessoa | nome | membro de Grupos; titular de Conta, Cartão, Alelo e Renda; autora opcional de Compra |
-| Grupo | nome | tem Membros; possui os dados do grupo |
+| Grupo | nome, tipo (compartilhado ou pessoal) | tem Membros; possui os dados do grupo; o pessoal tem um só membro e guarda os itens pessoais dele |
 | Membro | papel, peso | liga Pessoa e Grupo |
 | Acerto | data, valor, de quem, para quem | pertence a um Grupo; é uma Transferência entre contas de Membros |
 | Conta bancária | nome, titular, saldo inicial | recebe e paga Lançamentos |
