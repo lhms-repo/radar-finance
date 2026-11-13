@@ -2,7 +2,7 @@ import { ChevronDown } from "lucide-react";
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
-/** Native select, which opens the iPhone wheel picker, in the input style. */
+/** Native select, which opens the picker of the phone, in the input style. */
 export function NativeSelect({ className, children, ...props }: ComponentProps<"select">) {
   return (
     <div className="relative">

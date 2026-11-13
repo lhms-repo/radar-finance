@@ -419,7 +419,7 @@ function Reveal({ children }: { children: ReactNode }) {
   );
 }
 
-/** Big centered value typed on the iPhone number pad, each digit rolling into place (section 5.6, 8.6). */
+/** Big centered value typed on the number pad of the phone, each digit rolling into place (section 5.6, 8.6). */
 function AmountInput({ value, onChange, income }: { value: number; onChange: (cents: number) => void; income: boolean }) {
   return (
     <label className="relative flex cursor-text flex-col items-center py-3">

@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion } from "motion/react";
 import { DropdownMenu } from "radix-ui";
+import { MenuRoot } from "@/components/ui/menu-root";
 import { ChevronDown, ChevronLeft, Eye, EyeOff, FolderInput, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -182,7 +183,7 @@ function ActionsMenu({
 }) {
   const item = "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent";
   return (
-    <DropdownMenu.Root>
+    <MenuRoot>
       <DropdownMenu.Trigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${category.name}`}>
           <MoreHorizontal />
@@ -214,7 +215,7 @@ function ActionsMenu({
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    </MenuRoot>
   );
 }
 

@@ -1,9 +1,10 @@
 /**
- * Optional haptic feedback on iPhone (RNF-25).
+ * Optional haptic feedback on the phone (RNF-25).
  *
- * Safari on iOS 18 vibrates when a native switch input is toggled. Clicking the
+ * Chrome on Android vibrates through navigator.vibrate. Safari on iOS 18 has no
+ * such call, but vibrates when a native switch input is toggled, so clicking the
  * label of a hidden switch triggers that tick. Nothing in the app depends on it:
- * on other platforms the click simply does nothing.
+ * on other platforms nothing happens.
  */
 
 let label: HTMLLabelElement | null = null;
@@ -34,6 +35,10 @@ function ensureSwitch(): HTMLLabelElement {
 export function haptic() {
   if (!enabled || typeof document === "undefined") return;
   try {
+    if (typeof navigator.vibrate === "function") {
+      navigator.vibrate(10);
+      return;
+    }
     ensureSwitch().click();
   } catch {
     /* Haptics are a bonus; failures are ignored. */

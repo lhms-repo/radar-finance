@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMe } from "@/app/session";
 import { capitalize, useSpaceWords } from "@/app/space";
 import { DropdownMenu } from "radix-ui";
+import { MenuRoot } from "@/components/ui/menu-root";
 import { AlertTriangle, Check, CreditCard, Eye, EyeOff, MinusCircle, MoreHorizontal, Pencil, Plus, Repeat, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -273,7 +274,7 @@ function LimitBar({ card, onEdit, onToggle, onDelete }: { card: Card; onEdit: ()
 function CardMenu({ card, onEdit, onToggle, onDelete }: { card: Card; onEdit: () => void; onToggle: () => void; onDelete: () => void }) {
   const item = "flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-accent";
   return (
-    <DropdownMenu.Root>
+    <MenuRoot>
       <DropdownMenu.Trigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label="Ações do cartão">
           <MoreHorizontal />
@@ -295,7 +296,7 @@ function CardMenu({ card, onEdit, onToggle, onDelete }: { card: Card; onEdit: ()
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+    </MenuRoot>
   );
 }
 

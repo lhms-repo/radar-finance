@@ -1,9 +1,10 @@
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { X } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
+import { useCloseOnBack } from "@/lib/back";
 import { cn } from "@/lib/utils";
 
-/** Sheet on the iPhone and centered dialog on wider screens, built on Radix Dialog. */
+/** Sheet on the phone and centered dialog on wider screens, built on Radix Dialog; back closes it first (RNF-26). */
 export function Dialog({
   open,
   onOpenChange,
@@ -19,6 +20,7 @@ export function Dialog({
   children: ReactNode;
   className?: string;
 }) {
+  useCloseOnBack(open, () => onOpenChange(false));
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
