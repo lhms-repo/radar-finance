@@ -20,8 +20,10 @@ export default defineConfig({
     { name: "iphone-webkit", use: { ...devices["iPhone 15"] } },
     { name: "desktop-webkit", use: { ...devices["Desktop Safari"] } },
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
-    // Chrome of Android with the screen and touch of a Pixel 7 (RNF-20).
-    { name: "android-chromium", use: { ...devices["Pixel 7"] } },
+    // Chrome of Android with the screen, touch and user agent of a Pixel 7 (RNF-20). The emulated mobile viewport pans
+    // when Playwright scrolls to an element that is still moving, and the click then lands off target; with isMobile
+    // off the layout is the same at this width, so the flows run as on the phone.
+    { name: "android-chromium", use: { ...devices["Pixel 7"], isMobile: false } },
   ],
   webServer: {
     command: "bash e2e/server.sh",

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useLeaveNavigate } from "@/lib/back";
 import { MemberSplitField, useSplitState } from "@/features/settle/MemberSplitField";
 import { useMe } from "@/app/session";
 import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
@@ -8,7 +9,7 @@ import { MenuRoot } from "@/components/ui/menu-root";
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronLeft, CreditCard, Eye, HandCoins, EyeOff, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Scale, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ApiRequestError } from "@/api/client";
@@ -457,7 +458,7 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
 function DeleteAccountDialog({ open, account, onClose }: { open: boolean; account: Account; onClose: () => void }) {
   const remove = useDeleteAccount();
   const deactivate = useUpdateAccount("Conta desativada");
-  const navigate = useNavigate();
+  const navigate = useLeaveNavigate();
   const inUse = remove.error instanceof ApiRequestError && remove.error.code === "account_in_use";
   /** Clears the mutation state and closes. */
   const close = () => {

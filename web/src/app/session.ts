@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLeaveNavigate } from "@/lib/back";
 import { useNavigate } from "react-router";
 import { api, clientId, setActiveSpace, unwrap, type Me, type Theme } from "@/api/client";
 
@@ -56,7 +57,7 @@ export function useUpdatePreferences() {
 /** Makes another group of the user the active one; cached data of the old group is dropped so it never shows (RF-81). */
 export function useSwitchGroup() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
+  const navigate = useLeaveNavigate();
   return useMutation({
     mutationFn: async (groupId: number) => unwrap(await api.PUT("/me/group", { body: { groupId } })),
     onSuccess: (me) => {
