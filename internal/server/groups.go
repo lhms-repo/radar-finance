@@ -162,7 +162,7 @@ func (a *API) groupDetail(ctx context.Context, groupID int64) (gen.GroupDetail, 
 	out := gen.GroupDetail{Id: g.ID, Name: g.Name, Members: make([]gen.GroupMember, 0, len(members))}
 	for _, m := range members {
 		out.Members = append(out.Members, gen.GroupMember{
-			UserId: m.UserID, Login: m.Login, Name: m.Name, Role: gen.GroupRole(m.Role), WeightBp: int(m.WeightBP), HasPin: m.HasPIN,
+			UserId: m.UserID, PersonId: m.PersonID, Login: m.Login, Name: m.Name, Role: gen.GroupRole(m.Role), WeightBp: int(m.WeightBP), HasPin: m.HasPIN,
 		})
 	}
 	return out, nil

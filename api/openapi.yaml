@@ -3523,9 +3523,13 @@ components:
 
     GroupMember:
       type: object
-      required: [userId, login, name, role, weightBp, hasPin]
+      required: [userId, personId, login, name, role, weightBp, hasPin]
       properties:
         userId:
+          type: integer
+          format: int64
+        personId:
+          description: Person of the member, used in divisions and the settlement (RN-28).
           type: integer
           format: int64
         login:
