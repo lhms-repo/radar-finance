@@ -14,24 +14,25 @@ import (
 const aleloBalanceBefore = `-- name: AleloBalanceBefore :one
 SELECT CAST(c.initial_balance_cents
             + coalesce((SELECT sum(amount_cents) FROM alelo_credits cr WHERE cr.alelo_id = c.id AND cr.month < ?1), 0)
-            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id AND pu.group_id = CAST(?2 AS INTEGER) AND pu.purchased_on < ?3), 0) AS INTEGER) AS balance_cents
+            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id AND pu.purchased_on < ?2), 0) AS INTEGER) AS balance_cents
 FROM alelo_cards c
-WHERE c.id = ?4 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?2 AS INTEGER) AND gm.person_id = c.person_id)
+WHERE c.id = ?3 AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?4 AS INTEGER) AND gm.person_id = c.person_id)
 `
 
 type AleloBalanceBeforeParams struct {
 	Month    string
-	GroupID  int64
 	FirstDay string
 	AleloID  int64
+	GroupID  int64
 }
 
+// Real balance before a month, with the purchases of every space, read by the holder in her personal space (RF-83).
 func (q *Queries) AleloBalanceBefore(ctx context.Context, arg AleloBalanceBeforeParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, aleloBalanceBefore,
 		arg.Month,
-		arg.GroupID,
 		arg.FirstDay,
 		arg.AleloID,
+		arg.GroupID,
 	)
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
@@ -325,7 +326,7 @@ const listAleloCards = `-- name: ListAleloCards :many
 SELECT c.id, c.name, c.person_id, c.monthly_credit_cents, c.credit_day, c.initial_balance_cents, c.start_month, c.active, c.created_by, c.created_at, c.updated_at, c.style, p.name AS person_name,
        CAST(c.initial_balance_cents
             + coalesce((SELECT sum(amount_cents) FROM alelo_credits cr WHERE cr.alelo_id = c.id), 0)
-            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id AND pu.group_id = CAST(?1 AS INTEGER)), 0) AS INTEGER) AS balance_cents
+            - coalesce((SELECT sum(amount_cents) FROM alelo_purchases pu WHERE pu.alelo_id = c.id), 0) AS INTEGER) AS balance_cents
 FROM alelo_cards c
 JOIN persons p ON p.id = c.person_id
 WHERE EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = CAST(?1 AS INTEGER) AND gm.person_id = c.person_id)
@@ -349,6 +350,7 @@ type ListAleloCardsRow struct {
 	BalanceCents        int64
 }
 
+// The balance is real, with the purchases of every space; the API shows it only to the holder (RF-83).
 func (q *Queries) ListAleloCards(ctx context.Context, groupID int64) ([]ListAleloCardsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAleloCards, groupID)
 	if err != nil {
@@ -388,15 +390,18 @@ func (q *Queries) ListAleloCards(ctx context.Context, groupID int64) ([]ListAlel
 }
 
 const listAleloPurchases = `-- name: ListAleloPurchases :many
-SELECT pu.id, pu.alelo_id, pu.purchased_on, pu.description, pu.amount_cents, pu.category_id, pu.created_by, pu.created_at, pu.group_id, p.name AS created_by_name
+SELECT pu.id, pu.alelo_id, pu.purchased_on, pu.description, pu.amount_cents, pu.category_id, pu.created_by, pu.created_at, pu.group_id, p.name AS created_by_name,
+       coalesce(g.name, '') AS group_name
 FROM alelo_purchases pu
 JOIN users u ON u.id = pu.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE pu.group_id = CAST(?1 AS INTEGER) AND pu.alelo_id = ?2 AND pu.purchased_on >= ?3 AND pu.purchased_on <= ?4
+LEFT JOIN groups g ON g.id = pu.group_id
+WHERE (CAST(?1 AS INTEGER) = 1 OR pu.group_id = CAST(?2 AS INTEGER)) AND pu.alelo_id = ?3 AND pu.purchased_on >= ?4 AND pu.purchased_on <= ?5
 ORDER BY pu.purchased_on DESC, pu.id DESC
 `
 
 type ListAleloPurchasesParams struct {
+	Full     int64
 	GroupID  int64
 	AleloID  int64
 	FirstDay string
@@ -414,10 +419,13 @@ type ListAleloPurchasesRow struct {
 	CreatedAt     time.Time
 	GroupID       sql.NullInt64
 	CreatedByName string
+	GroupName     string
 }
 
+// With full set, the holder reads the purchases of every space in her personal space (RF-83).
 func (q *Queries) ListAleloPurchases(ctx context.Context, arg ListAleloPurchasesParams) ([]ListAleloPurchasesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAleloPurchases,
+		arg.Full,
 		arg.GroupID,
 		arg.AleloID,
 		arg.FirstDay,
@@ -441,6 +449,7 @@ func (q *Queries) ListAleloPurchases(ctx context.Context, arg ListAleloPurchases
 			&i.CreatedAt,
 			&i.GroupID,
 			&i.CreatedByName,
+			&i.GroupName,
 		); err != nil {
 			return nil, err
 		}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/account"
+	"github.com/italogfx/radar-finance/internal/auth"
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/ledger"
 	"github.com/italogfx/radar-finance/internal/scope"
@@ -25,6 +26,9 @@ type fixture struct {
 
 // groupCtx acts on the first group of a fresh database, created by every fixture.
 var groupCtx = scope.WithGroup(context.Background(), 1)
+
+// anaPersonal is the personal space of Ana, the holder of the test card, created right after Casa.
+var anaPersonal = scope.WithGroup(context.Background(), 2)
 
 // newFixture opens a fresh database for one test.
 func newFixture(t *testing.T) fixture {
@@ -85,11 +89,12 @@ func TestCreate(t *testing.T) {
 	}
 }
 
-// TestBalance carries the unused balance over the months (RF-32 to RF-34, RN-15).
+// TestBalance carries the unused balance over the months, read by the holder in her personal space with the
+// purchases of every space (RF-32 to RF-34, RN-15, RF-83).
 func TestBalance(t *testing.T) {
 	f := newFixture(t)
-	ctx := groupCtx
-	c, _ := f.s.Create(ctx, f.userID, f.card())
+	ctx := anaPersonal
+	c, _ := f.s.Create(groupCtx, f.userID, f.card())
 	nov, dec := month(2026, time.November), month(2026, time.December)
 
 	steps := []struct {
@@ -108,7 +113,7 @@ func TestBalance(t *testing.T) {
 		}, month: nov, opening: 12_000, credit: 80_000, closing: 92_000, confirmed: true},
 		{name: "purchases leave", do: func(t *testing.T) {
 			for _, p := range []Purchase{{AleloID: c.ID, Date: date(2026, time.November, 12), Description: "Mercado", AmountCents: 45_390}, {AleloID: c.ID, Date: date(2026, time.November, 20), Description: "Padaria", AmountCents: 2_610}} {
-				if _, err := f.s.AddPurchase(ctx, f.userID, p); err != nil {
+				if _, err := f.s.AddPurchase(groupCtx, f.userID, p); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -185,11 +190,11 @@ func TestPurchaseIsGroceries(t *testing.T) {
 	}
 }
 
-// TestCredit confirms, refuses duplicates and undoes the monthly credit (RF-32).
+// TestCredit confirms, refuses duplicates and undoes the monthly credit, only in the personal space of the holder (RF-32, RF-83).
 func TestCredit(t *testing.T) {
 	f := newFixture(t)
-	ctx := groupCtx
-	c, _ := f.s.Create(ctx, f.userID, f.card())
+	ctx := anaPersonal
+	c, _ := f.s.Create(groupCtx, f.userID, f.card())
 	nov := month(2026, time.November)
 	tests := []struct {
 		name    string
@@ -207,6 +212,12 @@ func TestCredit(t *testing.T) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
 		})
+	}
+	if _, err := f.s.ConfirmCredit(groupCtx, f.userID, Credit{AleloID: c.ID, Month: month(2026, time.December)}); !errors.Is(err, ErrCreditInPersonal) {
+		t.Fatalf("confirm in the group = %v, want ErrCreditInPersonal", err)
+	}
+	if err := f.s.UndoCredit(groupCtx, c.ID, nov); !errors.Is(err, ErrCreditInPersonal) {
+		t.Fatalf("undo in the group = %v, want ErrCreditInPersonal", err)
 	}
 	if err := f.s.UndoCredit(ctx, c.ID, nov); err != nil {
 		t.Fatal(err)
@@ -291,7 +302,7 @@ func TestGroupIsolation(t *testing.T) {
 	if list, err := f.s.List(other); err != nil || len(list) != 0 {
 		t.Fatalf("cards of the other group = %v, %v", list, err)
 	}
-	// The deleted-from-the-other-group purchase is still there.
+	// The purchase the other group tried to delete is still there.
 	if v, err := f.s.Month(groupCtx, c.ID, nov); err != nil || v.SpentCents != 1_000 {
 		t.Fatalf("month of the first group = %+v, %v", v, err)
 	}
@@ -320,5 +331,83 @@ func TestAleloHolderStaysWhileUsedElsewhere(t *testing.T) {
 	ch.Name = "Alelo nova"
 	if _, err := f.s.Update(groupCtx, c.ID, ch); err != nil {
 		t.Fatalf("other changes still work: %v", err)
+	}
+}
+
+// TestHolderView shows the Alelo like an account: a group reads only its purchases, without balances or credits,
+// and the holder reads in her personal space every purchase with its space and the real balance (RF-83).
+func TestHolderView(t *testing.T) {
+	f := newFixture(t)
+	c, err := f.s.Create(groupCtx, f.userID, f.card())
+	if err != nil {
+		t.Fatal(err)
+	}
+	nov := month(2026, time.November)
+	if _, err := f.s.ConfirmCredit(anaPersonal, f.userID, Credit{AleloID: c.ID, Month: nov}); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []struct {
+		ctx  context.Context
+		desc string
+		cost int64
+	}{{groupCtx, "Feira de Casa", 3_000}, {anaPersonal, "Lanche pessoal", 1_000}} {
+		if _, err := f.s.AddPurchase(p.ctx, f.userID, Purchase{AleloID: c.ID, Date: date(2026, time.November, 11), Description: p.desc, AmountCents: p.cost}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tests := []struct {
+		name                string
+		ctx                 context.Context
+		full                bool
+		purchases           []string
+		spent, opening, end int64
+		credit              int64
+	}{
+		{name: "group reads its purchases only", ctx: groupCtx, purchases: []string{"Feira de Casa"}, spent: 3_000},
+		{name: "holder reads every space in her personal space", ctx: anaPersonal, full: true, purchases: []string{"Lanche pessoal", "Feira de Casa"}, spent: 4_000, opening: 12_000, credit: 80_000, end: 88_000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v, err := f.s.Month(tt.ctx, c.ID, nov)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.Full != tt.full || v.SpentCents != tt.spent || v.OpeningCents != tt.opening || v.ClosingCents != tt.end || v.Credit.AmountCents != tt.credit || v.HasCredit != tt.full {
+				t.Fatalf("month = %+v", v)
+			}
+			if len(v.Purchases) != len(tt.purchases) {
+				t.Fatalf("purchases = %+v, want %v", v.Purchases, tt.purchases)
+			}
+			for i, want := range tt.purchases {
+				if v.Purchases[i].Description != want {
+					t.Fatalf("purchase %d = %q, want %q", i, v.Purchases[i].Description, want)
+				}
+			}
+			if tt.full && (v.Purchases[0].GroupName != "Pessoal" || v.Purchases[1].GroupName != "Casa") {
+				t.Fatalf("spaces of the purchases = %+v", v.Purchases)
+			}
+		})
+	}
+
+	// The real balance counts every space and is owned only by the holder.
+	asAna := auth.WithUserID(groupCtx, f.userID)
+	bruno, err := account.NewService(f.conn).GetByLogin(context.Background(), "bruno")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asBruno := auth.WithUserID(groupCtx, bruno.ID)
+	for _, tt := range []struct {
+		name  string
+		ctx   context.Context
+		owned bool
+	}{{"holder", asAna, true}, {"other member", asBruno, false}} {
+		got, err := f.s.Get(tt.ctx, c.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Owned != tt.owned || got.BalanceCents != 88_000 {
+			t.Fatalf("%s reads %+v; want owned %v and balance 88000", tt.name, got, tt.owned)
+		}
 	}
 }

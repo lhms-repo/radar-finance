@@ -606,6 +606,7 @@ func (e SettlementLineKind) Valid() bool {
 
 // Defines values for SpaceMoveKind.
 const (
+	SpaceMoveKindAlelo     SpaceMoveKind = "alelo"
 	SpaceMoveKindBill      SpaceMoveKind = "bill"
 	SpaceMoveKindEntry     SpaceMoveKind = "entry"
 	SpaceMoveKindFinancing SpaceMoveKind = "financing"
@@ -617,6 +618,8 @@ const (
 // Valid indicates whether the value is a known member of the SpaceMoveKind enum.
 func (e SpaceMoveKind) Valid() bool {
 	switch e {
+	case SpaceMoveKindAlelo:
+		return true
 	case SpaceMoveKindBill:
 		return true
 	case SpaceMoveKindEntry:
@@ -782,16 +785,19 @@ type AgendaKind string
 type AleloCard struct {
 	Active bool `json:"active"`
 
-	// BalanceCents Amount in cents (RN-21).
-	BalanceCents Cents `json:"balanceCents"`
-	CreditDay    int   `json:"creditDay"`
-	Id           int64 `json:"id"`
+	// BalanceCents Real balance with the purchases of every space; only for the holder (RF-83).
+	BalanceCents *Cents `json:"balanceCents,omitempty"`
+	CreditDay    int    `json:"creditDay"`
+	Id           int64  `json:"id"`
 
 	// MonthlyCreditCents Amount in cents (RN-21).
 	MonthlyCreditCents Cents  `json:"monthlyCreditCents"`
 	Name               string `json:"name"`
-	PersonId           int64  `json:"personId"`
-	PersonName         string `json:"personName"`
+
+	// Owned The user reading it is the holder (RF-83).
+	Owned      bool   `json:"owned"`
+	PersonId   int64  `json:"personId"`
+	PersonName string `json:"personName"`
 
 	// StartMonth Example: 2026-11
 	StartMonth Month `json:"startMonth"`
@@ -823,10 +829,10 @@ type AleloInput struct {
 	Style AleloStyle `json:"style"`
 }
 
-// AleloMonth defines model for AleloMonth.
+// AleloMonth Month of an Alelo card. A group reads only its purchases; the holder reads every space with balances and credit in her personal space (RF-83).
 type AleloMonth struct {
 	// ClosingCents Amount in cents (RN-21).
-	ClosingCents Cents `json:"closingCents"`
+	ClosingCents *Cents `json:"closingCents,omitempty"`
 
 	// CreditCents Amount in cents (RN-21).
 	CreditCents     Cents               `json:"creditCents"`
@@ -834,17 +840,20 @@ type AleloMonth struct {
 	CreditedOn      *openapi_types.Date `json:"creditedOn,omitempty"`
 
 	// ExpectedCreditCents Amount in cents (RN-21).
-	ExpectedCreditCents Cents              `json:"expectedCreditCents"`
-	ExpectedCreditOn    openapi_types.Date `json:"expectedCreditOn"`
+	ExpectedCreditCents *Cents              `json:"expectedCreditCents,omitempty"`
+	ExpectedCreditOn    *openapi_types.Date `json:"expectedCreditOn,omitempty"`
 
-	// HasCredit False before the first month of the card.
+	// Full Every space with balances and credit, only in the personal space of the holder.
+	Full bool `json:"full"`
+
+	// HasCredit False before the first month of the card and outside the full month.
 	HasCredit bool `json:"hasCredit"`
 
 	// Month Example: 2026-11
 	Month Month `json:"month"`
 
 	// OpeningCents Amount in cents (RN-21).
-	OpeningCents Cents           `json:"openingCents"`
+	OpeningCents *Cents          `json:"openingCents,omitempty"`
 	Purchases    []AleloPurchase `json:"purchases"`
 
 	// SpentCents Amount in cents (RN-21).
@@ -858,7 +867,13 @@ type AleloPurchase struct {
 	CreatedByName *string            `json:"createdByName,omitempty"`
 	Date          openapi_types.Date `json:"date"`
 	Description   string             `json:"description"`
-	Id            int64              `json:"id"`
+
+	// GroupId Id of the space of the purchase; only purchases of the active space can be changed there (RF-83).
+	GroupId *int64 `json:"groupId,omitempty"`
+
+	// GroupName Space of the purchase, on the full month of the holder (RF-83).
+	GroupName *string `json:"groupName,omitempty"`
+	Id        int64   `json:"id"`
 }
 
 // AleloPurchaseCreate defines model for AleloPurchaseCreate.
@@ -2649,11 +2664,13 @@ type ShoppingListInput struct {
 
 // SpaceMove defines model for SpaceMove.
 type SpaceMove struct {
-	ItemId int64         `json:"itemId"`
-	Kind   SpaceMoveKind `json:"kind"`
+	ItemId int64 `json:"itemId"`
+
+	// Kind Card recurrences never move, since that would rewrite closed invoices; end one and create another.
+	Kind SpaceMoveKind `json:"kind"`
 }
 
-// SpaceMoveKind defines model for SpaceMove.Kind.
+// SpaceMoveKind Card recurrences never move, since that would rewrite closed invoices; end one and create another.
 type SpaceMoveKind string
 
 // SpendSub defines model for SpendSub.
@@ -2796,6 +2813,12 @@ type GetAgendaParams struct {
 	Month Month `form:"month" json:"month"`
 }
 
+// AddAleloPurchaseParams defines parameters for AddAleloPurchase.
+type AddAleloPurchaseParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
+}
+
 // CreateBillParams defines parameters for CreateBill.
 type CreateBillParams struct {
 	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
@@ -2819,6 +2842,12 @@ type GetCardForecastParams struct {
 
 // AddPurchaseParams defines parameters for AddPurchase.
 type AddPurchaseParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
+}
+
+// AddRecurrenceParams defines parameters for AddRecurrence.
+type AddRecurrenceParams struct {
 	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
 	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
 }
@@ -3159,7 +3188,7 @@ type ServerInterface interface {
 	ConfirmAleloCredit(w http.ResponseWriter, r *http.Request, id Id, month Month)
 	// AddAleloPurchase Records a purchase with a free description, filed as groceries (RF-33, RN-15).
 	// (POST /alelo/{id}/purchases)
-	AddAleloPurchase(w http.ResponseWriter, r *http.Request, id Id)
+	AddAleloPurchase(w http.ResponseWriter, r *http.Request, id Id, params AddAleloPurchaseParams)
 	// ListAliasRules Lists the alias rules, newest first for each original text (RF-54).
 	// (GET /alias-rules)
 	ListAliasRules(w http.ResponseWriter, r *http.Request)
@@ -3246,7 +3275,7 @@ type ServerInterface interface {
 	ListRecurrences(w http.ResponseWriter, r *http.Request, id Id)
 	// AddRecurrence Registers a recurrence charged on every invoice (RF-17).
 	// (POST /cards/{id}/recurrences)
-	AddRecurrence(w http.ResponseWriter, r *http.Request, id Id)
+	AddRecurrence(w http.ResponseWriter, r *http.Request, id Id, params AddRecurrenceParams)
 	// ListCategories Lists the category tree in display order (RF-50, RN-18).
 	// (GET /categories)
 	ListCategories(w http.ResponseWriter, r *http.Request, params ListCategoriesParams)
@@ -4076,8 +4105,32 @@ func (siw *ServerInterfaceWrapper) AddAleloPurchase(w http.ResponseWriter, r *ht
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddAleloPurchaseParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AddAleloPurchase(w, r, id)
+		siw.Handler.AddAleloPurchase(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4839,8 +4892,32 @@ func (siw *ServerInterfaceWrapper) AddRecurrence(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddRecurrenceParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AddRecurrence(w, r, id)
+		siw.Handler.AddRecurrence(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8454,8 +8531,9 @@ func (response ConfirmAleloCredit409JSONResponse) VisitConfirmAleloCreditRespons
 }
 
 type AddAleloPurchaseRequestObject struct {
-	Id   Id `json:"id"`
-	Body *AddAleloPurchaseJSONRequestBody
+	Id     Id `json:"id"`
+	Params AddAleloPurchaseParams
+	Body   *AddAleloPurchaseJSONRequestBody
 }
 
 type AddAleloPurchaseResponseObject interface {
@@ -10104,8 +10182,9 @@ func (response ListRecurrences404JSONResponse) VisitListRecurrencesResponse(w ht
 }
 
 type AddRecurrenceRequestObject struct {
-	Id   Id `json:"id"`
-	Body *AddRecurrenceJSONRequestBody
+	Id     Id `json:"id"`
+	Params AddRecurrenceParams
+	Body   *AddRecurrenceJSONRequestBody
 }
 
 type AddRecurrenceResponseObject interface {
@@ -16578,10 +16657,11 @@ func (sh *strictHandler) ConfirmAleloCredit(w http.ResponseWriter, r *http.Reque
 }
 
 // AddAleloPurchase operation middleware
-func (sh *strictHandler) AddAleloPurchase(w http.ResponseWriter, r *http.Request, id Id) {
+func (sh *strictHandler) AddAleloPurchase(w http.ResponseWriter, r *http.Request, id Id, params AddAleloPurchaseParams) {
 	var request AddAleloPurchaseRequestObject
 
 	request.Id = id
+	request.Params = params
 
 	var body AddAleloPurchaseJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -17420,10 +17500,11 @@ func (sh *strictHandler) ListRecurrences(w http.ResponseWriter, r *http.Request,
 }
 
 // AddRecurrence operation middleware
-func (sh *strictHandler) AddRecurrence(w http.ResponseWriter, r *http.Request, id Id) {
+func (sh *strictHandler) AddRecurrence(w http.ResponseWriter, r *http.Request, id Id, params AddRecurrenceParams) {
 	var request AddRecurrenceRequestObject
 
 	request.Id = id
+	request.Params = params
 
 	var body AddRecurrenceJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {

@@ -132,19 +132,28 @@ func (a *API) DeleteAleloPurchase(ctx context.Context, req gen.DeleteAleloPurcha
 
 // toAleloCard converts a card to the API model.
 func toAleloCard(c alelo.Card) gen.AleloCard {
-	return gen.AleloCard{
+	out := gen.AleloCard{
 		Id: c.ID, Name: c.Name, PersonId: c.PersonID, PersonName: c.PersonName, MonthlyCreditCents: c.MonthlyCreditCents,
-		CreditDay: c.CreditDay, BalanceCents: c.BalanceCents, StartMonth: c.StartMonth.String(), Style: gen.AleloStyle(c.Style), Active: c.Active,
+		CreditDay: c.CreditDay, StartMonth: c.StartMonth.String(), Style: gen.AleloStyle(c.Style), Active: c.Active, Owned: c.Owned,
 	}
+	// The real balance tells the purchases of every space, so only the holder reads it (RF-83).
+	if c.Owned {
+		balance := c.BalanceCents
+		out.BalanceCents = &balance
+	}
+	return out
 }
 
 // toAleloMonth converts the month of a card to the API model.
 func toAleloMonth(v alelo.MonthView) gen.AleloMonth {
 	out := gen.AleloMonth{
-		Month: v.Month.String(), OpeningCents: v.OpeningCents, HasCredit: v.HasCredit, ExpectedCreditCents: v.Credit.ExpectedCents,
-		ExpectedCreditOn: apiDate(v.Credit.ExpectedOn), CreditConfirmed: v.Credit.Confirmed, CreditCents: v.Credit.AmountCents,
-		CreditedOn: apiDatePtr(v.Credit.CreditedOn), SpentCents: v.SpentCents, ClosingCents: v.ClosingCents,
-		Purchases: make([]gen.AleloPurchase, 0, len(v.Purchases)),
+		Month: v.Month.String(), HasCredit: v.HasCredit, Full: v.Full, CreditConfirmed: v.Credit.Confirmed, CreditCents: v.Credit.AmountCents,
+		CreditedOn: apiDatePtr(v.Credit.CreditedOn), SpentCents: v.SpentCents, Purchases: make([]gen.AleloPurchase, 0, len(v.Purchases)),
+	}
+	// Balances and the expected credit belong to the holder, in her personal space (RF-83).
+	if v.Full {
+		opening, closing, expected, on := v.OpeningCents, v.ClosingCents, v.Credit.ExpectedCents, apiDate(v.Credit.ExpectedOn)
+		out.OpeningCents, out.ClosingCents, out.ExpectedCreditCents, out.ExpectedCreditOn = &opening, &closing, &expected, &on
 	}
 	for _, p := range v.Purchases {
 		out.Purchases = append(out.Purchases, toAleloPurchase(p))
@@ -154,5 +163,8 @@ func toAleloMonth(v alelo.MonthView) gen.AleloMonth {
 
 // toAleloPurchase converts a purchase to the API model.
 func toAleloPurchase(p alelo.PurchaseItem) gen.AleloPurchase {
-	return gen.AleloPurchase{Id: p.ID, Date: apiDate(p.Date), Description: p.Description, AmountCents: p.AmountCents, CreatedByName: optional(p.CreatedByName)}
+	return gen.AleloPurchase{
+		Id: p.ID, Date: apiDate(p.Date), Description: p.Description, AmountCents: p.AmountCents, CreatedByName: optional(p.CreatedByName),
+		GroupName: optional(p.GroupName), GroupId: optionalID(p.GroupID),
+	}
 }

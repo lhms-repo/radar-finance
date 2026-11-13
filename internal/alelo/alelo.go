@@ -50,9 +50,10 @@ var (
 	ErrInvalidStyle        = problem.Invalid("alelo_style_invalid", "Escolha o visual do cartão.")
 	ErrHolderInSettlement  = problem.Conflict("alelo_holder_in_settlement", "Este Alelo tem compras de um grupo, que entram no acerto em nome de quem o tem; o titular não pode mudar.")
 	ErrHolderUsedElsewhere = problem.Conflict("alelo_holder_used_elsewhere", "Este Alelo tem compras em outro grupo, então o titular não pode mudar.")
+	ErrCreditInPersonal    = problem.Conflict("alelo_credit_personal", "O crédito do Alelo é confirmado por quem é titular, no espaço Pessoal.")
 )
 
-// Card is an Alelo card with its current balance.
+// Card is an Alelo card with its real balance, counting the purchases of every space.
 type Card struct {
 	ID                 int64
 	Name               string
@@ -64,6 +65,8 @@ type Card struct {
 	StartMonth         civil.Month
 	Style              string
 	Active             bool
+	// Owned tells the user reading it is the holder, the only one the balance is shown to (RF-83).
+	Owned bool
 }
 
 // Input registers a card with its balance on the day (RF-31).
@@ -102,9 +105,13 @@ type PurchaseItem struct {
 	Description   string
 	AmountCents   int64
 	CreatedByName string
+	// GroupID and GroupName are the space of the purchase, on the full month of the holder (RF-83).
+	GroupID   int64
+	GroupName string
 }
 
-// MonthView is the month of a card: balance carried in, credit, purchases and balance carried out (RN-15).
+// MonthView is the month of a card: balance carried in, credit, purchases and balance carried out (RN-15). A group
+// reads only its purchases, without balances or credit; the holder reads it in full in her personal space (RF-83).
 type MonthView struct {
 	Month        civil.Month
 	OpeningCents int64
@@ -112,8 +119,10 @@ type MonthView struct {
 	Purchases    []PurchaseItem
 	SpentCents   int64
 	ClosingCents int64
-	// HasCredit is false before the first month of the card.
+	// HasCredit is false before the first month of the card and outside the full month.
 	HasCredit bool
+	// Full is the month of every space with balances and credit, read only by the holder in her personal space.
+	Full bool
 }
 
 // Credit confirms the credit of a month; zero fields take the monthly value and today.
@@ -156,9 +165,14 @@ func (s *Service) List(ctx context.Context) ([]Card, error) {
 	if err != nil {
 		return nil, err
 	}
-	rows, err := store.New(s.conn).ListAleloCards(ctx, groupID)
+	q := store.New(s.conn)
+	rows, err := q.ListAleloCards(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list alelo cards: %w", err)
+	}
+	viewer, err := ledger.ViewerPerson(ctx, q)
+	if err != nil {
+		return nil, err
 	}
 	out := make([]Card, 0, len(rows))
 	for _, r := range rows {
@@ -169,6 +183,7 @@ func (s *Service) List(ctx context.Context) ([]Card, error) {
 		out = append(out, Card{
 			ID: r.ID, Name: r.Name, PersonID: r.PersonID, PersonName: r.PersonName, MonthlyCreditCents: r.MonthlyCreditCents,
 			CreditDay: int(r.CreditDay), BalanceCents: r.BalanceCents, StartMonth: start, Style: r.Style, Active: r.Active,
+			Owned: viewer != 0 && viewer == r.PersonID,
 		})
 	}
 	return out, nil
@@ -284,7 +299,9 @@ func (s *Service) Delete(ctx context.Context, id int64) error {
 	})
 }
 
-// Month returns the month of a card: balance carried in, credit, purchases and balance carried out (RN-15).
+// Month returns the month of a card: balance carried in, credit, purchases and balance carried out (RN-15). In her
+// personal space the holder reads the purchases of every space with balances and credit; a group reads only its
+// purchases (RF-83).
 func (s *Service) Month(ctx context.Context, id int64, m civil.Month) (MonthView, error) {
 	groupID, err := scope.Group(ctx)
 	if err != nil {
@@ -295,13 +312,37 @@ func (s *Service) Month(ctx context.Context, id int64, m civil.Month) (MonthView
 	if err != nil {
 		return MonthView{}, err
 	}
-	opening, err := q.AleloBalanceBefore(ctx, store.AleloBalanceBeforeParams{GroupID: groupID, Month: m.String(), FirstDay: m.First().String(), AleloID: id})
+	full, err := ledger.HolderSpace(ctx, q, c.PersonID)
 	if err != nil {
-		return MonthView{}, fmt.Errorf("alelo opening balance: %w", err)
+		return MonthView{}, err
 	}
-	v := MonthView{
-		Month: m, OpeningCents: opening, Purchases: []PurchaseItem{}, HasCredit: monthIndex(m) >= monthIndex(c.StartMonth),
-		Credit: CreditState{ExpectedCents: c.MonthlyCreditCents, ExpectedOn: m.Day(c.CreditDay)},
+	v := MonthView{Month: m, Purchases: []PurchaseItem{}, Full: full}
+	var flag int64
+	if full {
+		flag = 1
+	}
+	rows, err := q.ListAleloPurchases(ctx, store.ListAleloPurchasesParams{Full: flag, GroupID: groupID, AleloID: id, FirstDay: m.First().String(), LastDay: m.Last().String()})
+	if err != nil {
+		return MonthView{}, fmt.Errorf("list alelo purchases: %w", err)
+	}
+	for _, r := range rows {
+		on, err := civil.ParseDate(r.PurchasedOn)
+		if err != nil {
+			return MonthView{}, err
+		}
+		v.Purchases = append(v.Purchases, PurchaseItem{
+			ID: r.ID, Date: on, Description: r.Description, AmountCents: r.AmountCents, CreatedByName: r.CreatedByName,
+			GroupID: r.GroupID.Int64, GroupName: r.GroupName,
+		})
+		v.SpentCents += r.AmountCents
+	}
+	if !full {
+		return v, nil
+	}
+	v.HasCredit = monthIndex(m) >= monthIndex(c.StartMonth)
+	v.Credit = CreditState{ExpectedCents: c.MonthlyCreditCents, ExpectedOn: m.Day(c.CreditDay)}
+	if v.OpeningCents, err = q.AleloBalanceBefore(ctx, store.AleloBalanceBeforeParams{GroupID: groupID, Month: m.String(), FirstDay: m.First().String(), AleloID: id}); err != nil {
+		return MonthView{}, fmt.Errorf("alelo opening balance: %w", err)
 	}
 	cr, err := q.GetAleloCredit(ctx, store.GetAleloCreditParams{AleloID: id, Month: m.String()})
 	switch {
@@ -314,26 +355,29 @@ func (s *Service) Month(ctx context.Context, id int64, m civil.Month) (MonthView
 	case !errors.Is(err, sql.ErrNoRows):
 		return MonthView{}, err
 	}
-	rows, err := q.ListAleloPurchases(ctx, store.ListAleloPurchasesParams{GroupID: groupID, AleloID: id, FirstDay: m.First().String(), LastDay: m.Last().String()})
-	if err != nil {
-		return MonthView{}, fmt.Errorf("list alelo purchases: %w", err)
-	}
-	for _, r := range rows {
-		on, err := civil.ParseDate(r.PurchasedOn)
-		if err != nil {
-			return MonthView{}, err
-		}
-		v.Purchases = append(v.Purchases, PurchaseItem{ID: r.ID, Date: on, Description: r.Description, AmountCents: r.AmountCents, CreatedByName: r.CreatedByName})
-		v.SpentCents += r.AmountCents
-	}
 	v.ClosingCents = v.OpeningCents + v.Credit.AmountCents - v.SpentCents
 	return v, nil
 }
 
-// ConfirmCredit records the credit of a month when it falls; until then it is only expected (RF-32).
+// holderCard reads a card and checks the active space is the personal space of its holder, where credits are kept (RF-83).
+func holderCard(ctx context.Context, q *store.Queries, id int64) (Card, error) {
+	c, err := getCard(ctx, q, id)
+	if err != nil {
+		return Card{}, err
+	}
+	if mine, err := ledger.HolderSpace(ctx, q, c.PersonID); err != nil {
+		return Card{}, err
+	} else if !mine {
+		return Card{}, ErrCreditInPersonal
+	}
+	return c, nil
+}
+
+// ConfirmCredit records the credit of a month when it falls; until then it is only expected (RF-32). Only the holder
+// does it, in her personal space (RF-83).
 func (s *Service) ConfirmCredit(ctx context.Context, userID int64, cr Credit) (MonthView, error) {
 	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		c, err := getCard(ctx, q, cr.AleloID)
+		c, err := holderCard(ctx, q, cr.AleloID)
 		if err != nil {
 			return err
 		}
@@ -365,10 +409,10 @@ func (s *Service) ConfirmCredit(ctx context.Context, userID int64, cr Credit) (M
 	return s.Month(ctx, cr.AleloID, cr.Month)
 }
 
-// UndoCredit removes the confirmation of a month; the credit is expected again.
+// UndoCredit removes the confirmation of a month; the credit is expected again. Only the holder, in her personal space.
 func (s *Service) UndoCredit(ctx context.Context, id int64, m civil.Month) error {
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := getCard(ctx, q, id); err != nil {
+		if _, err := holderCard(ctx, q, id); err != nil {
 			return err
 		}
 		n, err := q.DeleteAleloCredit(ctx, store.DeleteAleloCreditParams{AleloID: id, Month: m.String()})
