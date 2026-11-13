@@ -281,3 +281,37 @@ func TestMigratePersonalRefusesDoublePayments(t *testing.T) {
 		t.Fatalf("migration with an invoice paid twice: %v", err)
 	}
 }
+
+
+// TestMigrateSettlement starts the settlement of the existing groups on the day of the migration, with the weights
+// of their members, and drops the division of an item when the item moves away (RN-28, RN-31).
+func TestMigrateSettlement(t *testing.T) {
+	conn := migratedTo(t, lastSingleCoupleVersion)
+	seedCouple(t, conn)
+	if err := Migrate(context.Background(), conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+		t.Fatal(err)
+	}
+	checks := []struct {
+		name  string
+		query string
+		want  int64
+	}{
+		{"shared group starts today", `SELECT count(*) FROM groups WHERE id = 1 AND settles_from = date('now', '-3 hours')`, 1},
+		{"weights of the couple from that day", `SELECT count(*) FROM group_weights w JOIN groups g ON g.id = w.group_id WHERE g.id = 1 AND w.from_day = g.settles_from AND w.weight_bp = 5000`, 2},
+		{"no weights in personal spaces", `SELECT count(*) FROM group_weights w JOIN groups g ON g.id = w.group_id WHERE g.kind = 'personal'`, 0},
+	}
+	for _, c := range checks {
+		if got := scalar(t, conn, c.query); got != c.want {
+			t.Errorf("%s: got %d, want %d", c.name, got, c.want)
+		}
+	}
+	if _, err := conn.Exec(`INSERT INTO member_splits (item_kind, item_id, mode, person_id, share_cents) VALUES ('entry', 1, 'equal', 1, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`UPDATE entries SET group_id = 2 WHERE id = 1`); err != nil {
+		t.Fatal(err)
+	}
+	if n := scalar(t, conn, `SELECT count(*) FROM member_splits`); n != 0 {
+		t.Fatalf("division left after the entry moved: %d", n)
+	}
+}

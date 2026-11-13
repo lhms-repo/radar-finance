@@ -38,7 +38,7 @@ func (q *Queries) AddGroupMember(ctx context.Context, arg AddGroupMemberParams) 
 const createGroup = `-- name: CreateGroup :one
 INSERT INTO groups (name, created_by, created_at)
 VALUES (?, ?, ?)
-RETURNING id, name, created_by, created_at, kind, owner_person_id
+RETURNING id, name, created_by, created_at, settles_from, kind, owner_person_id
 `
 
 type CreateGroupParams struct {
@@ -55,6 +55,7 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group
 		&i.Name,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.SettlesFrom,
 		&i.Kind,
 		&i.OwnerPersonID,
 	)
@@ -98,7 +99,7 @@ func (q *Queries) EnsurePersonalMember(ctx context.Context, arg EnsurePersonalMe
 }
 
 const getGroup = `-- name: GetGroup :one
-SELECT id, name, created_by, created_at, kind, owner_person_id
+SELECT id, name, created_by, created_at, settles_from, kind, owner_person_id
 FROM groups
 WHERE id = ?
 `
@@ -111,6 +112,7 @@ func (q *Queries) GetGroup(ctx context.Context, id int64) (Group, error) {
 		&i.Name,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.SettlesFrom,
 		&i.Kind,
 		&i.OwnerPersonID,
 	)

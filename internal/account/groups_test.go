@@ -421,3 +421,52 @@ func TestPersonalNameReserved(t *testing.T) {
 		t.Fatalf("rename to Pessoal: %v, want ErrGroupNameReserved", err)
 	}
 }
+
+// TestSetWeights lets the weights change only as a whole that adds up to 100%, and keeps each change in the history
+// from the day it is made, so earlier expenses keep their weights (RF-79, RN-28).
+func TestSetWeights(t *testing.T) {
+	s, now := newGroupService(t)
+	ctx := context.Background()
+	ana, _ := s.Create(ctx, "ana", "Ana Ficticia")
+	bruno, _ := s.Create(ctx, "bruno", "Bruno Ficticio")
+	home, err := s.CreateGroup(ctx, "Casa", ana.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	*now = now.AddDate(0, 0, 1)
+	if err := s.AddMember(ctx, home.ID, bruno.ID, RoleMember); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name    string
+		weights map[int64]int64
+		wantErr error
+	}{
+		{name: "does not add up to 100%", weights: map[int64]int64{ana.PersonID: 6000, bruno.PersonID: 3000}, wantErr: ErrWeights},
+		{name: "zero weight", weights: map[int64]int64{ana.PersonID: 10000, bruno.PersonID: 0}, wantErr: ErrWeights},
+		{name: "member missing", weights: map[int64]int64{ana.PersonID: 10000}, wantErr: ErrWeights},
+		{name: "someone outside the group", weights: map[int64]int64{ana.PersonID: 5000, 999: 5000}, wantErr: ErrWeights},
+		{name: "sixty forty", weights: map[int64]int64{ana.PersonID: 6000, bruno.PersonID: 4000}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := s.SetWeights(ctx, home.ID, tt.weights); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	members, _ := s.Members(ctx, home.ID)
+	if members[0].WeightBP != 6000 || members[1].WeightBP != 4000 {
+		t.Fatalf("members = %+v", members)
+	}
+	var rows, starts int64
+	_ = s.conn.QueryRow(`SELECT count(*) FROM group_weights WHERE group_id = ?`, home.ID).Scan(&rows)
+	_ = s.conn.QueryRow(`SELECT count(*) FROM groups WHERE id = ? AND settles_from = '2026-11-12'`, home.ID).Scan(&starts)
+	// Ana alone on the 12th; on the 13th both at 50% and then 60/40, the same day overwritten.
+	if rows != 3 || starts != 1 {
+		t.Fatalf("history rows = %d, settlement start set = %d", rows, starts)
+	}
+	if err := s.SetWeights(ctx, 2, map[int64]int64{ana.PersonID: 10000}); !errors.Is(err, ErrPersonalGroup) {
+		t.Fatalf("weights of a personal space: %v, want ErrPersonalGroup", err)
+	}
+}

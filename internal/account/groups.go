@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/italogfx/radar-finance/internal/auth"
+	"github.com/italogfx/radar-finance/internal/civil"
+	"github.com/italogfx/radar-finance/internal/config"
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/problem"
@@ -57,6 +59,7 @@ var (
 	ErrLoginOrPIN         = problem.Invalid("login_or_pin_wrong", "Login ou PIN incorreto.")
 	ErrResetOutsideGroups = problem.Forbidden("pin_reset_other_groups", "Essa pessoa também está num grupo que você não administra. O PIN dela só pode ser redefinido por quem administra todos os grupos dela, ou pelo terminal.")
 	ErrPersonRequired     = problem.Invalid("person_required", "Informe o nome e o login da pessoa.")
+	ErrWeights            = problem.Invalid("group_weights_invalid", "Dê um peso a cada membro, todos maiores que zero e somando 100%%.")
 	ErrGroupNameReserved  = problem.Conflict("group_name_reserved", "Pessoal é o nome do espaço de cada pessoa. Escolha outro nome para o grupo.")
 	ErrPersonalGroup      = problem.Conflict("group_personal", "O espaço Pessoal é só seu: não tem outros membros, papéis nem outro nome.")
 )
@@ -105,6 +108,14 @@ func (s *Service) CreateGroup(ctx context.Context, name string, adminUserID int6
 		}
 		if err := q.AddGroupMember(ctx, store.AddGroupMemberParams{GroupID: g.ID, PersonID: u.PersonID, Role: string(RoleAdmin), WeightBp: fullWeightBP, JoinedAt: now}); err != nil {
 			return fmt.Errorf("add first member: %w", err)
+		}
+		// The settlement of a new group starts on the day it is created, with its first member (RN-31, RN-28).
+		day := s.today()
+		if err := q.SetGroupSettlesFrom(ctx, store.SetGroupSettlesFromParams{SettlesFrom: sql.NullString{String: day, Valid: true}, ID: g.ID}); err != nil {
+			return err
+		}
+		if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: g.ID, PersonID: u.PersonID, WeightBp: fullWeightBP, FromDay: day}); err != nil {
+			return err
 		}
 		return ensurePersonal(ctx, q, u.PersonID, u.ID, now)
 	})
@@ -220,7 +231,7 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID int64, role Rol
 		if err := ensurePersonal(ctx, q, u.PersonID, u.ID, now); err != nil {
 			return err
 		}
-		return equalWeights(ctx, q, groupID)
+		return equalWeights(ctx, q, groupID, s.today())
 	})
 }
 
@@ -267,7 +278,7 @@ func (s *Service) CreateMember(ctx context.Context, groupID int64, login, name, 
 		if err := ensurePersonal(ctx, q, p.ID, u.ID, now); err != nil {
 			return err
 		}
-		return equalWeights(ctx, q, groupID)
+		return equalWeights(ctx, q, groupID, s.today())
 	})
 	if err != nil {
 		return User{}, err
@@ -554,9 +565,9 @@ func membership(ctx context.Context, q *store.Queries, groupID, userID int64) (R
 	return Role(m.Role), true, nil
 }
 
-// equalWeights gives every member the same weight, the leftover points to the first one; custom weights
-// come with the settlement between members (Fase 10, RN-28).
-func equalWeights(ctx context.Context, q *store.Queries, groupID int64) error {
+// equalWeights gives every member the same weight, the leftover points to the first one, in force from day on;
+// an administrator may set other weights later (RN-28).
+func equalWeights(ctx context.Context, q *store.Queries, groupID int64, day string) error {
 	members, err := q.ListGroupMembers(ctx, groupID)
 	if err != nil {
 		return err
@@ -570,6 +581,57 @@ func equalWeights(ctx context.Context, q *store.Queries, groupID int64) error {
 		if err := q.SetGroupMemberWeight(ctx, store.SetGroupMemberWeightParams{WeightBp: w, GroupID: groupID, PersonID: m.PersonID}); err != nil {
 			return err
 		}
+		if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: groupID, PersonID: m.PersonID, WeightBp: w, FromDay: day}); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// SetWeights gives each member of the group her weight in basis points, all above zero and adding up to 10000, in
+// force from today; expenses before today keep the weights they had (RF-79, RN-28).
+func (s *Service) SetWeights(ctx context.Context, groupID int64, weights map[int64]int64) error {
+	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		if _, err := sharedGroup(ctx, q, groupID); err != nil {
+			return err
+		}
+		members, err := q.ListGroupMembers(ctx, groupID)
+		if err != nil {
+			return err
+		}
+		if len(weights) != len(members) {
+			return ErrWeights
+		}
+		var sum int64
+		for _, m := range members {
+			w, ok := weights[m.PersonID]
+			if !ok || w < 1 || w > fullWeightBP {
+				return ErrWeights
+			}
+			sum += w
+		}
+		if sum != fullWeightBP {
+			return ErrWeights
+		}
+		day := s.today()
+		for _, m := range members {
+			w := weights[m.PersonID]
+			if err := q.SetGroupMemberWeight(ctx, store.SetGroupMemberWeightParams{WeightBp: w, GroupID: groupID, PersonID: m.PersonID}); err != nil {
+				return err
+			}
+			if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: groupID, PersonID: m.PersonID, WeightBp: w, FromDay: day}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// today is the current business day, in America/Sao_Paulo, as YYYY-MM-DD.
+func (s *Service) today() string {
+	loc, err := time.LoadLocation(config.Location)
+	if err != nil {
+		loc = time.UTC
+	}
+	return civil.DateOf(s.now().In(loc)).String()
 }
