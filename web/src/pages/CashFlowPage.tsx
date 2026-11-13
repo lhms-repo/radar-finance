@@ -1,5 +1,6 @@
 import { ArrowDownLeft, ArrowUpRight, HandCoins, Landmark, PiggyBank, Scale, Search } from "lucide-react";
 import { useState } from "react";
+import { useSpaceWords } from "@/app/space";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Money } from "@/components/ui/money";
@@ -22,6 +23,7 @@ export function CashFlowPage() {
   const overview = useOverview(param);
   const accounts = useAccounts();
   const ov = overview.data;
+  const words = useSpaceWords();
   return (
     <div className="flex flex-col gap-4">
       <h1 className="px-1 text-lg font-semibold md:hidden">Fluxo de caixa</h1>
@@ -31,7 +33,7 @@ export function CashFlowPage() {
             <CardTitle>Fechamento de {monthName(year, month).toLowerCase()}</CardTitle>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat icon={<ArrowDownLeft className="text-success" />} label="Entradas" cents={ov.closing.incomeCents} hint="renda que caiu" />
-              <Stat icon={<ArrowUpRight className="text-destructive" />} label="Gastos" cents={ov.closing.spendingCents} hint="parte do casal" />
+              <Stat icon={<ArrowUpRight className="text-destructive" />} label="Gastos" cents={ov.closing.spendingCents} hint={words.part} />
               <Stat icon={<PiggyBank className="text-primary" />} label="Guardado" cents={ov.closing.savedCents} hint="aportes menos retiradas" />
               <Stat icon={<HandCoins className="text-warning" />} label="A receber" cents={ov.closing.receivablePendingCents} hint={<>recebido <Money cents={ov.closing.receivedCents} /></>} />
             </dl>

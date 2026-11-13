@@ -43,6 +43,26 @@ function spaceLabel(s: Space) {
   return s.personal ? "Pessoal (só você vê)" : s.name;
 }
 
+/** Words for the active space in screen texts: the group name, or the person in the personal space. */
+export function useSpaceWords() {
+  const me = useMe();
+  const personal = me?.group.personal ?? false;
+  const name = me?.group.name ?? "";
+  return {
+    personal,
+    name,
+    /** Share of a total that stays with the space, as in "parte de Casa" or "sua parte". */
+    part: personal ? "sua parte" : `parte de ${name}`,
+    /** Share of an invoice without third parties: the full invoice of the personal space mixes every group. */
+    invoicePart: personal ? "sem terceiros" : `parte de ${name}`,
+  };
+}
+
+/** Upper cases the first letter of a text. */
+export function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 /** Chooses where a new item goes: the personal space or a group of the person (RF-83). */
 export function SpaceField({ value, onChange }: { value: number; onChange: (space: number) => void }) {
   const { spaces } = useSpaces();

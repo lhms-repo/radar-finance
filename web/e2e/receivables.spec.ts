@@ -31,7 +31,7 @@ test("split purchase: shares on the invoice, receipt and charge message (RF-24 t
   await cardForm.getByRole("button", { name: "Salvar" }).click();
   await expect(cardForm).toBeHidden();
 
-  // Air conditioner of R$ 3.000,00 in 3 installments, equal parts with two people and the couple as one part.
+  // Air conditioner of R$ 3.000,00 in 3 installments, equal parts with two people and the group as one part.
   await page.getByRole("button", { name: "Adicionar" }).click();
   const sheet = page.getByRole("dialog", { name: "Novo gasto" });
   await sheet.getByLabel("Cartão").selectOption({ label: cardName });
@@ -48,12 +48,12 @@ test("split purchase: shares on the invoice, receipt and charge message (RF-24 t
   await sheet.getByRole("button", { name: "Confirmar" }).click();
   await expect(sheet).toBeHidden();
 
-  // The invoice shows each share (R$ 333,34 on the first installment) and the couple part (RN-05).
+  // The invoice shows each share (R$ 333,34 on the first installment) and the part of the group (RN-05).
   await page.goto("/cards");
   await page.getByRole("option", { name: cardName }).click();
   await page.getByRole("button", { name: /R\$ 1\.000,00/ }).first().click();
   await expect(page.getByText(`${joao} R$ 333,34`)).toBeVisible();
-  await expect(page.getByText("Parte do casal").locator("..")).toContainText("R$ 333,32");
+  await expect(page.getByText("Parte de Casa").locator("..")).toContainText("R$ 333,32");
 
   // The person owes R$ 1.000,00 in three installments; receiving the first leaves two.
   await page.goto("/receivables");

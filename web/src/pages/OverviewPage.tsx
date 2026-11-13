@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { ArrowDownRight, ArrowUpRight, Building2, CalendarClock, ChevronRight, CircleAlert, AlertTriangle, CreditCard, HandCoins, Home, PiggyBank, TrendingUp } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
+import { useSpaceWords } from "@/app/space";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Money } from "@/components/ui/money";
 import { MoneyFlow } from "@/components/ui/money-flow";
@@ -186,8 +187,9 @@ function BillsCard({ month }: { month: string }) {
   );
 }
 
-/** The main card with the invoice of the month, the couple part and the free limit (section 5.3). */
+/** The main card with the invoice of the month, the part of the space and the free limit (section 5.3). */
 function CardsCard({ month }: { month: string }) {
+  const words = useSpaceWords();
   const cards = useCards();
   const main = (cards.data ?? []).find((c) => c.active);
   const invoice = useInvoice(main?.id, month);
@@ -208,7 +210,7 @@ function CardsCard({ month }: { month: string }) {
         <MoneyFlow cents={inv?.totalCents ?? 0} className="text-3xl font-semibold tracking-tight" />
         {inv && inv.thirdPartyCents > 0 && (
           <span className="text-right text-xs text-muted-foreground">
-            parte do casal
+            {words.invoicePart}
             <Money cents={inv.netCents} className="block text-sm font-medium text-foreground" />
           </span>
         )}
@@ -230,8 +232,10 @@ function CardsCard({ month }: { month: string }) {
 /** Share of the income that goes to the house, with the reference ruler (section 5.3). */
 function HousingCard({ ov }: { ov: Overview }) {
   const [scope, setScope] = useState<"person" | "couple">("couple");
+  const words = useSpaceWords();
   const h = ov.housing;
-  const bp = scope === "couple" ? h.coupleBp : h.personBp;
+  // In the personal space every income is the person's, so there is only one base.
+  const bp = scope === "couple" || words.personal ? h.coupleBp : h.personBp;
   // The ruler shows twice the reference, so the mark sits in the middle.
   const scale = h.referenceBp * 2;
   const within = bp <= h.referenceBp;
@@ -243,18 +247,20 @@ function HousingCard({ ov }: { ov: Overview }) {
       </div>
       <p className={cn("flex items-center gap-1.5 text-sm font-medium", within ? "text-success" : "text-warning")}>
         {within ? <Building2 className="size-4" /> : <AlertTriangle className="size-4" />}
-        {percent(bp)} {scope === "couple" ? "da renda do casal" : "do seu salário"} · referência até {percent(h.referenceBp)}
+        {percent(bp)} {words.personal ? "da sua renda" : scope === "couple" ? `da renda de ${words.name}` : "do seu salário"} · referência até {percent(h.referenceBp)}
       </p>
-      <Segmented<"person" | "couple">
-        ariaLabel="Base da moradia"
-        value={scope}
-        options={[
-          { value: "person", label: "Só meu salário" },
-          { value: "couple", label: "Salário do casal" },
-        ]}
-        onChange={setScope}
-        className="w-full"
-      />
+      {!words.personal && (
+        <Segmented<"person" | "couple">
+          ariaLabel="Base da moradia"
+          value={scope}
+          options={[
+            { value: "person", label: "Só meu salário" },
+            { value: "couple", label: `Renda de ${words.name}` },
+          ]}
+          onChange={setScope}
+          className="w-full"
+        />
+      )}
       <div className="relative pt-5">
         <span className="absolute top-0 -translate-x-1/2 text-[0.65rem] text-muted-foreground" style={{ left: "50%" }}>
           {percent(h.referenceBp)}
