@@ -43,10 +43,11 @@ test("two groups read the same receipt without mixing products or prices, with o
   test.slow();
   // Projects share one database, so the group, markets and brands carry the project name.
   const tag = testInfo.project.name;
-  const beach = `Praia ${tag}`;
-  const brands = { home: `Marca Casa ${tag}`, beach: `Marca Praia ${tag}` };
+  // personal.spec.ts already creates a group called Praia, so this one is the farm.
+  const beach = `Sítio ${tag}`;
+  const brands = { home: `Marca Casa ${tag}`, beach: `Marca Sítio ${tag}` };
 
-  // Ana is in Casa and creates the beach group, where she reads the receipt first.
+  // Ana is in Casa and creates the farm group, where she reads the receipt first.
   await login(page);
   await page.goto("/settings/group");
   await page.getByRole("button", { name: "Criar grupo" }).click();
@@ -55,7 +56,7 @@ test("two groups read the same receipt without mixing products or prices, with o
   await create.getByRole("button", { name: "Criar" }).click();
   await create.getByRole("button", { name: `Ir para ${beach}` }).click();
   await expect(page).toHaveURL(/\/$/);
-  await readReceipt(page, tag, `Mercado Praia ${tag}`, brands.beach, brands.home);
+  await readReceipt(page, tag, `Mercado Sítio ${tag}`, brands.beach, brands.home);
 
   // The same receipt in Casa is new there and goes to products of Casa.
   await switchSpace(page, "Casa");
@@ -63,13 +64,13 @@ test("two groups read the same receipt without mixing products or prices, with o
   await seesOnly(page, tag, brands.home, brands.beach);
   await page.goto("/market?tab=markets");
   await expect(page.getByText(`Mercado Casa ${tag}`, { exact: true })).toBeVisible();
-  await expect(page.getByText(`Mercado Praia ${tag}`, { exact: true })).toHaveCount(0);
+  await expect(page.getByText(`Mercado Sítio ${tag}`, { exact: true })).toHaveCount(0);
 
-  // Back in the beach group, only its own catalog shows.
+  // Back in the farm group, only its own catalog shows.
   await switchSpace(page, beach);
   await seesOnly(page, tag, brands.beach, brands.home);
   await page.goto("/market?tab=receipts");
-  await expect(page.getByText(new RegExp(`Mercado Praia ${tag}, `))).toBeVisible();
+  await expect(page.getByText(new RegExp(`Mercado Sítio ${tag}, `))).toBeVisible();
   await expect(page.getByText(new RegExp(`Mercado Casa ${tag}, `))).toHaveCount(0);
 });
 
@@ -108,7 +109,8 @@ async function noCouple(page: Page, where: string) {
 }
 
 test("no screen talks about a couple, in a group or in the personal space (Fase 11)", async ({ page }) => {
-  test.slow();
+  // Over forty screens in two spaces, with the other tests sharing the server.
+  test.setTimeout(300_000);
   await page.goto("/login");
   await expect(page.getByRole("button", { name: "Casa", exact: true }).or(page.getByRole("button", { name: "Ana Ficticia" }))).toBeVisible();
   expect(await page.locator("body").innerText()).not.toMatch(/casal/i);
