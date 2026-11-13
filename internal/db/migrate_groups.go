@@ -113,7 +113,10 @@ SELECT id, (SELECT id FROM groups WHERE id = 1), card_id, invoice_month, entry_i
 
 // groupMigrations returns the Go migrations of the groups change, registered beside the SQL files.
 func groupMigrations() []*goose.Migration {
-	return []*goose.Migration{goose.NewGoMigration(groupRebuildVersion, &goose.GoFunc{RunDB: rebuildForGroups}, &goose.GoFunc{RunDB: irreversible})}
+	return []*goose.Migration{
+		goose.NewGoMigration(groupRebuildVersion, &goose.GoFunc{RunDB: rebuild("rebuild for groups", groupRebuild)}, &goose.GoFunc{RunDB: irreversible}),
+		personalMigration(),
+	}
 }
 
 // irreversible refuses to undo migration 21, so goose never marks it undone while the rebuilt tables stay.
@@ -121,9 +124,14 @@ func irreversible(context.Context, *sql.DB) error {
 	return errors.New("migration 21 is irreversible: restore a backup taken before it (docs/backup.md)")
 }
 
-// rebuildForGroups runs the rebuild on one dedicated connection with foreign keys off, so dropping a parent
-// table neither fails nor cascades into its children, and checks every reference before committing.
-func rebuildForGroups(ctx context.Context, pool *sql.DB) (err error) {
+// rebuild returns a migration that runs steps on one dedicated connection with foreign keys off, so dropping a
+// parent table neither fails nor cascades into its children, and checks every reference before committing.
+func rebuild(name string, steps []string) func(context.Context, *sql.DB) error {
+	return func(ctx context.Context, pool *sql.DB) error { return runRebuild(ctx, pool, name, steps) }
+}
+
+// runRebuild runs the steps of a rebuild named name, as rebuild describes.
+func runRebuild(ctx context.Context, pool *sql.DB, name string, steps []string) (err error) {
 	conn, err := pool.Conn(ctx)
 	if err != nil {
 		return err
@@ -147,9 +155,9 @@ func rebuildForGroups(ctx context.Context, pool *sql.DB) (err error) {
 			_ = tx.Rollback()
 		}
 	}()
-	for _, stmt := range groupRebuild {
+	for _, stmt := range steps {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("rebuild for groups: %w\n%s", err, stmt)
+			return fmt.Errorf("%s: %w\n%s", name, err, stmt)
 		}
 	}
 	broken, err := hasBrokenReferences(ctx, tx)
@@ -157,7 +165,7 @@ func rebuildForGroups(ctx context.Context, pool *sql.DB) (err error) {
 		return err
 	}
 	if broken {
-		return errors.New("rebuild for groups: foreign key check found broken references")
+		return fmt.Errorf("%s: foreign key check found broken references", name)
 	}
 	return tx.Commit()
 }

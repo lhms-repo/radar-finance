@@ -98,7 +98,7 @@ func TestMigrateCoupleToGroup(t *testing.T) {
 		moneyBefore[i] = scalar(t, conn, q)
 	}
 
-	if err := Migrate(context.Background(), conn, slog.New(slog.NewTextHandler(io.Discard, nil))); err != nil {
+	if err := MigrateTo(context.Background(), conn, slog.New(slog.NewTextHandler(io.Discard, nil)), groupRebuildVersion); err != nil {
 		t.Fatal(err)
 	}
 
@@ -193,5 +193,65 @@ func TestMigrateEmptyDatabase(t *testing.T) {
 	// The default settings row stays, without a group, for the code that still reads id 1.
 	if n := scalar(t, conn, `SELECT count(*) FROM market_settings WHERE id = 1 AND group_id IS NULL`); n != 1 {
 		t.Fatalf("default market settings row = %d, want 1 without a group", n)
+	}
+}
+
+// TestMigratePersonalSpaces gives each person a personal group as its only member, keeps the shared group and
+// its rows, and moves card payments to the personal group of the card owner (Fase 9, RF-83).
+func TestMigratePersonalSpaces(t *testing.T) {
+	conn := migratedTo(t, lastSingleCoupleVersion)
+	seedCouple(t, conn)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := MigrateTo(context.Background(), conn, log, groupRebuildVersion); err != nil {
+		t.Fatal(err)
+	}
+	entriesBefore := scalar(t, conn, `SELECT coalesce(sum(amount_cents), 0) FROM entries`)
+	membersBefore := scalar(t, conn, `SELECT count(*) FROM group_members WHERE group_id = 1`)
+	if err := MigrateTo(context.Background(), conn, log, personalVersion); err != nil {
+		t.Fatal(err)
+	}
+
+	checks := []struct {
+		name  string
+		query string
+		want  int64
+	}{
+		{"shared group kept", `SELECT count(*) FROM groups WHERE id = 1 AND name = 'Casa' AND kind = 'shared' AND owner_person_id IS NULL`, 1},
+		{"members of the shared group kept", `SELECT count(*) FROM group_members WHERE group_id = 1`, membersBefore},
+		{"one personal group per person", `SELECT count(*) FROM groups WHERE kind = 'personal' AND name = 'Pessoal'`, 2},
+		{"owner is the only member", `SELECT count(*) FROM groups g JOIN group_members gm ON gm.group_id = g.id WHERE g.kind = 'personal' AND gm.person_id = g.owner_person_id AND gm.role = 'admin' AND gm.weight_bp = 10000`, 2},
+		{"no one else in a personal group", `SELECT count(*) FROM groups g JOIN group_members gm ON gm.group_id = g.id WHERE g.kind = 'personal' AND gm.person_id <> g.owner_person_id`, 0},
+		{"payment in the personal group of the card owner", `SELECT count(*) FROM invoice_payments ip JOIN groups g ON g.id = ip.group_id WHERE g.kind = 'personal' AND g.owner_person_id = 1`, 1},
+		{"payment entry in the personal group of the account holder", `SELECT count(*) FROM entries e JOIN groups g ON g.id = e.group_id WHERE e.id = 3 AND g.kind = 'personal' AND g.owner_person_id = 1`, 1},
+		{"other entries stay in the shared group", `SELECT count(*) FROM entries WHERE id IN (1, 2) AND group_id = 1`, 2},
+		{"money unchanged", `SELECT coalesce(sum(amount_cents), 0) FROM entries`, entriesBefore},
+	}
+	for _, c := range checks {
+		if got := scalar(t, conn, c.query); got != c.want {
+			t.Errorf("%s: got %d, want %d", c.name, got, c.want)
+		}
+	}
+
+	exec := func(q string) error { _, err := conn.Exec(q); return err }
+	now := "'2026-11-13 12:00:00+00:00'"
+	// Shared names stay unique; personal ones repeat.
+	if err := exec(`INSERT INTO groups (name, kind, created_at) VALUES ('casa', 'shared', ` + now + `)`); err == nil {
+		t.Error("a second shared group named Casa was accepted")
+	}
+	if err := exec(`INSERT INTO persons (id, name, created_at) VALUES (3, 'Carla Ficticia', ` + now + `)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec(`INSERT INTO groups (name, kind, owner_person_id, created_at) VALUES ('Pessoal', 'personal', 3, ` + now + `)`); err != nil {
+		t.Errorf("a third personal group named Pessoal: %v", err)
+	}
+	// A person has one personal group, and a personal group always has an owner.
+	if err := exec(`INSERT INTO groups (name, kind, owner_person_id, created_at) VALUES ('Outro', 'personal', 3, ` + now + `)`); err == nil {
+		t.Error("a second personal group for the same person was accepted")
+	}
+	if err := exec(`INSERT INTO groups (name, kind, created_at) VALUES ('Sem dono', 'personal', ` + now + `)`); err == nil {
+		t.Error("a personal group without owner was accepted")
+	}
+	if n := scalar(t, conn, `SELECT count(*) FROM pragma_foreign_key_check`); n != 0 {
+		t.Fatalf("foreign key check found %d broken references", n)
 	}
 }
