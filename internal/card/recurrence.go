@@ -13,6 +13,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/membersplit"
 	"github.com/italogfx/radar-finance/internal/scope"
 )
 
@@ -49,6 +50,8 @@ type RecurrenceInput struct {
 	AmountCents int64
 	StartDate   civil.Date
 	EndMonth    *civil.Month
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // RecurrenceChanges replaces the editable fields; a new amount applies from the current invoice on.
@@ -57,6 +60,8 @@ type RecurrenceChanges struct {
 	CategoryID  int64
 	AmountCents int64
 	EndMonth    *civil.Month
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // priceIn returns the amount charged on invoice m, or zero when the recurrence is not active then.
@@ -115,7 +120,10 @@ func (s *Service) AddRecurrence(ctx context.Context, userID int64, in Recurrence
 			return fmt.Errorf("create recurrence: %w", err)
 		}
 		id = r.ID
-		return q.UpsertRecurrencePrice(ctx, store.UpsertRecurrencePriceParams{RecurrenceID: id, FromMonth: start.String(), AmountCents: in.AmountCents})
+		if err := q.UpsertRecurrencePrice(ctx, store.UpsertRecurrencePriceParams{RecurrenceID: id, FromMonth: start.String(), AmountCents: in.AmountCents}); err != nil {
+			return err
+		}
+		return membersplit.Save(ctx, q, groupID, membersplit.KindRecurrence, id, in.Members, in.AmountCents)
 	})
 	if err != nil {
 		return Recurrence{}, err
@@ -149,6 +157,9 @@ func (s *Service) UpdateRecurrence(ctx context.Context, id int64, ch RecurrenceC
 			Description: desc, CategoryID: ch.CategoryID, EndMonth: nullMonth(ch.EndMonth), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
 		}); err != nil {
 			return fmt.Errorf("update recurrence: %w", err)
+		}
+		if err := membersplit.Save(ctx, q, groupID, membersplit.KindRecurrence, id, ch.Members, ch.AmountCents); err != nil {
+			return err
 		}
 		from := c.Cycle().InvoiceFor(s.today())
 		if monthIndex(from) < monthIndex(cur.StartMonth) {

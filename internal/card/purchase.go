@@ -14,6 +14,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/membersplit"
 	"github.com/italogfx/radar-finance/internal/scope"
 )
 
@@ -56,6 +57,8 @@ type PurchaseInput struct {
 	PerInstallment bool
 	// Split divides the purchase with other people; nil keeps it for the couple (RF-24).
 	Split *SplitInput
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // CreditInput registers a refund or another credit on the invoice of its date (RF-22).
@@ -105,7 +108,19 @@ func (s *Service) AddPurchaseTx(ctx context.Context, q *store.Queries, userID in
 	if err := writeInstallments(ctx, q, row.ID, p, 1); err != nil {
 		return 0, err
 	}
-	return row.ID, s.writeSplits(ctx, q, userID, row.ID, p, p.shares)
+	if err := s.writeSplits(ctx, q, userID, row.ID, p, p.shares); err != nil {
+		return 0, err
+	}
+	return row.ID, membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, row.ID, in.Members, groupPart(p))
+}
+
+// groupPart is what the members divide of a purchase: the total without the shares of other people (RF-84).
+func groupPart(p Purchase) int64 {
+	part := p.TotalCents
+	for _, sh := range p.shares {
+		part -= sh.ShareCents
+	}
+	return part
 }
 
 // UpdatePurchase replaces a purchase and regenerates its installments and shares; the card stays the same.
@@ -135,7 +150,10 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 			return err
 		}
 		if first > 1 {
-			return updatePartialImport(ctx, q, groupID, cur, p, in.Split, s.now().UTC())
+			if err := updatePartialImport(ctx, q, groupID, cur, p, in.Split, s.now().UTC()); err != nil {
+				return err
+			}
+			return membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, id, in.Members, groupPart(p))
 		}
 		if err := q.UpdatePurchase(ctx, store.UpdatePurchaseParams{
 			PurchasedOn: p.Date.String(), Merchant: p.Merchant, Description: p.Description, CategoryID: nullID(p.CategoryID),
@@ -153,7 +171,10 @@ func (s *Service) UpdatePurchase(ctx context.Context, id int64, in PurchaseInput
 		if err := writeInstallments(ctx, q, id, p, 1); err != nil {
 			return err
 		}
-		return s.writeSplits(ctx, q, cur.createdBy, id, p, p.shares)
+		if err := s.writeSplits(ctx, q, cur.createdBy, id, p, p.shares); err != nil {
+			return err
+		}
+		return membersplit.Save(ctx, q, groupID, membersplit.KindPurchase, id, in.Members, groupPart(p))
 	})
 	if err != nil {
 		return Purchase{}, err

@@ -17,6 +17,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
 	"github.com/italogfx/radar-finance/internal/ledger"
+	"github.com/italogfx/radar-finance/internal/membersplit"
 	"github.com/italogfx/radar-finance/internal/problem"
 	"github.com/italogfx/radar-finance/internal/scope"
 )
@@ -63,6 +64,8 @@ type Input struct {
 	ExpectedCents int64
 	StartMonth    civil.Month
 	EndMonth      *civil.Month
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // Occurrence is the bill of one month, with the amount that counts and the payment, if any.
@@ -181,7 +184,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Bill, err
 			return fmt.Errorf("create bill: %w", err)
 		}
 		id = b.ID
-		return nil
+		return membersplit.Save(ctx, q, groupID, membersplit.KindBill, id, in.Members, in.ExpectedCents)
 	})
 	if err != nil {
 		return Bill{}, err
@@ -209,10 +212,13 @@ func (s *Service) Update(ctx context.Context, id int64, in Input) (Bill, error) 
 		if err := checkPaidMonths(ctx, q, id, in); err != nil {
 			return err
 		}
-		return q.UpdateBill(ctx, store.UpdateBillParams{
+		if err := q.UpdateBill(ctx, store.UpdateBillParams{
 			Name: in.Name, CategoryID: in.CategoryID, AccountID: in.AccountID, DueDay: int64(in.DueDay), ExpectedCents: in.ExpectedCents,
 			StartMonth: in.StartMonth.String(), EndMonth: nullMonth(in.EndMonth), UpdatedAt: s.now().UTC(), ID: id, GroupID: groupID,
-		})
+		}); err != nil {
+			return err
+		}
+		return membersplit.Save(ctx, q, groupID, membersplit.KindBill, id, in.Members, in.ExpectedCents)
 	})
 	if err != nil {
 		return Bill{}, err

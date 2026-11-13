@@ -16,6 +16,7 @@ import (
 	"github.com/italogfx/radar-finance/internal/civil"
 	"github.com/italogfx/radar-finance/internal/db"
 	"github.com/italogfx/radar-finance/internal/db/store"
+	"github.com/italogfx/radar-finance/internal/membersplit"
 	"github.com/italogfx/radar-finance/internal/problem"
 	"github.com/italogfx/radar-finance/internal/scope"
 )
@@ -121,6 +122,8 @@ type NewExpense struct {
 	Date        civil.Date
 	CategoryID  int64
 	Description string
+	// Members divides the expense between the members of the group; nil keeps the weights (RN-28).
+	Members *membersplit.Rule
 }
 
 // Adjustment sets the account balance to the value the bank shows (RF-06).
@@ -392,7 +395,14 @@ func (s *Service) AddExpenseTx(ctx context.Context, q *store.Queries, userID int
 		OccurredOn: in.Date.String(), Confirmed: true,
 		CategoryID: sql.NullInt64{Int64: in.CategoryID, Valid: true}, Description: desc,
 	})
-	return e.ID, err
+	if err != nil {
+		return 0, err
+	}
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return e.ID, membersplit.Save(ctx, q, groupID, membersplit.KindEntry, e.ID, in.Members, in.AmountCents)
 }
 
 // NewIncome is a one off income received in an account, outside the registered incomes (RF-13).
