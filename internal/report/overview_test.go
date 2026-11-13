@@ -2,11 +2,11 @@ package report
 
 import (
 	"context"
-	"github.com/italogfx/radar-finance/internal/scope"
 	"testing"
 	"time"
 
 	"github.com/italogfx/radar-finance/internal/civil"
+	"github.com/italogfx/radar-finance/internal/scope"
 )
 
 // TestForecast is the income of the month minus every expected way out, by group (RF-58, RN-13).

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
@@ -98,7 +100,28 @@ func publishChanges(hub *events.Hub, sm *scs.SessionManager, next http.Handler) 
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 		if topic := events.Topic(r.URL.Path); topic != "" && rec.status < 400 {
-			hub.Publish(events.Event{Topic: topic, GroupID: auth.CurrentGroup(r.Context(), sm), UserID: auth.CurrentUser(r.Context(), sm), ClientID: clientID(r)})
+			group, user := auth.CurrentGroup(r.Context(), sm), auth.CurrentUser(r.Context(), sm)
+			hub.Publish(events.Event{Topic: topic, GroupID: group, UserID: user, ClientID: clientID(r)})
+			// An item created in or moved to another space changes that space too (RF-83).
+			if other, ok := otherSpace(r); ok && other != group {
+				hub.Publish(events.Event{Topic: topic, GroupID: other, UserID: user, ClientID: clientID(r)})
+			}
 		}
 	})
+}
+
+// otherSpace returns the space a write also reached: the X-Radar-Space of a creation, or the target of a move.
+// Only requests that passed the membership checks get here with a status below 400.
+func otherSpace(r *http.Request) (int64, bool) {
+	if id, ok := spaceHeader(r); ok {
+		return id, true
+	}
+	if rest, ok := strings.CutPrefix(r.URL.Path, "/api/spaces/"); ok {
+		if id, tail, ok := strings.Cut(rest, "/"); ok && tail == "moves" {
+			if n, err := strconv.ParseInt(id, 10, 64); err == nil && n > 0 {
+				return n, true
+			}
+		}
+	}
+	return 0, false
 }

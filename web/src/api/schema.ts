@@ -123,6 +123,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/spaces/{id}/moves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83). */
+        post: operations["moveToSpace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/preferences": {
         parameters: {
             query?: never;
@@ -1849,6 +1868,12 @@ export interface components {
         };
         /** @enum {string} */
         GroupRole: "admin" | "member";
+        SpaceMove: {
+            /** @enum {string} */
+            kind: "entry" | "purchase" | "bill" | "financing" | "income" | "savings";
+            /** Format: int64 */
+            itemId: number;
+        };
         GroupSummary: {
             /** Format: int64 */
             id: number;
@@ -3337,6 +3362,8 @@ export interface components {
     };
     parameters: {
         Id: number;
+        /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+        Space: number;
     };
     requestBodies: never;
     headers: never;
@@ -3497,6 +3524,35 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    moveToSpace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpaceMove"];
+            };
+        };
+        responses: {
+            /** @description The item is in the other space. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     updatePreferences: {
@@ -4137,7 +4193,10 @@ export interface operations {
     addAccountExpense: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path: {
                 id: components["parameters"]["Id"];
             };
@@ -4263,7 +4322,10 @@ export interface operations {
     createIncome: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -4398,7 +4460,10 @@ export interface operations {
     addAccountIncome: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path: {
                 id: components["parameters"]["Id"];
             };
@@ -4636,7 +4701,10 @@ export interface operations {
     addPurchase: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path: {
                 id: components["parameters"]["Id"];
             };
@@ -4900,7 +4968,10 @@ export interface operations {
     createBill: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -5086,7 +5157,10 @@ export interface operations {
     createFinancing: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -5603,7 +5677,10 @@ export interface operations {
     createSavingsBox: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path?: never;
             cookie?: never;
         };
