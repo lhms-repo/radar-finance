@@ -37,6 +37,31 @@ test("back closes the open sheet or dialog before leaving the screen (RNF-26)", 
   await expect(form).toBeVisible();
   await form.getByRole("button", { name: "Cancelar" }).click();
   await expect(form).toBeHidden();
+  await expect.poll(() => page.evaluate(() => (history.state as { radarLayer?: string } | null)?.radarLayer ?? null)).toBeNull();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("a dialog opened from a menu takes one back to close and one more to leave (RNF-26)", async ({ page }) => {
+  await from(page, "/", "/settings/categories");
+  await page.getByRole("button", { name: /^Ações de / }).first().click();
+  await page.getByRole("menuitem", { name: "Editar" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await page.goBack();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/\/settings\/categories$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("leaving through a shortcut keeps no step of the shortcuts behind (RNF-26)", async ({ page }) => {
+  await from(page, "/", "/cards");
+  await openShortcuts(page);
+  await page.getByRole(isPhone(page) ? "button" : "menuitem", { name: "Importar CSV" }).click();
+  await expect(page).toHaveURL(/\/settings\/import$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/cards$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/$/);
 });
@@ -82,6 +107,7 @@ test("the system bar follows the theme chosen in the app (RNF-23)", async ({ pag
   await page.getByRole("radiogroup", { name: "Tema" }).getByRole("radio", { name: "Claro" }).click();
   await expect.poll(colors).toEqual(["#f4f5f7"]);
   // The theme is saved for the user, so the other tests get the system one back.
+  const restored = page.waitForResponse((r) => r.url().endsWith("/api/me/preferences") && r.ok());
   await page.getByRole("radiogroup", { name: "Tema" }).getByRole("radio", { name: "Sistema" }).click();
-  await expect.poll(colors).toEqual(["#f4f5f7"]);
+  await restored;
 });

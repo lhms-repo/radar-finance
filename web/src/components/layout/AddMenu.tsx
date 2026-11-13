@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
+import { useLeaveNavigate } from "@/lib/back";
 import { ArrowDownLeft, ChevronDown, CreditCard, FileUp, Plus, ShoppingBag, Utensils, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useQuickEntry, type QuickEntryPreset } from "@/features/quick-entry/QuickEntry";
 import { useCloseOnBack } from "@/lib/back";
@@ -23,7 +23,7 @@ export const SHORTCUTS: Shortcut[] = [
 /** Returns the action of a shortcut: the quick entry card, or a notice for later phases. */
 function useOpenShortcut() {
   const { open } = useQuickEntry();
-  const navigate = useNavigate();
+  const navigate = useLeaveNavigate();
   return (s: Shortcut) => {
     haptic();
     if (s.preset) open(s.preset);

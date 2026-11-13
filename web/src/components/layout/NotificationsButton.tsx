@@ -1,10 +1,10 @@
 import NumberFlow from "@number-flow/react";
+import { useLeaveNavigate } from "@/lib/back";
 import { AnimatePresence, motion } from "motion/react";
 import { Popover } from "radix-ui";
 import { useCloseOnBack } from "@/lib/back";
 import { AlertTriangle, Bell, CircleAlert, Info } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
 import { useMarkNotificationsRead, useNotifications, type Notification } from "@/features/overview/api";
 import { haptic } from "@/lib/haptics";
 import { fade, spring } from "@/lib/motion";
@@ -21,7 +21,7 @@ const SEVERITY = {
 export function NotificationsButton() {
   const notes = useNotifications();
   const mark = useMarkNotificationsRead();
-  const navigate = useNavigate();
+  const navigate = useLeaveNavigate();
   const [open, setOpen] = useState(false);
   const unread = notes.data?.unread ?? 0;
   const items = notes.data?.items ?? [];

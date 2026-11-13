@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
+import { useLeaveNavigate } from "@/lib/back";
 import { Check, ChevronLeft, Minus, Pencil, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogActions } from "@/components/ui/dialog";
@@ -206,7 +207,7 @@ function ItemRow({ item: it, readOnly }: { item: ListItem; readOnly: boolean }) 
 function RenameDialog({ open, id, name, onClose }: { open: boolean; id: number; name: string; onClose: () => void }) {
   const rename = useRenameList();
   const remove = useDeleteList();
-  const navigate = useNavigate();
+  const navigate = useLeaveNavigate();
   const [draft, setDraft] = useState<string | null>(null);
   const value = draft ?? name;
 
