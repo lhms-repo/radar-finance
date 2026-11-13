@@ -20,6 +20,8 @@
 /deploy/.env
 /deploy/certs/
 /tools/agent-bridge/.env
+/tools/agent-bridge/.state
+/tools/agent-bridge/topology.env
 
 # Editors and OS
 .DS_Store

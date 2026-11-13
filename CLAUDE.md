@@ -120,10 +120,12 @@ No terminal do WSL2, fora do Dev Container:
 | `make deploy-logs` | Logs da produção |
 | `deploy/restore.sh <arquivo>` | Restaura um backup, veja `docs/backup.md` |
 
-Ponte entre agentes (opcional, veja `docs/agentes.md`): o planejador escreve as tarefas e revisa; o executor, em outra máquina, implementa. Cada máquina tem um `tools/agent-bridge/.env` com permissão 600, fora do git:
+Ponte entre agentes (opcional, veja `docs/agentes.md`): o planejador escreve as tarefas e revisa; o executor, em outra máquina, implementa. Cada máquina tem um `tools/agent-bridge/.env` com permissão 600, fora do git; o planejador tem também o `topology.env`, que descreve as máquinas:
 
 | Comando | Onde | O que faz |
 | --- | --- | --- |
+| `setup.sh apply topology.env [--test] [--lock-password]` | Planejador | Instala a ponte nas duas máquinas a partir da topologia, entrando na executora por SSH |
+| `setup.sh remove topology.env [--skip-executor]` | Planejador | Remove da executora e do planejador só o que a ponte instalou ou mudou; não remove o agente |
 | `tools/agent-bridge/setup.sh executor` | Executor | Prepara a máquina executora: SSH, caminhos do agente e `.env` |
 | `setup.sh planner usuario@host` | Planejador | Prepara a máquina do planejador: chave, cópia dos scripts e `.env` |
 | `tools/agent-bridge/setup.sh lock-password` | Executor | Desliga o login por senha no SSH depois que a chave funcionar |
