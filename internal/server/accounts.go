@@ -130,7 +130,7 @@ func (a *API) AddAccountExpense(ctx context.Context, req gen.AddAccountExpenseRe
 	}
 	e, err := a.d.Ledger.AddExpense(ctx, auth.UserID(ctx), ledger.NewExpense{
 		AccountID: req.Id, AmountCents: req.Body.AmountCents, Date: fromDate(req.Body.Date),
-		CategoryID: req.Body.CategoryId, Description: deref(req.Body.Description),
+		CategoryID: req.Body.CategoryId, Description: deref(req.Body.Description), Members: fromMemberSplit(req.Body.MemberSplit),
 	})
 	if err != nil {
 		return nil, err

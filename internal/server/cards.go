@@ -205,6 +205,7 @@ func (a *API) AddRecurrence(ctx context.Context, req gen.AddRecurrenceRequestObj
 	}
 	r, err := a.d.Cards.AddRecurrence(ctx, auth.UserID(ctx), card.RecurrenceInput{
 		CardID: req.Id, Description: b.Description, CategoryID: b.CategoryId, AmountCents: b.AmountCents, StartDate: fromDate(b.StartDate), EndMonth: end,
+		Members: fromMemberSplit(b.MemberSplit),
 	})
 	if err != nil {
 		return nil, err
@@ -223,7 +224,7 @@ func (a *API) UpdateRecurrence(ctx context.Context, req gen.UpdateRecurrenceRequ
 		return nil, err
 	}
 	r, err := a.d.Cards.UpdateRecurrence(ctx, req.Id, card.RecurrenceChanges{
-		Description: b.Description, CategoryID: b.CategoryId, AmountCents: b.AmountCents, EndMonth: end,
+		Description: b.Description, CategoryID: b.CategoryId, AmountCents: b.AmountCents, EndMonth: end, Members: fromMemberSplit(b.MemberSplit),
 	})
 	if err != nil {
 		return nil, err
@@ -247,6 +248,7 @@ func fromPurchaseInput(cardID int64, b gen.PurchaseInput) card.PurchaseInput {
 		PerInstallment: b.PerInstallment != nil && *b.PerInstallment,
 	}
 	in.Split = fromSplitInput(b.Split)
+	in.Members = fromMemberSplit(b.MemberSplit)
 	return in
 }
 

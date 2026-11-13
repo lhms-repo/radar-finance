@@ -24,6 +24,8 @@ tags:
   - name: reports
   - name: imports
   - name: market
+  - name: groups
+  - name: settlement
 paths:
   /ping:
     get:
@@ -445,6 +447,125 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           $ref: "#/components/responses/Conflict"
+
+  /group/weights:
+    put:
+      operationId: setGroupWeights
+      tags: [groups]
+      summary: Sets the weight of every member in the settlement, in force from today; administrators only (RF-79, RN-28).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupWeights"
+      responses:
+        "200":
+          description: The group with the new weights.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /settlement:
+    get:
+      operationId: getSettlement
+      tags: [settlement]
+      summary: Balances of the members, who pays whom, the payments made and the expenses of the month (RF-84, RN-29).
+      parameters:
+        - name: month
+          in: query
+          required: true
+          description: Month of the expenses listed, as YYYY-MM.
+          schema:
+            $ref: "#/components/schemas/Month"
+      responses:
+        "200":
+          description: The settlement of the active group.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settlement"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /settlement/payments:
+    post:
+      operationId: createSettlementPayment
+      tags: [settlement]
+      summary: Records a payment between members as a transfer between their accounts (RN-30).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettlementPaymentCreate"
+      responses:
+        "201":
+          description: The payment recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettlementPayment"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /settlement/payments/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: deleteSettlementPayment
+      tags: [settlement]
+      summary: Undoes a payment between members with its transfer.
+      responses:
+        "204":
+          description: Undone.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /member-splits/{kind}/{id}:
+    parameters:
+      - name: kind
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/MemberSplitKind"
+      - $ref: "#/components/parameters/Id"
+    get:
+      operationId: getMemberSplit
+      tags: [settlement]
+      summary: Division between members of one expense of the active group, weights when none was chosen (RN-28).
+      responses:
+        "200":
+          description: The division.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberSplit"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /group/members:
     post:
@@ -3196,6 +3317,186 @@ components:
           type: integer
           format: int64
 
+    MemberSplitKind:
+      type: string
+      enum: [entry, purchase, recurrence, bill, financing, alelo]
+
+    MemberSplit:
+      description: Division of an expense between the members of the group; weights when absent (RN-28).
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [weights, equal, custom]
+        members:
+          description: Who takes part, in equal mode; the value of each member, in custom mode, adding up to the part of the group.
+          type: array
+          items:
+            $ref: "#/components/schemas/MemberShare"
+
+    MemberShare:
+      type: object
+      required: [personId]
+      properties:
+        personId:
+          type: integer
+          format: int64
+        shareCents:
+          $ref: "#/components/schemas/Cents"
+
+    GroupWeights:
+      type: object
+      required: [weights]
+      properties:
+        weights:
+          type: array
+          items:
+            type: object
+            required: [userId, weightBp]
+            properties:
+              userId:
+                type: integer
+                format: int64
+              weightBp:
+                type: integer
+                description: Weight in basis points; all of them add up to 10000.
+
+    Settlement:
+      type: object
+      required: [members, suggestions, payments, lines]
+      properties:
+        from:
+          description: Day the settlement of the group started (RN-31).
+          type: string
+          format: date
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementMember"
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementSuggestion"
+        payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementPayment"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/SettlementLine"
+
+    SettlementMember:
+      type: object
+      required: [personId, name, paidCents, shareCents, sentCents, receivedCents, balanceCents]
+      properties:
+        personId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        paidCents:
+          $ref: "#/components/schemas/Cents"
+        shareCents:
+          $ref: "#/components/schemas/Cents"
+        sentCents:
+          $ref: "#/components/schemas/Cents"
+        receivedCents:
+          $ref: "#/components/schemas/Cents"
+        balanceCents:
+          description: Positive is owed to the member, negative is what she owes (RN-29).
+          $ref: "#/components/schemas/Cents"
+
+    SettlementSuggestion:
+      type: object
+      required: [fromPersonId, fromName, toPersonId, toName, amountCents]
+      properties:
+        fromPersonId:
+          type: integer
+          format: int64
+        fromName:
+          type: string
+        toPersonId:
+          type: integer
+          format: int64
+        toName:
+          type: string
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+
+    SettlementPayment:
+      type: object
+      required: [id, fromPersonId, fromName, toPersonId, toName, amountCents, date]
+      properties:
+        id:
+          type: integer
+          format: int64
+        fromPersonId:
+          type: integer
+          format: int64
+        fromName:
+          type: string
+        toPersonId:
+          type: integer
+          format: int64
+        toName:
+          type: string
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+
+    SettlementLine:
+      type: object
+      required: [date, kind, description, source, payerName, amountCents, shares]
+      properties:
+        date:
+          type: string
+          format: date
+        kind:
+          type: string
+          enum: [account, card, alelo]
+        description:
+          type: string
+        source:
+          description: Account, card or Alelo that paid.
+          type: string
+        payerName:
+          type: string
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        shares:
+          type: array
+          items:
+            type: object
+            required: [personId, name, cents]
+            properties:
+              personId:
+                type: integer
+                format: int64
+              name:
+                type: string
+              cents:
+                $ref: "#/components/schemas/Cents"
+
+    SettlementPaymentCreate:
+      type: object
+      required: [fromAccountId, toAccountId, amountCents, date]
+      properties:
+        fromAccountId:
+          type: integer
+          format: int64
+        toAccountId:
+          type: integer
+          format: int64
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        date:
+          type: string
+          format: date
+
     GroupSummary:
       type: object
       required: [id, name, role, personal]
@@ -3619,6 +3920,8 @@ components:
       type: object
       required: [amountCents, date, categoryId]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         amountCents:
           $ref: "#/components/schemas/Cents"
         date:
@@ -4095,6 +4398,8 @@ components:
       type: object
       required: [date, merchant, categoryId, amountCents, installments]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         date:
           type: string
           format: date
@@ -4243,6 +4548,8 @@ components:
       type: object
       required: [description, categoryId, amountCents, startDate]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         description:
           type: string
           maxLength: 80
@@ -4262,6 +4569,8 @@ components:
       type: object
       required: [description, categoryId, amountCents]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         description:
           type: string
           maxLength: 80
@@ -4305,6 +4614,8 @@ components:
       type: object
       required: [name, categoryId, accountId, dueDay, expectedCents, startMonth]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         name:
           type: string
           maxLength: 60
@@ -4442,6 +4753,8 @@ components:
       type: object
       required: [name, categoryId, accountId, dueDay, installmentCents, totalInstallments, paidInstallments, balanceCents, nextMonth]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         name:
           type: string
           maxLength: 60
@@ -4468,6 +4781,8 @@ components:
       type: object
       required: [name, categoryId, accountId, dueDay]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         name:
           type: string
           maxLength: 60
@@ -4761,6 +5076,8 @@ components:
       type: object
       required: [date, description, amountCents]
       properties:
+        memberSplit:
+          $ref: "#/components/schemas/MemberSplit"
         date:
           type: string
           format: date

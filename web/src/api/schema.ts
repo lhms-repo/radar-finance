@@ -303,6 +303,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/group/weights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Sets the weight of every member in the settlement, in force from today; administrators only (RF-79, RN-28). */
+        put: operations["setGroupWeights"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Balances of the members, who pays whom, the payments made and the expenses of the month (RF-84, RN-29). */
+        get: operations["getSettlement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settlement/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Records a payment between members as a transfer between their accounts (RN-30). */
+        post: operations["createSettlementPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settlement/payments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Undoes a payment between members with its transfer. */
+        delete: operations["deleteSettlementPayment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/member-splits/{kind}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["MemberSplitKind"];
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Division between members of one expense of the active group, weights when none was chosen (RN-28). */
+        get: operations["getMemberSplit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/group/members": {
         parameters: {
             query?: never;
@@ -1874,6 +1964,98 @@ export interface components {
             /** Format: int64 */
             itemId: number;
         };
+        /** @enum {string} */
+        MemberSplitKind: "entry" | "purchase" | "recurrence" | "bill" | "financing" | "alelo";
+        /** @description Division of an expense between the members of the group; weights when absent (RN-28). */
+        MemberSplit: {
+            /** @enum {string} */
+            mode: "weights" | "equal" | "custom";
+            /** @description Who takes part, in equal mode; the value of each member, in custom mode, adding up to the part of the group. */
+            members?: components["schemas"]["MemberShare"][];
+        };
+        MemberShare: {
+            /** Format: int64 */
+            personId: number;
+            shareCents?: components["schemas"]["Cents"];
+        };
+        GroupWeights: {
+            weights: {
+                /** Format: int64 */
+                userId: number;
+                /** @description Weight in basis points; all of them add up to 10000. */
+                weightBp: number;
+            }[];
+        };
+        Settlement: {
+            /**
+             * Format: date
+             * @description Day the settlement of the group started (RN-31).
+             */
+            from?: string;
+            members: components["schemas"]["SettlementMember"][];
+            suggestions: components["schemas"]["SettlementSuggestion"][];
+            payments: components["schemas"]["SettlementPayment"][];
+            lines: components["schemas"]["SettlementLine"][];
+        };
+        SettlementMember: {
+            /** Format: int64 */
+            personId: number;
+            name: string;
+            paidCents: components["schemas"]["Cents"];
+            shareCents: components["schemas"]["Cents"];
+            sentCents: components["schemas"]["Cents"];
+            receivedCents: components["schemas"]["Cents"];
+            /** @description Positive is owed to the member, negative is what she owes (RN-29). */
+            balanceCents: components["schemas"]["Cents"];
+        };
+        SettlementSuggestion: {
+            /** Format: int64 */
+            fromPersonId: number;
+            fromName: string;
+            /** Format: int64 */
+            toPersonId: number;
+            toName: string;
+            amountCents: components["schemas"]["Cents"];
+        };
+        SettlementPayment: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            fromPersonId: number;
+            fromName: string;
+            /** Format: int64 */
+            toPersonId: number;
+            toName: string;
+            amountCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+        };
+        SettlementLine: {
+            /** Format: date */
+            date: string;
+            /** @enum {string} */
+            kind: "account" | "card" | "alelo";
+            description: string;
+            /** @description Account, card or Alelo that paid. */
+            source: string;
+            payerName: string;
+            amountCents: components["schemas"]["Cents"];
+            shares: {
+                /** Format: int64 */
+                personId: number;
+                name: string;
+                cents: components["schemas"]["Cents"];
+            }[];
+        };
+        SettlementPaymentCreate: {
+            /** Format: int64 */
+            fromAccountId: number;
+            /** Format: int64 */
+            toAccountId: number;
+            amountCents: components["schemas"]["Cents"];
+            /** Format: date */
+            date: string;
+        };
         GroupSummary: {
             /** Format: int64 */
             id: number;
@@ -2095,6 +2277,7 @@ export interface components {
             description?: string;
         };
         ExpenseCreate: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             amountCents: components["schemas"]["Cents"];
             /** Format: date */
             date: string;
@@ -2361,6 +2544,7 @@ export interface components {
             date: string;
         };
         PurchaseInput: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             /** Format: date */
             date: string;
             merchant: string;
@@ -2434,6 +2618,7 @@ export interface components {
             name: string;
         };
         RecurrenceInput: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             description: string;
             /** Format: int64 */
             categoryId: number;
@@ -2446,6 +2631,7 @@ export interface components {
             endMonth?: components["schemas"]["Month"];
         };
         RecurrenceUpdate: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             description: string;
             /** Format: int64 */
             categoryId: number;
@@ -2468,6 +2654,7 @@ export interface components {
             endMonth?: components["schemas"]["Month"];
         };
         BillInput: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             name: string;
             /** Format: int64 */
             categoryId: number;
@@ -2542,6 +2729,7 @@ export interface components {
             date?: string;
         };
         FinancingInput: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             name: string;
             /** Format: int64 */
             categoryId: number;
@@ -2555,6 +2743,7 @@ export interface components {
             nextMonth: components["schemas"]["Month"];
         };
         FinancingUpdate: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             name: string;
             /** Format: int64 */
             categoryId: number;
@@ -2708,6 +2897,7 @@ export interface components {
             date?: string;
         };
         AleloPurchaseCreate: {
+            memberSplit?: components["schemas"]["MemberSplit"];
             /** Format: date */
             date: string;
             description: string;
@@ -3884,6 +4074,135 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    setGroupWeights: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GroupWeights"];
+            };
+        };
+        responses: {
+            /** @description The group with the new weights. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    getSettlement: {
+        parameters: {
+            query: {
+                /** @description Month of the expenses listed, as YYYY-MM. */
+                month: components["schemas"]["Month"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settlement of the active group. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settlement"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    createSettlementPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettlementPaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description The payment recorded. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettlementPayment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    deleteSettlementPayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Undone. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getMemberSplit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: components["schemas"]["MemberSplitKind"];
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The division. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberSplit"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     addGroupMember: {

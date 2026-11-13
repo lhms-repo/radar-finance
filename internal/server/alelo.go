@@ -114,6 +114,7 @@ func (a *API) AddAleloPurchase(ctx context.Context, req gen.AddAleloPurchaseRequ
 	}
 	p, err := a.d.Alelo.AddPurchase(ctx, auth.UserID(ctx), alelo.Purchase{
 		AleloID: req.Id, Date: fromDate(req.Body.Date), Description: req.Body.Description, AmountCents: req.Body.AmountCents,
+		Members: fromMemberSplit(req.Body.MemberSplit),
 	})
 	if err != nil {
 		return nil, err
