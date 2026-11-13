@@ -1415,11 +1415,14 @@ type GroupDetail struct {
 
 // GroupMember defines model for GroupMember.
 type GroupMember struct {
-	HasPin bool      `json:"hasPin"`
-	Login  string    `json:"login"`
-	Name   string    `json:"name"`
-	Role   GroupRole `json:"role"`
-	UserId int64     `json:"userId"`
+	HasPin bool   `json:"hasPin"`
+	Login  string `json:"login"`
+	Name   string `json:"name"`
+
+	// PersonId Person of the member, used in divisions and the settlement (RN-28).
+	PersonId int64     `json:"personId"`
+	Role     GroupRole `json:"role"`
+	UserId   int64     `json:"userId"`
 
 	// WeightBp Weight in the settlement between members, in basis points (RF-79).
 	WeightBp int `json:"weightBp"`
