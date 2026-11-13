@@ -25,6 +25,8 @@ const (
 	KindFinancing Kind = "financing"
 	KindIncome    Kind = "income"
 	KindSavings   Kind = "savings"
+	// KindAlelo is a purchase on an Alelo card. Card recurrences never move: that would rewrite closed invoices.
+	KindAlelo Kind = "alelo"
 )
 
 // Errors of a move.
@@ -125,6 +127,10 @@ var moves = map[Kind]moveFunc{
 			return err
 		}
 		return q.MoveSavingsEntries(ctx, store.MoveSavingsEntriesParams{Target: to, ItemID: id})
+	},
+	KindAlelo: func(ctx context.Context, q *store.Queries, id, from, to int64) error {
+		n, err := q.MoveAleloPurchase(ctx, store.MoveAleloPurchaseParams{Target: to, ItemID: id, GroupID: from})
+		return moved(n, err)
 	},
 }
 

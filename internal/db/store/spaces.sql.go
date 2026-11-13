@@ -18,6 +18,7 @@ SELECT CAST(CASE CAST(?1 AS TEXT)
     WHEN 'financing' THEN (SELECT x.created_by FROM financings x WHERE x.id = ?2)
     WHEN 'income' THEN (SELECT x.created_by FROM incomes x WHERE x.id = ?2)
     WHEN 'savings' THEN (SELECT x.created_by FROM savings_boxes x WHERE x.id = ?2)
+    WHEN 'alelo' THEN (SELECT x.created_by FROM alelo_purchases x WHERE x.id = ?2)
     ELSE 0 END AS INTEGER) AS created_by
 `
 
@@ -43,6 +44,7 @@ SELECT CAST(CASE CAST(?1 AS TEXT)
     WHEN 'financing' THEN EXISTS (SELECT 1 FROM financings x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
     WHEN 'income' THEN EXISTS (SELECT 1 FROM incomes x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
     WHEN 'savings' THEN EXISTS (SELECT 1 FROM savings_boxes x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
+    WHEN 'alelo' THEN EXISTS (SELECT 1 FROM alelo_purchases x WHERE x.id = ?2 AND x.group_id = CAST(?3 AS INTEGER))
     ELSE 0 END AS INTEGER) AS found
 `
 
@@ -60,6 +62,29 @@ func (q *Queries) ItemInGroup(ctx context.Context, arg ItemInGroupParams) (int64
 	var found int64
 	err := row.Scan(&found)
 	return found, err
+}
+
+const moveAleloPurchase = `-- name: MoveAleloPurchase :execrows
+UPDATE alelo_purchases
+SET group_id = CAST(?1 AS INTEGER)
+WHERE alelo_purchases.id = ?2 AND alelo_purchases.group_id = CAST(?3 AS INTEGER)
+  AND EXISTS (SELECT 1 FROM alelo_cards c JOIN group_members gm ON gm.person_id = c.person_id
+              WHERE c.id = alelo_purchases.alelo_id AND gm.group_id = CAST(?1 AS INTEGER))
+`
+
+type MoveAleloPurchaseParams struct {
+	Target  int64
+	ItemID  int64
+	GroupID int64
+}
+
+// A purchase on an Alelo card whose holder is in the target space; its division between members stays behind.
+func (q *Queries) MoveAleloPurchase(ctx context.Context, arg MoveAleloPurchaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, moveAleloPurchase, arg.Target, arg.ItemID, arg.GroupID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const moveBill = `-- name: MoveBill :execrows

@@ -134,8 +134,8 @@ export function useAddCredit() {
 /** Registers a recurrence (RF-17). */
 export function useAddRecurrence() {
   return useCardMutation(
-    async ({ cardId, body }: { cardId: number; body: components["schemas"]["RecurrenceInput"] }) =>
-      unwrap(await api.POST("/cards/{id}/recurrences", { params: { path: { id: cardId } }, body })),
+    async ({ cardId, body, space }: { cardId: number; body: components["schemas"]["RecurrenceInput"] } & SpaceTarget) =>
+      unwrap(await api.POST("/cards/{id}/recurrences", { params: { path: { id: cardId }, header: spaceHeader(space) }, body })),
     "Recorrência criada",
   );
 }
