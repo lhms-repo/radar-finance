@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   CalendarClock,
+  Scale,
   CreditCard,
   HandCoins,
   LayoutGrid,
@@ -21,6 +22,8 @@ export type NavItem = {
   group: "menu" | "settings";
   /** Construction phase that delivers the screen (section 9). */
   phase: number;
+  /** Only in a shared group: the personal space has nobody to settle with (RF-84). */
+  sharedOnly?: boolean;
   description: string;
 };
 
@@ -97,6 +100,17 @@ export const NAV_ITEMS: NavItem[] = [
     description: "Pendências de terceiros por pessoa, marcação de pago e mensagem de cobrança.",
   },
   {
+    id: "settlement",
+    label: "Acerto",
+    shortLabel: "Acerto",
+    path: "/settlement",
+    icon: Scale,
+    group: "menu",
+    phase: 10,
+    sharedOnly: true,
+    description: "Quanto cada membro pagou, a cota de cada um e quem paga quem para zerar.",
+  },
+  {
     id: "market",
     label: "Mercado",
     shortLabel: "Mercado",
@@ -123,7 +137,7 @@ export const BOTTOM_LEFT = ["overview", "cards"];
 export const BOTTOM_RIGHT = ["savings"];
 
 /** Screens reached through the More sheet on the iPhone, in the order of section 5.5. */
-export const MORE_ITEMS = ["cash-flow", "alelo", "market", "bills", "receivables", "settings"];
+export const MORE_ITEMS = ["cash-flow", "alelo", "market", "bills", "receivables", "settlement", "settings"];
 
 /** Finds a navigation item by ID. */
 export function navItem(id: string): NavItem {

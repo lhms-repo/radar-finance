@@ -40,8 +40,10 @@ export function Sidebar() {
     }
   };
 
+  // The settlement only exists in a shared group (RF-84).
+  const shown = (i: NavItem) => !(i.sharedOnly && me?.group.personal);
   const groups: { title: string; items: NavItem[] }[] = [
-    { title: "Menu", items: NAV_ITEMS.filter((i) => i.group === "menu") },
+    { title: "Menu", items: NAV_ITEMS.filter((i) => i.group === "menu" && shown(i)) },
     { title: "Ajustes", items: NAV_ITEMS.filter((i) => i.group === "settings") },
   ];
 

@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import { useMe } from "@/app/session";
 import { ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 import { NavLink } from "react-router";
@@ -8,6 +9,7 @@ import { softSpring } from "@/lib/motion";
 
 /** Bottom sheet with the screens that do not fit in the bar (section 5.5). */
 export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const me = useMe();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -44,7 +46,7 @@ export function MoreSheet({ open, onClose }: { open: boolean; onClose: () => voi
           >
             <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-muted" />
             <ul className="flex flex-col">
-              {MORE_ITEMS.map((id, i) => {
+              {MORE_ITEMS.filter((id) => !(navItem(id).sharedOnly && me?.group.personal)).map((id, i) => {
                 const item = navItem(id);
                 return (
                   <motion.li

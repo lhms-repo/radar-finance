@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MemberSplitField, useSplitState } from "@/features/settle/MemberSplitField";
 import { useMe } from "@/app/session";
 import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { AnimatePresence, motion } from "motion/react";
@@ -404,6 +405,7 @@ const expenseSchema = z.object({
 function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Account; onClose: () => void }) {
   const add = useAddExpense();
   const where = useSpaceChoice();
+  const split = useSplitState("entry");
   const form = useForm<z.infer<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
     resetOptions: { keepDirtyValues: true },
@@ -413,11 +415,12 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
   /** Clears the mutation state and closes. */
   const close = () => {
     add.reset();
+    split.reset();
     form.reset();
     onClose();
   };
   /** Validates and sends the form. */
-  const submit = form.handleSubmit((v) => add.mutate({ id: account.id, body: v, space: where.target }, { onSuccess: close }));
+  const submit = form.handleSubmit((v) => add.mutate({ id: account.id, body: { ...v, memberSplit: split.value }, space: where.target }, { onSuccess: close }));
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={`Saída de ${account.name}`} description="Pix, débito, boleto ou dinheiro que sai direto da conta.">
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
@@ -434,6 +437,7 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
           <Input id="expense-desc" autoComplete="off" placeholder="Opcional" {...form.register("description")} />
         </Field>
         <SpaceField value={where.space} onChange={where.setSpace} />
+        <MemberSplitField value={split.value} onChange={split.onChange} space={where.space} />
         <FieldError message={add.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

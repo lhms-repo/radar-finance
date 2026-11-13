@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MemberSplitField, useSplitState } from "@/features/settle/MemberSplitField";
 import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { motion } from "motion/react";
 import { Check, Minus, Plus } from "lucide-react";
@@ -227,6 +228,7 @@ export function PurchaseDialog({
   const update = useUpdatePurchase();
   const mutation = item ? update : add;
   const where = useSpaceChoice();
+  const memberSplit = useSplitState("purchase", item?.purchaseId);
   const current = usePurchase(item?.purchaseId);
   const shares = current.data?.splits ?? [];
   const split: SplitValue = shares.length
@@ -254,6 +256,7 @@ export function PurchaseDialog({
   /** Clears the mutation state and closes. */
   const close = () => {
     mutation.reset();
+    memberSplit.reset();
     form.reset();
     onClose();
   };
@@ -266,7 +269,7 @@ export function PurchaseDialog({
 
   /** Validates and sends the form. */
   const submit = form.handleSubmit((v) => {
-    const body = { ...v, buyerPersonId: v.buyerPersonId || undefined, split: splitBody(v.split) };
+    const body = { ...v, buyerPersonId: v.buyerPersonId || undefined, split: splitBody(v.split), memberSplit: memberSplit.value };
     if (item?.purchaseId) update.mutate({ id: item.purchaseId, body }, { onSuccess: close });
     else add.mutate({ cardId: card.id, body, space: where.target }, { onSuccess: close });
   });
@@ -325,6 +328,7 @@ export function PurchaseDialog({
         </Field>
         <Controller control={form.control} name="split" render={({ field }) => <SplitEditor value={field.value} onChange={field.onChange} />} />
         {item?.purchaseId ? <MoveToSpace kind="purchase" itemId={item.purchaseId} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
+        <MemberSplitField value={memberSplit.value} onChange={memberSplit.onChange} space={where.space} />
         <FieldError message={mutation.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>
@@ -412,6 +416,7 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   const add = useAddRecurrence();
   const update = useUpdateRecurrence();
   const mutation = recurrence ? update : add;
+  const split = useSplitState("recurrence", recurrence?.id);
   const form = useForm<z.infer<typeof recurrenceSchema>>({
     resolver: zodResolver(recurrenceSchema),
     resetOptions: { keepDirtyValues: true },
@@ -428,6 +433,7 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   /** Clears the mutation state and closes. */
   const close = () => {
     mutation.reset();
+    split.reset();
     form.reset();
     onClose();
   };
@@ -435,8 +441,8 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
   /** Validates and sends the form. */
   const submit = form.handleSubmit((v) => {
     const endMonth = v.endMonth || undefined;
-    if (recurrence) update.mutate({ id: recurrence.id, body: { description: v.description, amountCents: v.amountCents, categoryId: v.categoryId, endMonth } }, { onSuccess: close });
-    else add.mutate({ cardId: card.id, body: { ...v, endMonth } }, { onSuccess: close });
+    if (recurrence) update.mutate({ id: recurrence.id, body: { description: v.description, amountCents: v.amountCents, categoryId: v.categoryId, endMonth, memberSplit: split.value } }, { onSuccess: close });
+    else add.mutate({ cardId: card.id, body: { ...v, endMonth, memberSplit: split.value } }, { onSuccess: close });
   });
 
   return (
@@ -466,6 +472,7 @@ export function RecurrenceDialog({ open, card, recurrence, onClose }: { open: bo
             <Input id="recurrence-end" type="month" {...form.register("endMonth")} />
           </Field>
         </div>
+        <MemberSplitField value={split.value} onChange={split.onChange} />
         <FieldError message={mutation.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

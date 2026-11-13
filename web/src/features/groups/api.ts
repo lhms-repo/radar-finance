@@ -71,3 +71,11 @@ export function useResetPin() {
     if (!res.response.ok) unwrap({ ...res, data: undefined });
   }, "PIN redefinido");
 }
+
+/** Sets the weight of every member in the settlement, from today on; administrators only (RF-79, RN-28). */
+export function useSetWeights() {
+  return useGroupMutation(
+    async (weights: { userId: number; weightBp: number }[]) => unwrap(await api.PUT("/group/weights", { body: { weights } })),
+    "Pesos salvos",
+  );
+}

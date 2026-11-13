@@ -10,6 +10,7 @@ import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogActions } from "@/components/ui/dialog";
 import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import {
   useAddMember,
@@ -19,6 +20,7 @@ import {
   useRenameGroup,
   useResetPin,
   useSetRole,
+  useSetWeights,
   type GroupMember,
 } from "@/features/groups/api";
 
@@ -48,7 +50,7 @@ function GroupMembers() {
   const me = useMe();
   const group = useGroup();
   const isAdmin = me?.group.role === "admin";
-  const [dialog, setDialog] = useState<"rename" | "person" | "existing" | "group" | null>(null);
+  const [dialog, setDialog] = useState<"rename" | "person" | "existing" | "group" | "weights" | null>(null);
   const [pinFor, setPinFor] = useState<GroupMember | null>(null);
   const setRole = useSetRole();
   const members = group.data?.members ?? [];
@@ -71,9 +73,14 @@ function GroupMembers() {
             <CardDescription>{isAdmin ? "Você administra este grupo." : "Só os administradores mudam o grupo e as pessoas."}</CardDescription>
           </div>
           {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => setDialog("rename")}>
-              Renomear
-            </Button>
+            <span className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setDialog("weights")}>
+                Pesos
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setDialog("rename")}>
+                Renomear
+              </Button>
+            </span>
           )}
         </div>
       </Card>
@@ -101,7 +108,7 @@ function GroupMembers() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-medium">{m.name}</span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  @{m.login} · {m.role === "admin" ? "administrador" : "membro"}
+                  @{m.login} · {m.role === "admin" ? "administrador" : "membro"} · peso {(m.weightBp / 100).toLocaleString("pt-BR")}%
                   {!m.hasPin && " · sem PIN"}
                 </span>
               </span>
@@ -142,6 +149,7 @@ function GroupMembers() {
         </Card>
       )}
 
+      <WeightsDialog key={`weights-${dialog === "weights"}`} open={dialog === "weights"} members={members} onClose={() => setDialog(null)} />
       <NameDialog
         key={`rename-${dialog === "rename"}`}
         open={dialog === "rename"}
@@ -358,6 +366,56 @@ function PinDialog({ member, onClose }: { member: GroupMember | null; onClose: (
           </Button>
           <Button type="submit" disabled={reset.isPending}>
             Salvar PIN
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
+  );
+}
+
+/** Sets the weight of each member in the settlement, in percent adding up to 100, from today on (RF-79, RN-28). */
+function WeightsDialog({ open, members, onClose }: { open: boolean; members: GroupMember[]; onClose: () => void }) {
+  const save = useSetWeights();
+  const [percent, setPercent] = useState<Record<number, string>>(() => Object.fromEntries(members.map((m) => [m.userId, String(m.weightBp / 100)])));
+  /** Reads a percentage typed with comma or dot as basis points. */
+  const bp = (v: string | undefined) => Math.round(Number((v ?? "").replace(",", ".")) * 100) || 0;
+  const total = members.reduce((sum, m) => sum + bp(percent[m.userId]), 0);
+  /** Clears the mutation state and closes. */
+  const close = () => {
+    save.reset();
+    onClose();
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && close()} title="Pesos no acerto" description="Quanto cada pessoa paga dos gastos do grupo. Vale a partir de hoje; gastos anteriores mantêm os pesos que tinham.">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(
+            members.map((m) => ({ userId: m.userId, weightBp: bp(percent[m.userId]) })),
+            { onSuccess: close },
+          );
+        }}
+        className="flex flex-col gap-4"
+        noValidate
+      >
+        {members.map((m) => (
+          <Field key={m.userId} label={`${m.name} (%)`} htmlFor={`weight-${m.userId}`}>
+            <Input
+              id={`weight-${m.userId}`}
+              inputMode="decimal"
+              value={percent[m.userId] ?? ""}
+              onChange={(e) => setPercent({ ...percent, [m.userId]: e.target.value })}
+            />
+          </Field>
+        ))}
+        <p className={cn("text-sm", total === 10000 ? "text-muted-foreground" : "text-destructive")}>Soma: {(total / 100).toLocaleString("pt-BR")}%</p>
+        <FieldError message={save.error?.message} />
+        <DialogActions>
+          <Button variant="ghost" onClick={close}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={save.isPending}>
+            Salvar
           </Button>
         </DialogActions>
       </form>
