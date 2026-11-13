@@ -467,3 +467,69 @@ func (s *Service) ClosedDebt(ctx context.Context) (int64, error) {
 	}
 	return debt, nil
 }
+
+// GroupCharge is the part of the group in one line of a closed invoice: an installment without the shares of other
+// people, or a recurrence charge, dated on the closing day and paid by the holder of the card (RF-84).
+type GroupCharge struct {
+	Date        civil.Date
+	CardID      int64
+	CardName    string
+	PayerID     int64
+	Kind        string
+	RefID       int64
+	Description string
+	AmountCents int64
+}
+
+// GroupCharges lists the parts of the active group in the invoices of its cards that closed between from and to,
+// both included, for the settlement between members (RF-84).
+func (s *Service) GroupCharges(ctx context.Context, q *store.Queries, from, to civil.Date) ([]GroupCharge, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cards, err := q.ListCards(ctx, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("list cards: %w", err)
+	}
+	within := func(d civil.Date) bool { return !d.Before(from) && !to.Before(d) }
+	var out []GroupCharge
+	for _, r := range cards {
+		c := Card{ID: r.ID, Name: r.Name, PersonID: r.PersonID, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
+		rows, err := q.GroupInstallments(ctx, store.GroupInstallmentsParams{GroupID: groupID, CardID: c.ID})
+		if err != nil {
+			return nil, fmt.Errorf("group installments: %w", err)
+		}
+		for _, row := range rows {
+			m, err := civil.ParseMonth(row.InvoiceMonth)
+			if err != nil {
+				return nil, err
+			}
+			closing := c.Cycle().Closing(m)
+			part := row.AmountCents - row.ThirdPartyCents
+			if !within(closing) || part == 0 {
+				continue
+			}
+			desc := row.Merchant
+			if row.InstallmentCount > 1 {
+				desc = fmt.Sprintf("%s (%d/%d)", row.Merchant, row.Number, row.InstallmentCount)
+			}
+			out = append(out, GroupCharge{Date: closing, CardID: c.ID, CardName: c.Name, PayerID: c.PersonID, Kind: "purchase", RefID: row.PurchaseID, Description: desc, AmountCents: part})
+		}
+		recs, err := s.recurrencesIn(ctx, q, c, view{groupID: groupID})
+		if err != nil {
+			return nil, err
+		}
+		for _, rec := range recs {
+			for m := from.MonthOf(); monthIndex(m) <= monthIndex(to.MonthOf().Add(1)); m = m.Add(1) {
+				closing := c.Cycle().Closing(m)
+				amount := rec.priceIn(m)
+				if !within(closing) || amount <= 0 {
+					continue
+				}
+				out = append(out, GroupCharge{Date: closing, CardID: c.ID, CardName: c.Name, PayerID: c.PersonID, Kind: "recurrence", RefID: rec.ID, Description: rec.Description, AmountCents: amount})
+			}
+		}
+	}
+	return out, nil
+}
