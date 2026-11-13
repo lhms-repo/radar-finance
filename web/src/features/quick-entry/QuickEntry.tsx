@@ -1,4 +1,5 @@
 import NumberFlow from "@number-flow/react";
+import { SpaceField, useSpaceChoice } from "@/app/space";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { ArrowDownLeft, ArrowUpRight, CreditCard, Landmark, Minus, Plus, Repeat, Shuffle, Utensils } from "lucide-react";
@@ -187,6 +188,8 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
   const recurring = useCreateIncome();
   const bill = useCreateBill();
   const aleloPurchase = useAddAleloPurchase();
+  // Where the entry goes: the active space, or the personal one or another group of the person (RF-83).
+  const where = useSpaceChoice();
   const mutation = { purchase, recurrence, expense, bill, alelo: aleloPurchase, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
   // Any save in flight blocks another one, even after the type changes, so one tap never records twice.
   const saving = [purchase, recurrence, expense, oneOff, recurring, bill, aleloPurchase].some((m) => m.isPending);
@@ -228,6 +231,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
               buyerPersonId: v.buyerPersonId || undefined,
               split: splitBody(v.split),
             },
+            space: where.target,
           },
           done,
         );
@@ -236,7 +240,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         recurrence.mutate({ cardId: v.cardId, body: { description: v.description, categoryId: v.categoryId, amountCents: v.amountCents, startDate: v.date } }, done);
         break;
       case "expense":
-        expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description } }, done);
+        expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description }, space: where.target }, done);
         break;
       case "alelo":
         aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents } }, done);
@@ -250,12 +254,13 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
             dueDay: v.day,
             expectedCents: v.amountCents,
             startMonth: v.date.slice(0, 7),
+            space: where.target,
           },
           done,
         );
         break;
       case "oneOffIncome":
-        oneOff.mutate({ accountId: v.accountId, body: { amountCents: v.amountCents, date: v.date, description: v.description } }, done);
+        oneOff.mutate({ accountId: v.accountId, body: { amountCents: v.amountCents, date: v.date, description: v.description }, space: where.target }, done);
         break;
       case "recurringIncome":
         recurring.mutate(
@@ -268,6 +273,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
             day: v.day,
             startMonth: v.date.slice(0, 7),
             endOn: v.endOn || undefined,
+            space: where.target,
           },
           done,
         );
@@ -371,6 +377,8 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
           </motion.div>
         </LayoutGroup>
 
+        {/* Recurrences and Alelo purchases stay in the active space. */}
+        {combo !== "recurrence" && combo !== "alelo" && <SpaceField value={where.space} onChange={where.setSpace} />}
         <FieldError message={mutation.error?.message} />
         <ConfirmButton done={done} pending={saving} />
       </form>

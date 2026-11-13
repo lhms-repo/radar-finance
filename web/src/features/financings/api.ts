@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
 import { ACCOUNT_KEYS } from "@/features/accounts/api";
@@ -29,7 +30,10 @@ function useFinancingMutation<V, R>(fn: (vars: V) => Promise<R>, success: string
 
 /** Registers a financing (RF-39). */
 export function useCreateFinancing() {
-  return useFinancingMutation(async (body: FinancingInput) => unwrap(await api.POST("/financings", { body })), "Financiamento criado");
+  return useFinancingMutation(
+    async ({ space, ...body }: FinancingInput & SpaceTarget) => unwrap(await api.POST("/financings", { params: { header: spaceHeader(space) }, body })),
+    "Financiamento criado",
+  );
 }
 
 /** Edits name, category, account and due day. */

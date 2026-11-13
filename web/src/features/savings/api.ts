@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
 import { ACCOUNT_KEYS } from "@/features/accounts/api";
@@ -31,7 +32,11 @@ function useSavingsMutation<V, R>(fn: (vars: V) => Promise<R>, success: string) 
 
 /** Creates a box (RF-43). */
 export function useCreateSavings() {
-  return useSavingsMutation(async (body: components["schemas"]["SavingsInput"]) => unwrap(await api.POST("/savings", { body })), "Caixinha criada");
+  return useSavingsMutation(
+    async ({ space, ...body }: components["schemas"]["SavingsInput"] & SpaceTarget) =>
+      unwrap(await api.POST("/savings", { params: { header: spaceHeader(space) }, body })),
+    "Caixinha criada",
+  );
 }
 
 /** Edits a box (RF-44). */

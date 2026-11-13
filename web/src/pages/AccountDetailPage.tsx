@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { AnimatePresence, motion } from "motion/react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, ChevronLeft, CreditCard, Eye, HandCoins, EyeOff, MinusCircle, MoreHorizontal, Pencil, PiggyBank, Scale, Trash2 } from "lucide-react";
@@ -82,15 +83,19 @@ export function AccountDetailPage() {
             onDelete={() => setDialog("delete")}
           />
         </div>
-        <div>
-          <p className="text-sm text-muted-foreground">Saldo atual</p>
-          <Money cents={a.balanceCents} className={cn("text-3xl font-semibold tracking-tight", a.balanceCents < 0 && "text-destructive")} />
-        </div>
+        {a.balanceCents !== undefined ? (
+          <div>
+            <p className="text-sm text-muted-foreground">Saldo atual</p>
+            <Money cents={a.balanceCents} className={cn("text-3xl font-semibold tracking-tight", a.balanceCents < 0 && "text-destructive")} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">O saldo desta conta aparece só para {a.personName}. Aqui ficam os movimentos deste grupo nela.</p>
+        )}
         {a.active && (
-          <div className="grid grid-cols-3 gap-2">
+          <div className={cn("grid gap-2", a.owned ? "grid-cols-3" : "grid-cols-2")}>
             <ActionButton icon={<MinusCircle />} label="Saída" onClick={() => setDialog("expense")} />
             <ActionButton icon={<ArrowLeftRight />} label="Transferir" onClick={() => setDialog("transfer")} />
-            <ActionButton icon={<Scale />} label="Ajustar saldo" onClick={() => setDialog("adjust")} />
+            {a.owned && <ActionButton icon={<Scale />} label="Ajustar saldo" onClick={() => setDialog("adjust")} />}
           </div>
         )}
       </Card>
@@ -102,7 +107,7 @@ export function AccountDetailPage() {
           </CardTitle>
           {statement.isFetching && <span className="text-xs text-muted-foreground">Atualizando...</span>}
         </div>
-        {st && (
+        {st?.full && st.openingCents !== undefined && st.closingCents !== undefined && (
           <dl className="grid grid-cols-2 gap-3 rounded-xl bg-muted p-3 text-sm">
             <div>
               <dt className="text-muted-foreground">Início do mês</dt>
@@ -118,10 +123,13 @@ export function AccountDetailPage() {
             </div>
           </dl>
         )}
+        {st && !st.full && a.owned && (
+          <p className="text-xs text-muted-foreground">Aqui estão os movimentos deste espaço. O extrato completo, com os saldos, fica no seu espaço Pessoal.</p>
+        )}
         <ul className="flex flex-col">
           <AnimatePresence initial={false}>
             {(st?.entries ?? []).map((e) => (
-              <EntryRow key={e.id} entry={e} onDelete={() => setRemoving(e)} />
+              <EntryRow key={e.id} entry={e} onDelete={() => setRemoving(e)} showSpace={st?.full} />
             ))}
           </AnimatePresence>
         </ul>
@@ -215,8 +223,9 @@ function entryTitle(e: Entry) {
 }
 
 /** One statement line with icon, title, author and signed amount. */
-function EntryRow({ entry: e, onDelete }: { entry: Entry; onDelete: () => void }) {
+function EntryRow({ entry: e, onDelete, showSpace }: { entry: Entry; onDelete: () => void; showSpace?: boolean }) {
   const subtitle = [
+    showSpace && e.groupName,
     e.kind === "expense" && e.parentCategoryName,
     e.kind !== "income" && e.description,
     `por ${e.createdByName}`,
@@ -276,7 +285,7 @@ function AdjustDialog({ open, account, onClose }: { open: boolean; account: Acco
   const form = useForm<z.infer<typeof adjustSchema>>({
     resolver: zodResolver(adjustSchema),
     resetOptions: { keepDirtyValues: true },
-    values: { balanceCents: account.balanceCents, date: todayISO(), description: "" },
+    values: { balanceCents: account.balanceCents ?? 0, date: todayISO(), description: "" },
   });
   /** Clears the mutation state and closes. */
   const close = () => {
@@ -290,7 +299,7 @@ function AdjustDialog({ open, account, onClose }: { open: boolean; account: Acco
     <Dialog open={open} onOpenChange={(o) => !o && close()} title="Ajustar saldo" description="Informe o saldo que o app do banco mostra. A diferença vira um lançamento de ajuste.">
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         <p className="text-sm">
-          Saldo no Radar: <Money cents={account.balanceCents} className="font-medium" />
+          Saldo no Radar: <Money cents={account.balanceCents ?? 0} className="font-medium" />
         </p>
         <Field label="Saldo real" htmlFor="adjust-balance">
           <Controller control={form.control} name="balanceCents" render={({ field }) => <MoneyInput id="adjust-balance" value={field.value} onChange={field.onChange} allowNegative autoFocus />} />
@@ -387,6 +396,7 @@ const expenseSchema = z.object({
 /** One off expense paid from this account, until the quick entry of step 2.5 arrives. */
 function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Account; onClose: () => void }) {
   const add = useAddExpense();
+  const where = useSpaceChoice();
   const form = useForm<z.infer<typeof expenseSchema>>({
     resolver: zodResolver(expenseSchema),
     resetOptions: { keepDirtyValues: true },
@@ -400,7 +410,7 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
     onClose();
   };
   /** Validates and sends the form. */
-  const submit = form.handleSubmit((v) => add.mutate({ id: account.id, body: v }, { onSuccess: close }));
+  const submit = form.handleSubmit((v) => add.mutate({ id: account.id, body: v, space: where.target }, { onSuccess: close }));
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={`Saída de ${account.name}`} description="Pix, débito, boleto ou dinheiro que sai direto da conta.">
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
@@ -416,6 +426,7 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
         <Field label="Descrição" htmlFor="expense-desc" error={errors.description?.message}>
           <Input id="expense-desc" autoComplete="off" placeholder="Opcional" {...form.register("description")} />
         </Field>
+        <SpaceField value={where.space} onChange={where.setSpace} />
         <FieldError message={add.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>
@@ -484,6 +495,8 @@ function DeleteEntryDialog({ entry, onClose }: { entry: Entry | null; onClose: (
           {entry.kind === "transfer" && " A transferência sai das duas contas."}
         </p>
       )}
+      {/* A one off expense or income may go to another space of the person instead (RF-83). */}
+      {entry && (entry.kind === "expense" || entry.kind === "income") && <MoveToSpace kind="entry" itemId={entry.id} onMoved={close} />}
       <FieldError message={remove.error?.message} />
       <DialogActions>
         <Button variant="ghost" onClick={close}>

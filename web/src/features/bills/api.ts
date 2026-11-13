@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
 import { ACCOUNT_KEYS } from "@/features/accounts/api";
@@ -45,7 +46,10 @@ async function noContent(p: Promise<{ response: Response; error?: unknown }>) {
 
 /** Registers a fixed bill (RF-35). */
 export function useCreateBill() {
-  return useBillMutation(async (body: BillInput) => unwrap(await api.POST("/bills", { body })), "Conta fixa criada");
+  return useBillMutation(
+    async ({ space, ...body }: BillInput & SpaceTarget) => unwrap(await api.POST("/bills", { params: { header: spaceHeader(space) }, body })),
+    "Conta fixa criada",
+  );
 }
 
 /** Replaces the fields of a bill. */

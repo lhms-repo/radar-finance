@@ -42,8 +42,11 @@ export function SettingsPage() {
 
 /** Links to the record screens kept in Settings (section 5.2). */
 function RecordsCard() {
+  const me = useMe();
+  // The personal space has only its owner: no people to manage there (RF-83).
+  const personal = me?.group.personal ?? false;
   const links = [
-    { to: "/settings/group", label: "Grupo e pessoas", hint: "Quem faz parte, papéis, PINs e outros grupos", icon: Users },
+    ...(personal ? [] : [{ to: "/settings/group", label: "Grupo e pessoas", hint: "Quem faz parte, papéis, PINs e outros grupos", icon: Users }]),
     { to: "/settings/accounts", label: "Contas bancárias", hint: "Saldos, extrato, ajustes e transferências", icon: Landmark },
     { to: "/settings/incomes", label: "Rendas", hint: "Salários, bolsa, 13º e confirmação do recebimento", icon: HandCoins },
     { to: "/settings/budgets", label: "Orçamentos", hint: "Limite mensal por categoria, com aviso a 80% e 100%", icon: Target },

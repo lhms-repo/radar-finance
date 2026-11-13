@@ -25,8 +25,26 @@ import {
 /** A PIN of 4 to 6 numbers (RN-27). */
 const pinField = z.string().regex(/^\d{4,6}$/, "O PIN tem de 4 a 6 números.");
 
-/** The active group, its people and, for administrators, their management (RF-79, RF-80). */
+/** Shows the people of the active group, or explains the personal space, which has only its owner (RF-80, RF-83). */
 export function GroupPage() {
+  const me = useMe();
+  if (!me?.group.personal) return <GroupMembers />;
+  return (
+    <div className="flex flex-col gap-4">
+      <Link to="/settings" className="flex items-center gap-0.5 text-sm text-primary">
+        <ChevronLeft className="size-4" />
+        Ajustes
+      </Link>
+      <Card className="flex flex-col gap-1">
+        <CardTitle>Espaço Pessoal</CardTitle>
+        <CardDescription>Aqui ficam só os seus lançamentos pessoais, que ninguém mais vê. Troque para um grupo para ver as pessoas dele.</CardDescription>
+      </Card>
+    </div>
+  );
+}
+
+/** The active group, its people and, for administrators, their management (RF-79, RF-80). */
+function GroupMembers() {
   const me = useMe();
   const group = useGroup();
   const isAdmin = me?.group.role === "admin";
