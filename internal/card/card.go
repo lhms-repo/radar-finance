@@ -47,7 +47,7 @@ var (
 	ErrInvalidDay          = problem.Invalid("card_day_invalid", "Os dias de fechamento e vencimento vão de 1 a 31.")
 	ErrInvalidDigits       = problem.Invalid("card_digits_invalid", "Informe os quatro últimos dígitos do cartão.")
 	ErrInvalidLook         = problem.Invalid("card_look_invalid", "Cor ou acabamento inválido.")
-	ErrPersonNotFound      = problem.Invalid("card_person_not_found", "Escolha uma pessoa do casal.")
+	ErrPersonNotFound      = problem.Invalid("card_person_not_found", "Escolha uma pessoa do grupo.")
 	ErrCardInactive        = problem.Conflict("card_inactive", "Este cartão está desativado. Reative-o para lançar nele.")
 	ErrHolderInSettlement  = problem.Conflict("card_holder_in_settlement", "Este cartão tem compras de um grupo, que entram no acerto em nome de quem o tem; o titular não pode mudar.")
 	ErrHolderUsedElsewhere = problem.Conflict("card_holder_used_elsewhere", "Este cartão tem compras em outro grupo, então o titular não pode mudar.")

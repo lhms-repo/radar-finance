@@ -36,7 +36,7 @@ var (
 	ErrPartyName      = problem.Invalid("split_party_name", "Informe o nome de cada pessoa da divisão.")
 	ErrDuplicateParty = problem.Invalid("split_duplicate_party", "A mesma pessoa aparece duas vezes na divisão.")
 	ErrTooManyParties = problem.Invalid("split_too_many", "Divida com no máximo %d pessoas.", maxParties)
-	ErrInvalidParts   = problem.Invalid("split_parts_invalid", "Informe quantas partes o casal conta, de zero para cima.")
+	ErrInvalidParts   = problem.Invalid("split_parts_invalid", "Informe quantas partes ficam com o grupo, de zero para cima.")
 	ErrShareRequired  = problem.Invalid("split_share_required", "Cada pessoa precisa de pelo menos um centavo por parcela.")
 	ErrSplitTooLarge  = problem.Invalid("split_too_large", "As cotas passam do valor da compra.")
 	ErrSplitCredit    = problem.Invalid("split_credit", "Estorno ou crédito não pode ser dividido.")

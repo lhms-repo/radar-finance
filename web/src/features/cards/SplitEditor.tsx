@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Minus, Plus, Users, X } from "lucide-react";
 import { useId } from "react";
 import { api, unwrap } from "@/api/client";
+import { useSpaceWords } from "@/app/space";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -49,6 +50,8 @@ export function SplitEditor({
 }) {
   const parties = useParties();
   const listId = useId();
+  const words = useSpaceWords();
+  const parts = words.personal ? "suas partes" : `partes de ${words.name}`;
 
   /** Replaces one person of the list. */
   const setParty = (i: number, p: Partial<SplitValue["parties"][number]>) =>
@@ -84,13 +87,13 @@ export function SplitEditor({
             />
             {value.mode === "equal" && (
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span id={`${listId}-parts`}>Partes do casal</span>
+                <span id={`${listId}-parts`}>{words.personal ? "Suas partes" : `Partes de ${words.name}`}</span>
                 <div className="flex items-center gap-2" role="group" aria-labelledby={`${listId}-parts`}>
-                  <Button variant="outline" size="icon-sm" aria-label="Menos partes do casal" disabled={value.coupleParts <= 0} onClick={() => onChange({ ...value, coupleParts: value.coupleParts - 1 })}>
+                  <Button variant="outline" size="icon-sm" aria-label={`Menos ${parts}`} disabled={value.coupleParts <= 0} onClick={() => onChange({ ...value, coupleParts: value.coupleParts - 1 })}>
                     <Minus />
                   </Button>
                   <span className="w-6 text-center font-semibold tabular-nums">{value.coupleParts}</span>
-                  <Button variant="outline" size="icon-sm" aria-label="Mais partes do casal" disabled={value.coupleParts >= 9} onClick={() => onChange({ ...value, coupleParts: value.coupleParts + 1 })}>
+                  <Button variant="outline" size="icon-sm" aria-label={`Mais ${parts}`} disabled={value.coupleParts >= 9} onClick={() => onChange({ ...value, coupleParts: value.coupleParts + 1 })}>
                     <Plus />
                   </Button>
                 </div>
@@ -144,7 +147,9 @@ export function SplitEditor({
               Adicionar pessoa
             </Button>
             <p className="text-xs text-muted-foreground">
-              {value.mode === "equal" ? "Cada pessoa paga uma parte; o casal fica com as partes dele e com a sobra de centavos." : "O casal fica com o que sobrar do total."} {installmentsNote}
+              {value.mode === "equal"
+                ? `Cada pessoa paga uma parte; ${words.personal ? "você fica com as suas partes" : `${words.name} fica com as próprias partes`} e com a sobra de centavos.`
+                : `${words.personal ? "Você fica" : `${words.name} fica`} com o que sobrar do total.`} {installmentsNote}
             </p>
           </motion.div>
         )}

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useMe } from "@/app/session";
+import { capitalize, useSpaceWords } from "@/app/space";
 import { DropdownMenu } from "radix-ui";
 import { AlertTriangle, Check, CreditCard, Eye, EyeOff, MinusCircle, MoreHorizontal, Pencil, Plus, Repeat, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -316,6 +317,7 @@ function InvoiceCard({
 }) {
   const undo = useUndoPayment();
   const me = useMe();
+  const words = useSpaceWords();
   /** Tells a line of the active space, the only ones changed here; the full invoice also shows the other spaces (RF-83). */
   const mine = (it: InvoiceItem) => !invoice.full || it.groupId === me?.group.id;
   const [y, m] = invoice.month.split("-").map(Number);
@@ -349,7 +351,7 @@ function InvoiceCard({
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Parte do casal</dt>
+          <dt className="text-xs text-muted-foreground">{capitalize(words.invoicePart)}</dt>
           <dd className="font-semibold">
             <Money cents={invoice.netCents} />
           </dd>
