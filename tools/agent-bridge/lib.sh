@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for claude-bridge.sh and codex-server.sh. Errors go to stderr, so stdout
+# Shared helpers for planner.sh and executor.sh. Errors go to stderr, so stdout
 # carries only the command's own answer.
 
 # die prints an error message to stderr and exits.

@@ -1,6 +1,6 @@
-# Radar: instruções para o Codex
+# Radar: instruções para o agente executor
 
-Você é o executor. O Claude planeja, escreve a tarefa e revisa o resultado; o dono do projeto aprova. Sua parte é implementar exatamente a tarefa recebida, nada além dela.
+Você é o executor. O planejador escreve a tarefa e revisa o resultado; o dono do projeto aprova. Sua parte é implementar exatamente a tarefa recebida, nada além dela.
 
 ## Antes de começar
 
@@ -24,7 +24,7 @@ Você é o executor. O Claude planeja, escreve a tarefa e revisa o resultado; o 
 ## Proibido
 
 - Rodar `make deploy`, qualquer comando `make deploy-*` ou `deploy/restore.sh`.
-- Ler ou alterar `deploy/.env`, `deploy/certs/` e `tools/codex-bridge/.env`.
+- Ler ou alterar `deploy/.env`, `deploy/certs/` e `tools/agent-bridge/.env`.
 - Mexer no banco de produção, em backups ou em qualquer arquivo fora da pasta do projeto.
 - Fazer commit, push, trocar de branch ou reescrever histórico, a menos que a tarefa peça.
 - Instalar dependências novas ou mudar versões sem a tarefa pedir.
@@ -36,7 +36,7 @@ Rode `make test` e `make lint`. Se algum falhar e a correção estiver dentro da
 
 ## Formato da resposta final
 
-O Claude só recebe a sua mensagem final, então ela deve trazer:
+O planejador só recebe a sua mensagem final, então ela deve trazer:
 
 1. **Arquivos alterados:** lista com uma linha sobre cada um.
 2. **Comandos rodados:** cada comando e se passou ou falhou, com o trecho do erro quando falhar.

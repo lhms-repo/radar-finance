@@ -82,8 +82,8 @@ api/openapi.yaml    contrato da API
 web/                frontend React
 deploy/             Dockerfile de produção, docker-compose.yml e Caddyfile
 docs/               requisitos e referências visuais
-tools/codex-bridge/ ponte entre o Claude e o Codex em outra máquina
-AGENTS.md           regras do projeto para o Codex
+tools/agent-bridge/ ponte entre o planejador e o agente executor em outra máquina
+AGENTS.md           regras do projeto para o agente executor
 .devcontainer/      ambiente de desenvolvimento
 ```
 
@@ -120,17 +120,17 @@ No terminal do WSL2, fora do Dev Container:
 | `make deploy-logs` | Logs da produção |
 | `deploy/restore.sh <arquivo>` | Restaura um backup, veja `docs/backup.md` |
 
-Ponte com o Codex (opcional, veja `docs/codex.md`). Cada máquina tem um `tools/codex-bridge/.env` com permissão 600, fora do git:
+Ponte entre agentes (opcional, veja `docs/agentes.md`): o planejador escreve as tarefas e revisa; o executor, em outra máquina, implementa. Cada máquina tem um `tools/agent-bridge/.env` com permissão 600, fora do git:
 
 | Comando | Onde | O que faz |
 | --- | --- | --- |
-| `tools/codex-bridge/codex-server.sh --check` | Codex | Confere a pasta, o login do Codex e as ferramentas no `PATH` |
-| `claude-bridge.sh check` | Claude | Confere ferramentas locais, SSH e o Codex na outra máquina |
-| `claude-bridge.sh task [arquivo]` | Claude | Envia uma tarefa ao Codex e devolve a sessão e a resposta final |
-| `claude-bridge.sh reply <sessão> [arquivo]` | Claude | Continua a sessão do Codex com um novo pedido |
-| `claude-bridge.sh run <comando>` | Claude | Roda um comando na pasta do projeto na máquina do Codex, como `run make test` |
-| `claude-bridge.sh mount` e `unmount` | Claude | Monta e desmonta a pasta do projeto com `sshfs`, só leitura por padrão |
+| `tools/agent-bridge/executor.sh --check` | Executor | Confere a pasta, o login do agente e as ferramentas no `PATH` |
+| `planner.sh check` | Planejador | Confere ferramentas locais, SSH e o agente na máquina executora |
+| `planner.sh task [arquivo]` | Planejador | Envia uma tarefa ao executor e devolve a sessão e a resposta final |
+| `planner.sh reply <sessão> [arquivo]` | Planejador | Continua a sessão do executor com um novo pedido |
+| `planner.sh run <comando>` | Planejador | Roda um comando na pasta do projeto na máquina executora, como `run make test` |
+| `planner.sh mount` e `unmount` | Planejador | Monta e desmonta a pasta do projeto com `sshfs`, só leitura por padrão |
 
-Ao delegar uma tarefa ao Codex: escreva o pedido no modelo de `docs/codex.md`, com arquivos, passos, casos de teste e critério de pronto; nunca delegue decisão de regra financeira; rode o `task` em segundo plano quando puder passar de 10 minutos; revise sempre o diff e rode `make test` e `make lint` pelo `run`, sem confiar só no resumo do Codex.
+Ao delegar uma tarefa ao executor: escreva o pedido no modelo de `docs/agentes.md`, com arquivos, passos, casos de teste e critério de pronto; nunca delegue decisão de regra financeira; rode o `task` em segundo plano quando puder passar de 10 minutos; revise sempre o diff e rode `make test` e `make lint` pelo `run`, sem confiar só no resumo do executor.
 
 Código gerado (`internal/db/store`, `internal/api/gen`, `web/src/api/schema.ts`) não é editado à mão e fica fora da regra de comentário por função.
