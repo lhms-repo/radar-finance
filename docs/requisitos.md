@@ -160,7 +160,7 @@ Módulo em tela própria para descobrir onde a compra do mês sai mais barata, c
 | RF-65 | Cadastrar mercados com nome e bairro. |
 | RF-66 | Cadastrar produtos sempre de marca específica, com nome, marca, tamanho e unidade, como Café Três Corações 500 g. Não existe produto genérico. Itens vendidos por peso, como hortifrúti e carnes, são produtos com unidade kg e marca livre ("Sem marca" ou a do mercado): o preço é por kg e a quantidade na lista aceita decimais, como 1,5 kg. |
 | RF-67 | Registrar preços por produto e mercado, com data, mantendo o histórico. |
-| RF-68 | Importar preços escaneando o QR code da NFC-e com o iPhone: o sistema consulta a nota na Sefaz e registra todos os itens com o preço daquele mercado e daquela data. |
+| RF-68 | Importar preços escaneando o QR code da NFC-e com o celular: o sistema consulta a nota na Sefaz e registra todos os itens com o preço daquele mercado e daquela data. |
 | RF-69 | Vincular o nome abreviado do item na nota ao produto cadastrado, por mercado, e reconhecer automaticamente nas notas seguintes. |
 | RF-70 | Permitir cadastro e correção manual de preços, como alternativa à nota fiscal. |
 | RF-71 | Montar listas de compras com produtos e quantidades, compartilhadas entre os dois usuários em tempo real, com marcação de item pego. |
@@ -247,12 +247,13 @@ O sistema roda em Docker na máquina pessoal, acessível só pela rede local, e 
 | RNF-17 | Desempenho | Dashboard carrega em menos de dois segundos na rede local. |
 | RNF-18 | Dados | Exportação completa dos dados em CSV. |
 | RNF-19 | Manutenção | Atualização do sistema por um único comando, com migrações de banco automáticas. |
-| RNF-20 | Plataforma | A única plataforma móvel suportada é o iPhone com Safari. Android não é alvo de testes. |
-| RNF-21 | Rede | Acesso por HTTPS na rede local, com Caddy como proxy e certificado próprio. O certificado raiz é instalado uma vez em cada iPhone. Requisito para o PWA funcionar no iOS. |
+| RNF-20 | Plataforma | As plataformas móveis suportadas são o iPhone com Safari e o Android com Chrome, as duas com testes de ponta a ponta. Android incluído em 13/11/2026. |
+| RNF-21 | Rede | Acesso por HTTPS na rede local, com Caddy como proxy e certificado próprio. O certificado raiz é instalado uma vez em cada celular, iPhone ou Android. Requisito para o PWA funcionar. No Android, o endereço usado é o IP reservado no roteador, que o certificado também cobre, porque o Chrome do Android não resolve nomes `.local` de forma confiável. |
 | RNF-22 | Rede | Endereço fixo para o servidor, por IP reservado no roteador ou nome local como financas.local. |
-| RNF-23 | Usabilidade | PWA instalável pelo Safari na tela inicial do iPhone, abrindo em tela cheia e respeitando a área segura do indicador de início e do entalhe. |
-| RNF-24 | Usabilidade | Gestos de pressionar e segurar bloqueiam a seleção de texto e o menu de contexto do iOS. |
-| RNF-25 | Usabilidade | Resposta tátil opcional pelo contorno do interruptor do iOS 18, desativável e sem nenhuma função dependente dela. |
+| RNF-23 | Usabilidade | PWA instalável na tela inicial do celular, pelo Safari no iPhone e pelo Chrome no Android, abrindo em tela cheia e respeitando a área segura do indicador de início, do entalhe e das barras do sistema. No Android, a cor da barra do sistema acompanha o tema claro ou escuro. |
+| RNF-24 | Usabilidade | Gestos de pressionar e segurar bloqueiam a seleção de texto e o menu de contexto do iOS e do Android. |
+| RNF-25 | Usabilidade | Resposta tátil opcional, no iPhone pelo contorno do interruptor do iOS 18 e no Android pela vibração do navegador, desativável e sem nenhuma função dependente dela. |
+| RNF-26 | Usabilidade | No Android, o botão e o gesto de voltar fecham primeiro a folha, o diálogo ou o menu aberto, sem sair da tela; só depois voltam à tela anterior. |
 
 ## 5. Interface
 
@@ -306,7 +307,7 @@ O menu segue a mesma linguagem visual nos três estados: indicadores que desliza
 | --- | --- |
 | Computador, menu aberto | Padrão. Ícone e nome de cada tela. O destaque do item ativo desliza até o item clicado e um destaque suave acompanha o mouse entre os itens. |
 | Computador, menu recolhido | Só ícones. Tooltip fluido que desliza e se transforma de um ícone para o outro conforme o mouse passa, inspirado no [Fluid Tooltip Animation](https://www.inspora.design/posts/fluid-tooltip-animation). |
-| iPhone | Barra inferior com cinco itens: Visão geral, Cartões, Adicionar em destaque no centro, Caixinhas e Mais. Pressionar e segurar expande os rótulos de todos os itens, inspirado no [Playful Bottom Nav](https://www.inspora.design/posts/playful-bottom-nav). O rótulo do item ativo fica sempre visível. |
+| Celular (iPhone e Android) | Barra inferior com cinco itens: Visão geral, Cartões, Adicionar em destaque no centro, Caixinhas e Mais. Pressionar e segurar expande os rótulos de todos os itens, inspirado no [Playful Bottom Nav](https://www.inspora.design/posts/playful-bottom-nav). O rótulo do item ativo fica sempre visível. |
 
 O item Mais abre as telas restantes: Fluxo de caixa, Alelo, Mercado, Contas fixas e financiamentos, A receber e Ajustes.
 
@@ -317,7 +318,7 @@ Card único aberto pelo botão Adicionar, inspirado no card de valor com rolagem
 1. **Natureza** → chave entre Gasto e Receita no topo do card;
 2. **Forma de pagamento** → seletor segmentado entre Crédito, Dinheiro e Alelo, exibido só para gastos. Dinheiro cobre tudo que sai direto da conta, como Pix, débito e boleto;
 3. **Tipo** → seletor segmentado entre Fixo e Variável, oculto quando a forma de pagamento é Alelo;
-4. **Valor** → número grande no centro, digitado pelo teclado numérico do iPhone e com rolagem por dígito a cada tecla. Sem botões de mais e menos;
+4. **Valor** → número grande no centro, digitado pelo teclado numérico do celular e com rolagem por dígito a cada tecla. Sem botões de mais e menos;
 5. **Categoria** → grade de ícones das categorias principais. Tocar num ícone expande as subcategorias dela logo abaixo, com animação de layout, e tocar numa subcategoria conclui a escolha. Oculta para Alelo e para receitas;
 6. **Detalhes** → campos que mudam conforme as escolhas acima, na tabela seguinte;
 7. **Confirmar** → botão com o check animado.
@@ -445,7 +446,7 @@ Backend em Go com SQLite e frontend em React, entregues como um único binário 
 | Dados | TanStack Query | Cache e atualização automática das telas após cada lançamento. |
 | Formulários | React Hook Form com Zod | Validação no cliente, inclusive na pré-visualização do CSV. |
 | Tipos da API | openapi-typescript | Tipos gerados da mesma especificação do backend. |
-| Celular | PWA | Instalável pelo Safari na tela inicial do iPhone como um app. Exige HTTPS. |
+| Celular | PWA | Instalável como um app na tela inicial, pelo Safari do iPhone e pelo Chrome do Android. Exige HTTPS. |
 | Testes | Playwright | Fluxos de ponta a ponta das telas principais. |
 
 ### 8.3 Implantação
@@ -466,7 +467,7 @@ Na máquina ficam só Docker, VS Code com a extensão Dev Containers, Git e WSL2
 | Máquina | Docker Desktop com backend WSL2, VS Code, extensão Dev Containers, Git |
 | Dev Container, backend | Go, sqlc, goose, oapi-codegen, golangci-lint |
 | Dev Container, frontend | Node LTS com pnpm |
-| Dev Container, testes | Playwright com WebKit para simular o Safari do iPhone |
+| Dev Container, testes | Playwright com WebKit para simular o Safari do iPhone e Chromium para simular o Chrome do Android |
 | Dev Container, utilitários | sqlite3, mkcert |
 | Dev Container, VS Code | Extensões de Go, ESLint, Tailwind CSS e Playwright instaladas automaticamente |
 
@@ -504,13 +505,13 @@ Animações curtas, entre 150 e 400 milissegundos, que dão retorno a uma ação
 | Terceiro quitou | Nome riscado e contador de pendências diminuindo. |
 | Modo privacidade | Valores desfocam suavemente. |
 | Troca de tema | Transição circular a partir do botão, com a View Transitions API. |
-| Botão Adicionar | Um toque abre direto o lançamento de compra no cartão. Os atalhos abrem em leque ao pressionar e segurar no iPhone, e pela seta ao lado do botão no computador. |
+| Botão Adicionar | Um toque abre direto o lançamento de compra no cartão. Os atalhos abrem em leque ao pressionar e segurar no celular, e pela seta ao lado do botão no computador. |
 
 Todas as animações respeitam a preferência de movimento reduzido do sistema operacional.
 
 ## 9. Fases de construção
 
-O Radar é construído em fases, cada uma usada e validada antes da próxima. As fases 8 a 11, aprovadas em 12/11/2026, levam o Radar do casal para grupos. Em toda fase, os testes das regras de negócio envolvidas são escritos antes do código, e as animações da seção 8.6 entram junto com os componentes que elas animam.
+O Radar é construído em fases, cada uma usada e validada antes da próxima. As fases 8 a 11, aprovadas em 12/11/2026, levam o Radar do casal para grupos. A fase 12, incluída em 13/11/2026, leva o Radar ao Android. Em toda fase, os testes das regras de negócio envolvidas são escritos antes do código, e as animações da seção 8.6 entram junto com os componentes que elas animam.
 
 | Fase | Entrega | Requisitos | Pronta quando |
 | --- | --- | --- | --- |
@@ -525,6 +526,7 @@ O Radar é construído em fases, cada uma usada e validada antes da próxima. As
 | 9. Contas da pessoa e lançamentos pessoais | Lançamentos pessoais ou do grupo, visibilidade do pessoal só para o dono, relatórios por grupo | RF-83 | Uma compra da casa de praia feita no cartão do casal aparece só no grupo da casa de praia, e a fatura completa só para a dona do cartão |
 | 10. Acerto entre membros | Pesos, cotas de membros por despesa e por parcela, saldos e pagamentos entre membros | RF-84, RN-28 a RN-31 | Um exemplo com três membros fecha centavo a centavo e zera depois dos pagamentos |
 | 11. Textos e ponta a ponta | Os textos "casal" viram o nome do grupo; e2e com dois grupos e uma pessoa nos dois | Todos os desta lista | Dois grupos leem a mesma nota fiscal sem misturar produtos nem preços, e nenhuma tela fala em casal |
+| 12. Android | PWA no Chrome do Android: certificado e acesso pelo IP, instalação na tela inicial, voltar fechando folhas e diálogos, vibração pelo navegador, barra do sistema no tema, textos sem citar só o iPhone e Playwright com viewport de Android | RF-68, RNF-20 a RNF-26, seção 5.5 | Um Android instala o Radar pelo Chrome, entra com PIN, lança uma compra em até quatro toques, lê uma nota pela câmera e o voltar fecha as folhas sem sair da tela, com o iPhone funcionando como antes |
 
 ## 10. Fora do escopo da v1
 
