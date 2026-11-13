@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
 import { ACCOUNT_KEYS } from "@/features/accounts/api";
@@ -38,7 +39,10 @@ function useIncomeMutation<V, R>(fn: (vars: V) => Promise<R>, success: string) {
 
 /** Registers an income. */
 export function useCreateIncome() {
-  return useIncomeMutation(async (body: IncomeInput) => unwrap(await api.POST("/incomes", { body })), "Renda cadastrada");
+  return useIncomeMutation(
+    async ({ space, ...body }: IncomeInput & SpaceTarget) => unwrap(await api.POST("/incomes", { params: { header: spaceHeader(space) }, body })),
+    "Renda cadastrada",
+  );
 }
 
 /** Replaces the fields of an income (RF-12). */
@@ -69,8 +73,8 @@ export function useConfirmIncome() {
 /** Records a one off income in an account (RF-13). */
 export function useAddOneOffIncome() {
   return useIncomeMutation(
-    async ({ accountId, body }: { accountId: number; body: components["schemas"]["OneOffIncomeCreate"] }) =>
-      unwrap(await api.POST("/accounts/{id}/incomes", { params: { path: { id: accountId } }, body })),
+    async ({ accountId, body, space }: { accountId: number; body: components["schemas"]["OneOffIncomeCreate"] } & SpaceTarget) =>
+      unwrap(await api.POST("/accounts/{id}/incomes", { params: { path: { id: accountId }, header: spaceHeader(space) }, body })),
     "Renda lançada",
   );
 }

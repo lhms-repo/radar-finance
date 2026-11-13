@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { AnimatePresence, motion } from "motion/react";
 import { CalendarClock, Check, ChevronLeft, CircleDashed, Plus, Repeat, Sparkles, Trash2, Undo2 } from "lucide-react";
 import { useState } from "react";
@@ -246,6 +247,7 @@ function IncomeFormDialog({ state, onClose }: { state: Income | "new" | null; on
   const remove = useDeleteIncome();
   const editing = state !== null && state !== "new" ? state : undefined;
   const mutation = editing ? update : create;
+  const where = useSpaceChoice();
   const thisMonth = todayISO().slice(0, 7);
   const form = useForm<IncomeValues>({
     resolver: zodResolver(incomeSchema),
@@ -282,7 +284,7 @@ function IncomeFormDialog({ state, onClose }: { state: Income | "new" | null; on
         ? { kind: v.kind, name: v.name, personId: v.personId, accountId: v.accountId, amountCents: v.amountCents, day: v.day, startMonth: v.startMonth, endOn: v.endOn || undefined }
         : { kind: v.kind, name: v.name, personId: v.personId, accountId: v.accountId, amountCents: v.amountCents, expectedOn: v.expectedOn };
     if (editing) update.mutate({ id: editing.id, body }, { onSuccess: close });
-    else create.mutate(body, { onSuccess: close });
+    else create.mutate({ ...body, space: where.target }, { onSuccess: close });
   });
 
   return (
@@ -347,6 +349,7 @@ function IncomeFormDialog({ state, onClose }: { state: Income | "new" | null; on
             <Input id="income-expected" type="date" {...form.register("expectedOn")} />
           </Field>
         )}
+        {editing ? <MoveToSpace kind="income" itemId={editing.id} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
         <FieldError message={mutation.error?.message ?? remove.error?.message} />
         <DialogActions className="sm:justify-between">
           {editing && !inUse ? (
@@ -444,6 +447,7 @@ const oneOffSchema = z.object({
 function OneOffDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const accounts = useAccounts();
   const add = useAddOneOffIncome();
+  const where = useSpaceChoice();
   const form = useForm<z.infer<typeof oneOffSchema>>({
     resolver: zodResolver(oneOffSchema),
     resetOptions: { keepDirtyValues: true },
@@ -459,7 +463,7 @@ function OneOffDialog({ open, onClose }: { open: boolean; onClose: () => void })
   };
 
   /** Validates and sends the form. */
-  const submit = form.handleSubmit(({ accountId, ...body }) => add.mutate({ accountId, body }, { onSuccess: close }));
+  const submit = form.handleSubmit(({ accountId, ...body }) => add.mutate({ accountId, body, space: where.target }, { onSuccess: close }));
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title="Renda avulsa" description="Dinheiro que entrou fora das rendas cadastradas.">
@@ -485,6 +489,7 @@ function OneOffDialog({ open, onClose }: { open: boolean; onClose: () => void })
             <Input id="oneoff-date" type="date" {...form.register("date")} />
           </Field>
         </div>
+        <SpaceField value={where.space} onChange={where.setSpace} />
         <FieldError message={add.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

@@ -223,7 +223,7 @@ function Carousel({ cards, selected, status, onSelect }: { cards: Card[]; select
 
 /** Used and free limit of the card, counting future installments (RF-20, RN-17). */
 function LimitBar({ card, onEdit, onToggle, onDelete }: { card: Card; onEdit: () => void; onToggle: () => void; onDelete: () => void }) {
-  const used = card.limitCents > 0 ? Math.min(100, (card.limitUsedCents / card.limitCents) * 100) : 0;
+  const used = card.limitCents > 0 && card.limitUsedCents !== undefined ? Math.min(100, (card.limitUsedCents / card.limitCents) * 100) : 0;
   return (
     <Surface className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
@@ -238,24 +238,31 @@ function LimitBar({ card, onEdit, onToggle, onDelete }: { card: Card; onEdit: ()
         </div>
         <CardMenu card={card} onEdit={onEdit} onToggle={onToggle} onDelete={onDelete} />
       </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="meter" aria-label="Limite usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(used)}>
-        <motion.div
-          className={cn("h-full rounded-full", used >= 90 ? "bg-destructive" : used >= 70 ? "bg-warning" : "bg-primary")}
-          initial={{ width: 0 }}
-          animate={{ width: `${used}%` }}
-          transition={spring}
-        />
-      </div>
-      <div className="flex justify-between gap-3 text-sm">
-        <span>
-          <span className="block text-xs text-muted-foreground">Usado, com parcelas futuras</span>
-          <Money cents={card.limitUsedCents} className="font-medium" />
-        </span>
-        <span className="text-right">
-          <span className="block text-xs text-muted-foreground">Livre de {<Money cents={card.limitCents} />}</span>
-          <Money cents={card.limitFreeCents} className={cn("font-semibold", card.limitFreeCents < 0 ? "text-destructive" : "text-success")} />
-        </span>
-      </div>
+      {card.limitUsedCents !== undefined && card.limitFreeCents !== undefined ? (
+        <>
+          <div className="h-2.5 overflow-hidden rounded-full bg-muted" role="meter" aria-label="Limite usado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(used)}>
+            <motion.div
+              className={cn("h-full rounded-full", used >= 90 ? "bg-destructive" : used >= 70 ? "bg-warning" : "bg-primary")}
+              initial={{ width: 0 }}
+              animate={{ width: `${used}%` }}
+              transition={spring}
+            />
+          </div>
+          <div className="flex justify-between gap-3 text-sm">
+            <span>
+              <span className="block text-xs text-muted-foreground">Usado, com parcelas futuras</span>
+              <Money cents={card.limitUsedCents} className="font-medium" />
+            </span>
+            <span className="text-right">
+              <span className="block text-xs text-muted-foreground">Livre de {<Money cents={card.limitCents} />}</span>
+              <Money cents={card.limitFreeCents} className={cn("font-semibold", card.limitFreeCents < 0 ? "text-destructive" : "text-success")} />
+            </span>
+          </div>
+        </>
+      ) : (
+        // The use of the limit counts the purchases of every space of the holder, so only she reads it (RF-83).
+        <p className="text-sm text-muted-foreground">O limite usado aparece só para {card.personName}.</p>
+      )}
     </Surface>
   );
 }
@@ -308,7 +315,9 @@ function InvoiceCard({
 }) {
   const undo = useUndoPayment();
   const [y, m] = invoice.month.split("-").map(Number);
-  const canPay = !invoice.payment && invoice.status !== "open" && invoice.totalCents > 0;
+  // Only the owner pays, the whole invoice, in her personal space (RF-21, RF-83).
+  const canPay = invoice.canPay;
+  const paidElsewhere = !invoice.full && (invoice.status === "closed" || invoice.status === "overdue") && invoice.totalCents > 0;
   return (
     <Surface className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-3">
@@ -355,12 +364,19 @@ function InvoiceCard({
           </Button>
         </div>
       ) : (
-        canPay && (
-          <Button onClick={onPay}>
-            <Check />
-            Pagar fatura
-          </Button>
-        )
+        <>
+          {canPay && (
+            <Button onClick={onPay}>
+              <Check />
+              Pagar fatura
+            </Button>
+          )}
+          {paidElsewhere && (
+            <p className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground">
+              Aqui está a parte deste grupo. {card.personName} paga a fatura inteira no espaço Pessoal.
+            </p>
+          )}
+        </>
       )}
       {invoice.paymentOutdated && invoice.payment && (
         <p className="flex items-start gap-2 rounded-xl bg-warning/15 px-3 py-2 text-sm text-warning">
@@ -410,7 +426,7 @@ function InvoiceCard({
                 aria-label={it.kind === "purchase" ? `Editar ${it.merchant}` : undefined}
               >
                 <span className="block truncate text-sm font-medium">{it.merchant}</span>
-                <span className="block truncate text-xs text-muted-foreground">{itemSubtitle(it)}</span>
+                <span className="block truncate text-xs text-muted-foreground">{itemSubtitle(invoice.full ? it : { ...it, groupName: undefined })}</span>
               </button>
               <span className="flex flex-col items-end">
                 <Money cents={it.amountCents} className={cn("text-sm font-medium", it.amountCents < 0 && "text-success")} />
@@ -435,7 +451,7 @@ function InvoiceCard({
 /** Second line of an invoice item: category, buyer, kind and the shares of other people (RN-05). */
 function itemSubtitle(it: InvoiceItem) {
   const shares = (it.shares ?? []).map((s) => `${s.partyName} ${formatMoney(s.amountCents)}${s.received ? " ✓" : ""}`).join(", ");
-  const parts = [it.categoryName, it.buyerName && `comprou ${it.buyerName}`, shares && `dividida: ${shares}`];
+  const parts = [it.groupName, it.categoryName, it.buyerName && `comprou ${it.buyerName}`, shares && `dividida: ${shares}`];
   if (it.kind === "recurrence") parts.unshift("Recorrência");
   if (it.kind === "credit") parts.unshift("Crédito");
   return parts.filter(Boolean).join(" · ");

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { Check, Trash2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -54,6 +55,7 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
   const update = useUpdateBill();
   const remove = useDeleteBill();
   const mutation = bill ? update : create;
+  const where = useSpaceChoice();
   const form = useForm<z.infer<typeof billSchema>>({
     resolver: zodResolver(billSchema),
     resetOptions: { keepDirtyValues: true },
@@ -82,7 +84,7 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
   const submit = form.handleSubmit((v) => {
     const body = { ...v, endMonth: v.endMonth || undefined };
     if (bill) update.mutate({ id: bill.id, body }, { onSuccess: close });
-    else create.mutate(body, { onSuccess: close });
+    else create.mutate({ ...body, space: where.target }, { onSuccess: close });
   });
 
   return (
@@ -117,6 +119,7 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
             <Input id="bill-end" type="month" {...form.register("endMonth")} />
           </Field>
         </div>
+        {bill ? <MoveToSpace kind="bill" itemId={bill.id} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
         <FieldError message={mutation.error?.message ?? remove.error?.message} />
         <DialogActions className="sm:justify-between">
           {bill ? (
@@ -287,6 +290,7 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
   const update = useUpdateFinancing();
   const remove = useDeleteFinancing();
   const mutation = financing ? update : create;
+  const where = useSpaceChoice();
   const form = useForm<z.infer<typeof financingSchema>>({
     resolver: zodResolver(financingSchema),
     resetOptions: { keepDirtyValues: true },
@@ -316,7 +320,7 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
   /** Validates and sends the form; editing keeps the amounts, which change through a correction. */
   const submit = form.handleSubmit((v) => {
     if (financing) update.mutate({ id: financing.id, body: { name: v.name, categoryId: v.categoryId, accountId: v.accountId, dueDay: v.dueDay } }, { onSuccess: close });
-    else create.mutate(v, { onSuccess: close });
+    else create.mutate({ ...v, space: where.target }, { onSuccess: close });
   });
 
   return (
@@ -368,6 +372,7 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
             </div>
           </>
         )}
+        {financing ? <MoveToSpace kind="financing" itemId={financing.id} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
         <FieldError message={mutation.error?.message ?? remove.error?.message} />
         <DialogActions className="sm:justify-between">
           {financing ? (

@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
 import { DropdownMenu } from "radix-ui";
 import { CalendarClock, CreditCard, MoreHorizontal, Pencil, Plus, Receipt, Scale } from "lucide-react";
 import { useState } from "react";
@@ -120,7 +121,9 @@ export function BillsPage() {
                     label={it.paid ? `Desfazer pagamento de ${it.name}` : `Pagar ${it.name}`}
                     onClick={() => {
                       haptic();
-                      if (it.paid && it.entryId) undo.mutate(it.entryId);
+                      // A group reads its part of an invoice; only the owner pays it, in her personal space (RF-83).
+                      if (it.kind === "invoice" && it.payable === false) toast.info("A fatura é paga pela dona do cartão, no espaço Pessoal dela.");
+                      else if (it.paid && it.entryId) undo.mutate(it.entryId);
                       else if (!it.paid) setDialog({ kind: "pay", item: it });
                     }}
                   />

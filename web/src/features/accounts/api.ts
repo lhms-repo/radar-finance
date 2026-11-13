@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
 import { haptic } from "@/lib/haptics";
@@ -98,8 +99,8 @@ export function useAdjustBalance() {
 /** Records a one off expense from the account. */
 export function useAddExpense() {
   return useAccountMutation(
-    async ({ id, body }: { id: number; body: components["schemas"]["ExpenseCreate"] }) =>
-      unwrap(await api.POST("/accounts/{id}/expenses", { params: { path: { id } }, body })),
+    async ({ id, body, space }: { id: number; body: components["schemas"]["ExpenseCreate"] } & SpaceTarget) =>
+      unwrap(await api.POST("/accounts/{id}/expenses", { params: { path: { id }, header: spaceHeader(space) }, body })),
     "Saída lançada",
   );
 }

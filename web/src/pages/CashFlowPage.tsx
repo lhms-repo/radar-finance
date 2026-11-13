@@ -59,14 +59,14 @@ export function CashFlowPage() {
         <Card className="flex flex-col gap-2">
           <CardTitle>Saldos das contas</CardTitle>
           <ul className="flex flex-col">
-            {(accounts.data ?? []).filter((a) => a.active).map((a) => (
+            {(accounts.data ?? []).filter((a) => a.active && a.balanceCents !== undefined).map((a) => (
               <li key={a.id} className="flex items-center gap-3 border-b py-2 last:border-b-0">
                 <Landmark className="size-4 shrink-0 text-primary" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{a.name}</span>
                   <span className="block text-xs text-muted-foreground">{a.personName}</span>
                 </span>
-                <Money cents={a.balanceCents} className={cn("text-sm font-semibold", a.balanceCents < 0 && "text-destructive")} />
+                <Money cents={a.balanceCents ?? 0} className={cn("text-sm font-semibold", (a.balanceCents ?? 0) < 0 && "text-destructive")} />
               </li>
             ))}
           </ul>

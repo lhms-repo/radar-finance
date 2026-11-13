@@ -68,7 +68,12 @@ export function AccountsPage() {
                     {!a.active && " · Desativada"}
                   </span>
                 </span>
-                <Money cents={a.balanceCents} className={cn("text-lg font-semibold", a.balanceCents < 0 && "text-destructive")} />
+                {a.balanceCents !== undefined ? (
+                  <Money cents={a.balanceCents} className={cn("text-lg font-semibold", a.balanceCents < 0 && "text-destructive")} />
+                ) : (
+                  // The real balance shows the movements of every space of the holder, so only she reads it (RF-83).
+                  <span className="text-xs text-muted-foreground">Saldo só para {a.personName}</span>
+                )}
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
               </Card>
             </Link>

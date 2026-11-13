@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, Coins, Pencil, PiggyBank, Plus, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -241,6 +242,7 @@ function BoxFormDialog({ state, onClose }: { state: { box?: SavingsBox } | null;
   const remove = useDeleteSavings();
   const box = state?.box;
   const mutation = box ? update : create;
+  const where = useSpaceChoice();
   const form = useForm<z.infer<typeof boxSchema>>({
     resolver: zodResolver(boxSchema),
     resetOptions: { keepDirtyValues: true },
@@ -260,7 +262,7 @@ function BoxFormDialog({ state, onClose }: { state: { box?: SavingsBox } | null;
   /** Validates and sends the form; the starting balance only exists on creation. */
   const submit = form.handleSubmit(({ initialBalanceCents, ...v }) => {
     if (box) update.mutate({ id: box.id, body: v }, { onSuccess: close });
-    else create.mutate({ ...v, initialBalanceCents }, { onSuccess: close });
+    else create.mutate({ ...v, initialBalanceCents, space: where.target }, { onSuccess: close });
   });
 
   return (
@@ -302,6 +304,7 @@ function BoxFormDialog({ state, onClose }: { state: { box?: SavingsBox } | null;
             <Controller control={form.control} name="initialBalanceCents" render={({ field }) => <MoneyInput id="box-initial" value={field.value} onChange={field.onChange} />} />
           </Field>
         )}
+        {box ? <MoveToSpace kind="savings" itemId={box.id} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
         <FieldError message={mutation.error?.message ?? remove.error?.message} />
         <DialogActions className="sm:justify-between">
           {box ? (

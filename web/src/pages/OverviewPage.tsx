@@ -1,4 +1,5 @@
 import { motion, type Variants } from "motion/react";
+import { toast } from "sonner";
 import { ArrowDownRight, ArrowUpRight, Building2, CalendarClock, ChevronRight, CircleAlert, AlertTriangle, CreditCard, HandCoins, Home, PiggyBank, TrendingUp } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -166,7 +167,9 @@ function BillsCard({ month }: { month: string }) {
               label={`Pagar ${it.name}`}
               onClick={() => {
                 haptic();
-                setPaying(it);
+                // A group reads its part of an invoice; only the owner pays it, in her personal space (RF-83).
+                if (it.kind === "invoice" && it.payable === false) toast.info("A fatura é paga pela dona do cartão, no espaço Pessoal dela.");
+                else setPaying(it);
               }}
             />
             <span className="min-w-0 flex-1">

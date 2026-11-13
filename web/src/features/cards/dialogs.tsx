@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { motion } from "motion/react";
 import { Check, Minus, Plus } from "lucide-react";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -225,6 +226,7 @@ export function PurchaseDialog({
   const add = useAddPurchase();
   const update = useUpdatePurchase();
   const mutation = item ? update : add;
+  const where = useSpaceChoice();
   const current = usePurchase(item?.purchaseId);
   const shares = current.data?.splits ?? [];
   const split: SplitValue = shares.length
@@ -266,7 +268,7 @@ export function PurchaseDialog({
   const submit = form.handleSubmit((v) => {
     const body = { ...v, buyerPersonId: v.buyerPersonId || undefined, split: splitBody(v.split) };
     if (item?.purchaseId) update.mutate({ id: item.purchaseId, body }, { onSuccess: close });
-    else add.mutate({ cardId: card.id, body }, { onSuccess: close });
+    else add.mutate({ cardId: card.id, body, space: where.target }, { onSuccess: close });
   });
 
   return (
@@ -322,6 +324,7 @@ export function PurchaseDialog({
           <Input id="purchase-desc" autoComplete="off" placeholder="Opcional" {...form.register("description")} />
         </Field>
         <Controller control={form.control} name="split" render={({ field }) => <SplitEditor value={field.value} onChange={field.onChange} />} />
+        {item?.purchaseId ? <MoveToSpace kind="purchase" itemId={item.purchaseId} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
         <FieldError message={mutation.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

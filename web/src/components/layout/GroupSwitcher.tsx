@@ -1,4 +1,4 @@
-import { Users } from "lucide-react";
+import { User, Users } from "lucide-react";
 import { useId } from "react";
 import { useMe, useSwitchGroup } from "@/app/session";
 import { cn } from "@/lib/utils";
@@ -9,10 +9,12 @@ export function GroupSwitcher({ className }: { className?: string }) {
   const switchGroup = useSwitchGroup();
   const id = useId();
   if (!me) return null;
+  // The personal space shows a single person; a group shows many (RF-83).
+  const Icon = me.group.personal ? User : Users;
   if (me.groups.length < 2) {
     return (
       <p className={cn("flex items-center gap-2 truncate text-sm text-muted-foreground", className)}>
-        <Users className="size-4 shrink-0" />
+        <Icon className="size-4 shrink-0" />
         <span className="truncate">{me.group.name}</span>
       </p>
     );
@@ -22,7 +24,7 @@ export function GroupSwitcher({ className }: { className?: string }) {
       <label htmlFor={id} className="sr-only">
         Grupo
       </label>
-      <Users className="size-4 shrink-0 text-muted-foreground" />
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
       <select
         id={id}
         value={me.group.id}

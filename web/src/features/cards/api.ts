@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
 import { ACCOUNT_KEYS } from "@/features/accounts/api";
@@ -102,8 +103,8 @@ export function useDeleteCard() {
 /** Registers a purchase (RF-15, RF-16). */
 export function useAddPurchase() {
   return useCardMutation(
-    async ({ cardId, body }: { cardId: number; body: PurchaseInput }) =>
-      unwrap(await api.POST("/cards/{id}/purchases", { params: { path: { id: cardId } }, body })),
+    async ({ cardId, body, space }: { cardId: number; body: PurchaseInput } & SpaceTarget) =>
+      unwrap(await api.POST("/cards/{id}/purchases", { params: { path: { id: cardId }, header: spaceHeader(space) }, body })),
     "Compra lançada",
   );
 }
