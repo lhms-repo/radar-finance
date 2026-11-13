@@ -61,6 +61,7 @@ var (
 	ErrNoChange            = problem.Invalid("adjustment_no_change", "O saldo da conta já é esse valor.")
 	ErrEntryNotFound       = problem.NotFound("entry_not_found", "Lançamento não encontrado.")
 	ErrAdjustInPersonal    = problem.Conflict("adjustment_personal", "O saldo é ajustado pela titular da conta, no espaço Pessoal dela.")
+	ErrHolderInSettlement  = problem.Conflict("holder_in_settlement", "Esta conta pagou gastos de um grupo, que entram no acerto em nome de quem a tem; o titular não pode mudar.")
 	ErrHolderUsedElsewhere = problem.Conflict("holder_used_elsewhere", "Esta conta tem movimento em outro grupo, então o titular não pode mudar.")
 	ErrSavingsNegative     = problem.Conflict("savings_deposit_withdrawn", "Este aporte já foi retirado da caixinha. Apague a retirada antes, senão a caixinha fica com saldo negativo.")
 )
@@ -317,6 +318,12 @@ func (s *Service) UpdateAccount(ctx context.Context, id int64, c AccountChanges)
 				}
 				if used != 0 {
 					return ErrHolderUsedElsewhere
+				}
+				// The settlement credits what the account paid to its holder; a new one would take it over (RF-84).
+				if paid, err := q.AccountInSettlement(ctx, id); err != nil {
+					return err
+				} else if paid != 0 {
+					return ErrHolderInSettlement
 				}
 			}
 			next.PersonID = *c.PersonID

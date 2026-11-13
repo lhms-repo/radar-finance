@@ -27,6 +27,8 @@ var (
 	ErrPersonal        = problem.Conflict("settlement_personal", "O acerto é entre os membros de um grupo; no espaço Pessoal não há acerto.")
 	ErrSamePerson      = problem.Invalid("settlement_same_person", "O pagamento de acerto vai de uma pessoa para outra: escolha contas de membros diferentes.")
 	ErrPaymentNotFound = problem.NotFound("settlement_not_found", "Pagamento de acerto não encontrado.")
+	ErrNotParty        = problem.Forbidden("settlement_not_party", "Só quem paga, quem recebe ou um administrador do grupo registra ou desfaz este pagamento.")
+	ErrPaymentDate     = problem.Invalid("settlement_date", "A data do pagamento precisa estar entre o início do acerto e hoje.")
 )
 
 // Line kinds: an account expense, a card invoice line or an Alelo purchase.
@@ -444,6 +446,12 @@ func (s *Service) Pay(ctx context.Context, userID int64, in PaymentInput) (Payme
 		if holders[0] == holders[1] {
 			return ErrSamePerson
 		}
+		if err := checkParty(ctx, q, g.id, userID, holders[0], holders[1]); err != nil {
+			return err
+		}
+		if in.Date.Before(g.from) || s.today().Before(in.Date) {
+			return ErrPaymentDate
+		}
 		t, err := s.ledger.TransferTx(ctx, q, userID, ledger.NewTransfer{
 			FromAccountID: in.FromAccountID, ToAccountID: in.ToAccountID, AmountCents: in.AmountCents, Date: in.Date,
 			Description: fmt.Sprintf("Acerto de %s para %s", g.names[holders[0]], g.names[holders[1]]),
@@ -472,8 +480,25 @@ func (s *Service) Pay(ctx context.Context, userID int64, in PaymentInput) (Payme
 	return Payment{}, ErrPaymentNotFound
 }
 
-// DeletePayment undoes a payment between members with its transfer.
-func (s *Service) DeletePayment(ctx context.Context, id int64) error {
+// checkParty lets only who pays, who receives or an administrator of the group record or undo a payment, so no
+// member moves money out of another's account (RN-30).
+func checkParty(ctx context.Context, q *store.Queries, groupID, userID, from, to int64) error {
+	u, err := q.GetUserByID(ctx, userID)
+	if err != nil {
+		return ErrNotParty
+	}
+	if u.PersonID == from || u.PersonID == to {
+		return nil
+	}
+	m, err := q.GetGroupMember(ctx, store.GetGroupMemberParams{GroupID: groupID, PersonID: u.PersonID})
+	if err != nil || m.Role != "admin" {
+		return ErrNotParty
+	}
+	return nil
+}
+
+// DeletePayment undoes a payment between members with its transfer, by who paid, who received or an administrator.
+func (s *Service) DeletePayment(ctx context.Context, userID, id int64) error {
 	groupID, err := scope.Group(ctx)
 	if err != nil {
 		return err
@@ -484,6 +509,9 @@ func (s *Service) DeletePayment(ctx context.Context, id int64) error {
 			return ErrPaymentNotFound
 		}
 		if err != nil {
+			return err
+		}
+		if err := checkParty(ctx, q, groupID, userID, p.FromPersonID, p.ToPersonID); err != nil {
 			return err
 		}
 		return q.DeleteTransfer(ctx, store.DeleteTransferParams{ID: p.TransferID, GroupID: groupID})

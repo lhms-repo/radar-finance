@@ -438,7 +438,9 @@ func TestUpdateAndDeleteAccount(t *testing.T) {
 	}{
 		{name: "rename", id: used.ID, changes: AccountChanges{Name: ptr("Nubank")}, check: func(a Account) bool { return a.Name == "Nubank" }},
 		{name: "rename to other account name", id: used.ID, changes: AccountChanges{Name: ptr("inter bruno")}, wantErr: ErrDuplicateAccount},
-		{name: "change holder", id: used.ID, changes: AccountChanges{PersonID: &f.persons[1]}, check: func(a Account) bool { return a.PersonID == f.persons[1] }},
+		// What the account paid for the group is credited to its holder in the settlement (RF-84).
+		{name: "change holder of an account that paid for the group", id: used.ID, changes: AccountChanges{PersonID: &f.persons[1]}, wantErr: ErrHolderInSettlement},
+		{name: "change holder", id: unused.ID, changes: AccountChanges{PersonID: &f.persons[1]}, check: func(a Account) bool { return a.PersonID == f.persons[1] }},
 		{name: "fix initial balance", id: used.ID, changes: AccountChanges{InitialBalanceCents: ptr(int64(10_000))}, check: func(a Account) bool { return a.BalanceCents == 9_900 }},
 		{name: "deactivate keeps balance", id: used.ID, changes: AccountChanges{Active: ptr(false)}, check: func(a Account) bool { return !a.Active && a.BalanceCents == 9_900 }},
 		{name: "unknown holder", id: used.ID, changes: AccountChanges{PersonID: ptr(int64(999))}, wantErr: ErrPersonNotFound},

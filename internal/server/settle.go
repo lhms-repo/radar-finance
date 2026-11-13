@@ -66,7 +66,7 @@ func (a *API) CreateSettlementPayment(ctx context.Context, req gen.CreateSettlem
 
 // DeleteSettlementPayment undoes a payment between members with its transfer.
 func (a *API) DeleteSettlementPayment(ctx context.Context, req gen.DeleteSettlementPaymentRequestObject) (gen.DeleteSettlementPaymentResponseObject, error) {
-	if err := a.d.Settle.DeletePayment(ctx, req.Id); err != nil {
+	if err := a.d.Settle.DeletePayment(ctx, auth.UserID(ctx), req.Id); err != nil {
 		return nil, err
 	}
 	return gen.DeleteSettlementPayment204Response{}, nil

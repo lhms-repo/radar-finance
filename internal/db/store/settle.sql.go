@@ -11,6 +11,45 @@ import (
 	"time"
 )
 
+const accountInSettlement = `-- name: AccountInSettlement :one
+SELECT CAST(EXISTS (SELECT 1 FROM entries e JOIN groups g ON g.id = e.group_id
+                    WHERE e.account_id = ?1 AND e.kind = 'expense' AND g.kind = 'shared') AS INTEGER) AS used
+`
+
+// Whether the account paid expenses of a shared group, which the settlement credits to its holder (RF-84).
+func (q *Queries) AccountInSettlement(ctx context.Context, accountID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, accountInSettlement, accountID)
+	var used int64
+	err := row.Scan(&used)
+	return used, err
+}
+
+const aleloInSettlement = `-- name: AleloInSettlement :one
+SELECT CAST(EXISTS (SELECT 1 FROM alelo_purchases ap JOIN groups g ON g.id = ap.group_id
+                    WHERE ap.alelo_id = ?1 AND g.kind = 'shared') AS INTEGER) AS used
+`
+
+// Whether the Alelo card has purchases of a shared group, which the settlement credits to its holder (RF-84).
+func (q *Queries) AleloInSettlement(ctx context.Context, aleloID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, aleloInSettlement, aleloID)
+	var used int64
+	err := row.Scan(&used)
+	return used, err
+}
+
+const cardInSettlement = `-- name: CardInSettlement :one
+SELECT CAST(EXISTS (SELECT 1 FROM purchases p JOIN groups g ON g.id = p.group_id WHERE p.card_id = ?1 AND g.kind = 'shared')
+         OR EXISTS (SELECT 1 FROM recurrences r JOIN groups g ON g.id = r.group_id WHERE r.card_id = ?1 AND g.kind = 'shared') AS INTEGER) AS used
+`
+
+// Whether the card has purchases or recurrences of a shared group, which the settlement credits to its holder (RF-84).
+func (q *Queries) CardInSettlement(ctx context.Context, cardID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, cardInSettlement, cardID)
+	var used int64
+	err := row.Scan(&used)
+	return used, err
+}
+
 const createSettlement = `-- name: CreateSettlement :one
 INSERT INTO settlements (group_id, transfer_id, from_person_id, to_person_id, amount_cents, paid_on, created_by, created_at)
 VALUES (CAST(?1 AS INTEGER), ?2, ?3, ?4,
@@ -61,7 +100,7 @@ func (q *Queries) DeleteItemSplits(ctx context.Context, arg DeleteItemSplitsPara
 }
 
 const getSettlement = `-- name: GetSettlement :one
-SELECT id, transfer_id
+SELECT id, transfer_id, from_person_id, to_person_id
 FROM settlements
 WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
@@ -72,14 +111,21 @@ type GetSettlementParams struct {
 }
 
 type GetSettlementRow struct {
-	ID         int64
-	TransferID int64
+	ID           int64
+	TransferID   int64
+	FromPersonID int64
+	ToPersonID   int64
 }
 
 func (q *Queries) GetSettlement(ctx context.Context, arg GetSettlementParams) (GetSettlementRow, error) {
 	row := q.db.QueryRowContext(ctx, getSettlement, arg.ID, arg.GroupID)
 	var i GetSettlementRow
-	err := row.Scan(&i.ID, &i.TransferID)
+	err := row.Scan(
+		&i.ID,
+		&i.TransferID,
+		&i.FromPersonID,
+		&i.ToPersonID,
+	)
 	return i, err
 }
 
