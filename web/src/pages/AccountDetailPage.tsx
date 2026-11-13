@@ -420,7 +420,7 @@ function ExpenseDialog({ open, account, onClose }: { open: boolean; account: Acc
     onClose();
   };
   /** Validates and sends the form. */
-  const submit = form.handleSubmit((v) => add.mutate({ id: account.id, body: { ...v, memberSplit: split.value }, space: where.target }, { onSuccess: close }));
+  const submit = form.handleSubmit((v) => add.mutate({ id: account.id, body: { ...v, memberSplit: split.payload(where.space) }, space: where.target }, { onSuccess: close }));
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={`Saída de ${account.name}`} description="Pix, débito, boleto ou dinheiro que sai direto da conta.">
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>

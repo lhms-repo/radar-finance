@@ -3322,7 +3322,7 @@ components:
       enum: [entry, purchase, recurrence, bill, financing, alelo]
 
     MemberSplit:
-      description: Division of an expense between the members of the group; weights when absent (RN-28).
+      description: Division of an expense between the members of the group (RN-28). Absent on a new item means the weights; absent on an edit keeps the division saved.
       type: object
       required: [mode]
       properties:

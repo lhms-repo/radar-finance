@@ -94,13 +94,20 @@ export function MemberSplitField({
 
 /** Keeps the division chosen in a form; when editing, it starts from the one saved for the item (RN-28). */
 export function useSplitState(kind: MemberSplitKind, id?: number) {
+  const me = useMe();
   const saved = useMemberSplit(kind, id);
-  // null is untouched: the form keeps what was saved.
+  // null is untouched: the form sends nothing and the server keeps what was saved.
   const [chosen, setChosen] = useState<MemberSplit | undefined | null>(null);
   const fromServer = saved.data && saved.data.mode !== "weights" ? saved.data : undefined;
   return {
     value: chosen === null ? fromServer : chosen,
     onChange: (split: MemberSplit | undefined) => setChosen(split),
     reset: () => setChosen(null),
+    /** What to send for an expense going to space: the choice made here, or nothing to keep the saved one. */
+    payload: (space?: number): MemberSplit | undefined => {
+      if (chosen === null) return undefined;
+      if (space !== undefined && space !== me?.group.id) return undefined;
+      return chosen ?? { mode: "weights" };
+    },
   };
 }

@@ -85,7 +85,7 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
 
   /** Validates and sends the form. */
   const submit = form.handleSubmit((v) => {
-    const body = { ...v, endMonth: v.endMonth || undefined, memberSplit: split.value };
+    const body = { ...v, endMonth: v.endMonth || undefined, memberSplit: split.payload(where.space) };
     if (bill) update.mutate({ id: bill.id, body }, { onSuccess: close });
     else create.mutate({ ...body, space: where.target }, { onSuccess: close });
   });
@@ -325,8 +325,8 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
 
   /** Validates and sends the form; editing keeps the amounts, which change through a correction. */
   const submit = form.handleSubmit((v) => {
-    if (financing) update.mutate({ id: financing.id, body: { name: v.name, categoryId: v.categoryId, accountId: v.accountId, dueDay: v.dueDay, memberSplit: split.value } }, { onSuccess: close });
-    else create.mutate({ ...v, memberSplit: split.value, space: where.target }, { onSuccess: close });
+    if (financing) update.mutate({ id: financing.id, body: { name: v.name, categoryId: v.categoryId, accountId: v.accountId, dueDay: v.dueDay, memberSplit: split.payload(where.space) } }, { onSuccess: close });
+    else create.mutate({ ...v, memberSplit: split.payload(where.space), space: where.target }, { onSuccess: close });
   });
 
   return (

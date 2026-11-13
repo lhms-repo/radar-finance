@@ -407,7 +407,7 @@ function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCar
   };
 
   /** Validates and sends the form. */
-  const submit = form.handleSubmit((v) => add.mutate({ id: card.id, body: { ...v, memberSplit: split.value } }, { onSuccess: close }));
+  const submit = form.handleSubmit((v) => add.mutate({ id: card.id, body: { ...v, memberSplit: split.payload() } }, { onSuccess: close }));
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={`Compra no ${card.name}`} description="Entra no gasto como Alimentação, Compras para casa.">

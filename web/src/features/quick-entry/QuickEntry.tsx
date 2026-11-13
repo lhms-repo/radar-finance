@@ -233,7 +233,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
               installments: v.installments,
               buyerPersonId: v.buyerPersonId || undefined,
               split: splitBody(v.split),
-              memberSplit: memberSplit.value,
+              memberSplit: memberSplit.payload(where.space),
             },
             space: where.target,
           },
@@ -241,13 +241,13 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         );
         break;
       case "recurrence":
-        recurrence.mutate({ cardId: v.cardId, body: { description: v.description, categoryId: v.categoryId, amountCents: v.amountCents, startDate: v.date, memberSplit: memberSplit.value } }, done);
+        recurrence.mutate({ cardId: v.cardId, body: { description: v.description, categoryId: v.categoryId, amountCents: v.amountCents, startDate: v.date, memberSplit: memberSplit.payload() } }, done);
         break;
       case "expense":
-        expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description, memberSplit: memberSplit.value }, space: where.target }, done);
+        expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description, memberSplit: memberSplit.payload(where.space) }, space: where.target }, done);
         break;
       case "alelo":
-        aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents, memberSplit: memberSplit.value } }, done);
+        aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents, memberSplit: memberSplit.payload() } }, done);
         break;
       case "bill":
         bill.mutate(
@@ -258,7 +258,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
             dueDay: v.day,
             expectedCents: v.amountCents,
             startMonth: v.date.slice(0, 7),
-            memberSplit: memberSplit.value,
+            memberSplit: memberSplit.payload(where.space),
             space: where.target,
           },
           done,
