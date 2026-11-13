@@ -504,6 +504,22 @@ func (s *Service) Transfer(ctx context.Context, userID int64, in NewTransfer) (T
 	}
 	var res TransferResult
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		var err error
+		in.Description = desc
+		res, err = s.TransferTx(ctx, q, userID, in)
+		return err
+	})
+	if err != nil {
+		return TransferResult{}, err
+	}
+	return res, nil
+}
+
+// TransferTx records a checked transfer inside the caller's transaction, like a payment between members (RN-30).
+func (s *Service) TransferTx(ctx context.Context, q *store.Queries, userID int64, in NewTransfer) (TransferResult, error) {
+	var res TransferResult
+	desc := in.Description
+	err := func() error {
 		for _, id := range []int64{in.FromAccountID, in.ToAccountID} {
 			if err := CheckActiveAccount(ctx, q, id); err != nil {
 				return err
@@ -532,7 +548,7 @@ func (s *Service) Transfer(ctx context.Context, userID int64, in NewTransfer) (T
 		})
 		res.InEntryID = inEntry.ID
 		return err
-	})
+	}()
 	if err != nil {
 		return TransferResult{}, err
 	}

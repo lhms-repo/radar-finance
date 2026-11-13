@@ -282,7 +282,6 @@ func TestMigratePersonalRefusesDoublePayments(t *testing.T) {
 	}
 }
 
-
 // TestMigrateSettlement starts the settlement of the existing groups on the day of the migration, with the weights
 // of their members, and drops the division of an item when the item moves away (RN-28, RN-31).
 func TestMigrateSettlement(t *testing.T) {
