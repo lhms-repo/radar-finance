@@ -49,6 +49,7 @@ var (
 	ErrInvalidLook         = problem.Invalid("card_look_invalid", "Cor ou acabamento inválido.")
 	ErrPersonNotFound      = problem.Invalid("card_person_not_found", "Escolha uma pessoa do casal.")
 	ErrCardInactive        = problem.Conflict("card_inactive", "Este cartão está desativado. Reative-o para lançar nele.")
+	ErrHolderInSettlement  = problem.Conflict("card_holder_in_settlement", "Este cartão tem compras de um grupo, que entram no acerto em nome de quem o tem; o titular não pode mudar.")
 	ErrHolderUsedElsewhere = problem.Conflict("card_holder_used_elsewhere", "Este cartão tem compras em outro grupo, então o titular não pode mudar.")
 	ErrPayInPersonal       = problem.Conflict("invoice_pay_personal", "A fatura é paga inteira pela dona do cartão, no espaço Pessoal dela.")
 	ErrCardInUse           = problem.Conflict("card_in_use", "Este cartão já tem lançamentos e não pode ser excluído. Desative-o para tirá-lo das opções.")
@@ -222,6 +223,12 @@ func (s *Service) UpdateCard(ctx context.Context, id int64, in CardInput, active
 			}
 			if used != 0 {
 				return ErrHolderUsedElsewhere
+			}
+			// The settlement credits what the card paid to its holder; a new one would take it over (RF-84).
+			if paid, err := q.CardInSettlement(ctx, id); err != nil {
+				return err
+			} else if paid != 0 {
+				return ErrHolderInSettlement
 			}
 		}
 		return q.UpdateCard(ctx, store.UpdateCardParams{

@@ -48,6 +48,7 @@ var (
 	ErrDescriptionRequired = problem.Invalid("alelo_description_required", "Descreva a compra.")
 	ErrPurchaseNotFound    = problem.NotFound("alelo_purchase_not_found", "Compra não encontrada.")
 	ErrInvalidStyle        = problem.Invalid("alelo_style_invalid", "Escolha o visual do cartão.")
+	ErrHolderInSettlement  = problem.Conflict("alelo_holder_in_settlement", "Este Alelo tem compras de um grupo, que entram no acerto em nome de quem o tem; o titular não pode mudar.")
 	ErrHolderUsedElsewhere = problem.Conflict("alelo_holder_used_elsewhere", "Este Alelo tem compras em outro grupo, então o titular não pode mudar.")
 )
 
@@ -244,6 +245,12 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Card, error)
 			}
 			if used != 0 {
 				return ErrHolderUsedElsewhere
+			}
+			// The settlement credits what the card paid to its holder; a new one would take it over (RF-84).
+			if paid, err := q.AleloInSettlement(ctx, id); err != nil {
+				return err
+			} else if paid != 0 {
+				return ErrHolderInSettlement
 			}
 		}
 		return q.UpdateAleloCard(ctx, store.UpdateAleloCardParams{

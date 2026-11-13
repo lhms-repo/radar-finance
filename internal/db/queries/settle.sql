@@ -116,7 +116,7 @@ WHERE s.group_id = CAST(sqlc.arg(group_id) AS INTEGER)
 ORDER BY s.paid_on DESC, s.id DESC;
 
 -- name: GetSettlement :one
-SELECT id, transfer_id
+SELECT id, transfer_id, from_person_id, to_person_id
 FROM settlements
 WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER);
 
@@ -131,3 +131,18 @@ SELECT CAST(CASE CAST(sqlc.arg(kind) AS TEXT)
     WHEN 'financing' THEN EXISTS (SELECT 1 FROM financings x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
     WHEN 'alelo' THEN EXISTS (SELECT 1 FROM alelo_purchases x WHERE x.id = sqlc.arg(item_id) AND x.group_id = CAST(sqlc.arg(group_id) AS INTEGER))
     ELSE 0 END AS INTEGER) AS found;
+
+-- name: AccountInSettlement :one
+-- Whether the account paid expenses of a shared group, which the settlement credits to its holder (RF-84).
+SELECT CAST(EXISTS (SELECT 1 FROM entries e JOIN groups g ON g.id = e.group_id
+                    WHERE e.account_id = sqlc.arg(account_id) AND e.kind = 'expense' AND g.kind = 'shared') AS INTEGER) AS used;
+
+-- name: CardInSettlement :one
+-- Whether the card has purchases or recurrences of a shared group, which the settlement credits to its holder (RF-84).
+SELECT CAST(EXISTS (SELECT 1 FROM purchases p JOIN groups g ON g.id = p.group_id WHERE p.card_id = sqlc.arg(card_id) AND g.kind = 'shared')
+         OR EXISTS (SELECT 1 FROM recurrences r JOIN groups g ON g.id = r.group_id WHERE r.card_id = sqlc.arg(card_id) AND g.kind = 'shared') AS INTEGER) AS used;
+
+-- name: AleloInSettlement :one
+-- Whether the Alelo card has purchases of a shared group, which the settlement credits to its holder (RF-84).
+SELECT CAST(EXISTS (SELECT 1 FROM alelo_purchases ap JOIN groups g ON g.id = ap.group_id
+                    WHERE ap.alelo_id = sqlc.arg(alelo_id) AND g.kind = 'shared') AS INTEGER) AS used;

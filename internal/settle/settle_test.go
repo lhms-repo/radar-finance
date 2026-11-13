@@ -193,7 +193,7 @@ func TestThreeMembersCloseToTheCent(t *testing.T) {
 		t.Fatalf("month flow = %+v", flow)
 	}
 	// Undoing a payment brings its part of the balance back.
-	if err := tr.s.DeletePayment(ctx, after.Payments[0].ID); err != nil {
+	if err := tr.s.DeletePayment(ctx, tr.people["ana"].ID, after.Payments[0].ID); err != nil {
 		t.Fatal(err)
 	}
 	if again, _ := tr.s.Settlement(ctx, civil.Month{Year: 2026, Month: time.November}); len(again.Payments) != 1 || len(again.Suggestions) != 1 {
@@ -252,6 +252,36 @@ func TestPayRules(t *testing.T) {
 	}
 	if _, err := tr.s.Settlement(scope.WithGroup(context.Background(), 2), civil.Month{Year: 2026, Month: time.November}); !errors.Is(err, ErrPersonal) {
 		t.Fatalf("settlement of a personal space: %v, want ErrPersonal", err)
+	}
+	tests := []struct {
+		name    string
+		by      string
+		from    string
+		to      string
+		date    civil.Date
+		wantErr error
+	}{
+		{name: "a member outside the payment", by: "carla", from: "ana", to: "bruno", date: nov(15), wantErr: ErrNotParty},
+		{name: "a date in the future", by: "ana", from: "ana", to: "bruno", date: nov(16), wantErr: ErrPaymentDate},
+		{name: "a date before the start", by: "ana", from: "ana", to: "bruno", date: civil.Date{Year: 2026, Month: time.September, Day: 30}, wantErr: ErrPaymentDate},
+		{name: "who pays", by: "bruno", from: "bruno", to: "carla", date: nov(15)},
+		{name: "who receives", by: "carla", from: "bruno", to: "carla", date: nov(15)},
+		{name: "an administrator outside the payment", by: "ana", from: "bruno", to: "carla", date: nov(15)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tr.s.Pay(home, tr.people[tt.by].ID, PaymentInput{FromAccountID: tr.accounts[tt.from], ToAccountID: tr.accounts[tt.to], AmountCents: 100, Date: tt.date})
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+		})
+	}
+	st, _ := tr.s.Settlement(home, civil.Month{Year: 2026, Month: time.November})
+	if err := tr.s.DeletePayment(home, tr.people["carla"].ID, st.Payments[0].ID); err != nil {
+		t.Fatalf("undo by who received: %v", err)
+	}
+	if err := tr.s.DeletePayment(home, tr.people["ana"].ID, st.Payments[1].ID); err != nil {
+		t.Fatalf("undo by an administrator: %v", err)
 	}
 }
 
