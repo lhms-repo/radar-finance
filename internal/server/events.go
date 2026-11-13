@@ -106,12 +106,31 @@ func publishChanges(hub *events.Hub, sm *scs.SessionManager, accounts *account.S
 			if other, ok := otherSpace(r); ok && other != group {
 				hub.Publish(events.Event{Topic: topic, GroupID: other, UserID: user, ClientID: clientID(r)})
 			}
-			// A write in the personal space, like paying the whole invoice, also changes what her groups show.
-			if g, err := accounts.GetGroup(r.Context(), group); err == nil && g.Personal {
+			g, err := accounts.GetGroup(r.Context(), group)
+			switch {
+			case err != nil:
+			case g.Personal:
+				// A write in the personal space, like paying the whole invoice, also changes what her groups show.
 				if mine, err := accounts.GroupsOf(r.Context(), user); err == nil {
 					for _, o := range mine {
 						if !o.Personal {
 							hub.Publish(events.Event{Topic: topic, GroupID: o.ID, UserID: user, ClientID: clientID(r)})
+						}
+					}
+				}
+			default:
+				// A write in a group also changes the full views each member keeps in the personal space: the
+				// invoice, the statement and the Alelo month of a holder (RF-83). Only the topic goes, never data.
+				if ms, err := accounts.Members(r.Context(), group); err == nil {
+					for _, m := range ms {
+						theirs, err := accounts.GroupsOf(r.Context(), m.UserID)
+						if err != nil {
+							continue
+						}
+						for _, o := range theirs {
+							if o.Personal {
+								hub.Publish(events.Event{Topic: topic, GroupID: o.ID, UserID: user, ClientID: clientID(r)})
+							}
 						}
 					}
 				}
@@ -120,18 +139,19 @@ func publishChanges(hub *events.Hub, sm *scs.SessionManager, accounts *account.S
 	})
 }
 
-// otherSpace returns the space a write also reached: the X-Radar-Space of a creation, or the target of a move.
-// Only requests that passed the membership checks get here with a status below 400.
+// otherSpace returns the space a write also reached: the target of a move, or the X-Radar-Space of a creation.
+// The move comes first because the client sends the active space in the header of every call. Only requests that
+// passed the membership checks get here with a status below 400.
 func otherSpace(r *http.Request) (int64, bool) {
-	if id, ok := spaceHeader(r); ok {
-		return id, true
-	}
 	if rest, ok := strings.CutPrefix(r.URL.Path, "/api/spaces/"); ok {
 		if id, tail, ok := strings.Cut(rest, "/"); ok && tail == "moves" {
 			if n, err := strconv.ParseInt(id, 10, 64); err == nil && n > 0 {
 				return n, true
 			}
 		}
+	}
+	if id, ok := spaceHeader(r); ok {
+		return id, true
 	}
 	return 0, false
 }

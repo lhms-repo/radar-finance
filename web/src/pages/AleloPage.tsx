@@ -160,7 +160,7 @@ function MonthCard({ card, onBuy, onEdit }: { card: AleloCard; onBuy: () => void
           <CardTitle>
             {card.name} · {monthName(year, month).toLowerCase()}
           </CardTitle>
-          <CardDescription>Crédito de {<Money cents={card.monthlyCreditCents} />} todo dia {card.creditDay}.</CardDescription>
+          {card.owned && <CardDescription>Crédito de {<Money cents={card.monthlyCreditCents} />} todo dia {card.creditDay}.</CardDescription>}
         </div>
         <Button variant="ghost" size="icon-sm" aria-label={`Editar ${card.name}`} onClick={onEdit}>
           <Pencil />
@@ -447,6 +447,7 @@ function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCar
   const close = () => {
     add.reset();
     split.reset();
+    where.setSpace(undefined);
     form.reset();
     onClose();
   };

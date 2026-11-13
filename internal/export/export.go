@@ -30,6 +30,9 @@ const members = `SELECT person_id FROM group_members WHERE group_id = @g`
 // ofMembers keeps the rows held by a member of the active group.
 const ofMembers = `person_id IN (` + members + `)`
 
+// ofUser keeps the rows held by the person of the user asking, like the credits of her own Alelo cards (RF-83).
+const ofUser = `person_id = (SELECT person_id FROM users WHERE id = @u)`
+
 // rules says which rows of each table the active group exports: its own rows, the rows of its parents'
 // children, the people who are members and the personal data of the user asking. A table without a rule is
 // refused, so a new table never leaves the house by accident.
@@ -69,9 +72,10 @@ var rules = map[string]string{
 		` OR (ms.item_kind = 'alelo' AND ms.item_id IN (SELECT id FROM alelo_purchases WHERE group_id = @g))`,
 
 	// Rows of the people of the group.
-	"persons":     `SELECT * FROM persons WHERE id IN (` + members + `)`,
-	"accounts":    `SELECT * FROM accounts WHERE ` + ofMembers,
-	"cards":       `SELECT * FROM cards WHERE ` + ofMembers,
+	"persons":  `SELECT * FROM persons WHERE id IN (` + members + `)`,
+	"accounts": `SELECT * FROM accounts WHERE ` + ofMembers,
+	"cards":    `SELECT * FROM cards WHERE ` + ofMembers,
+	// The starting balance goes only to the holder, see aleloCardsQuery.
 	"alelo_cards": `SELECT * FROM alelo_cards WHERE ` + ofMembers,
 
 	// Rows that follow a parent of the group.
@@ -84,11 +88,12 @@ var rules = map[string]string{
 	"bill_amounts":       `SELECT * FROM bill_amounts WHERE bill_id IN (SELECT id FROM bills WHERE group_id = @g)`,
 	"financing_events":   `SELECT * FROM financing_events WHERE financing_id IN (SELECT id FROM financings WHERE group_id = @g)`,
 	"savings_moves":      `SELECT * FROM savings_moves WHERE box_id IN (SELECT id FROM savings_boxes WHERE group_id = @g)`,
-	"alelo_credits":      `SELECT * FROM alelo_credits WHERE alelo_id IN (SELECT id FROM alelo_cards WHERE ` + ofMembers + `)`,
-	"prices":             `SELECT * FROM prices WHERE market_id IN (SELECT id FROM markets WHERE group_id = @g)`,
-	"receipts":           `SELECT * FROM receipts WHERE market_id IN (SELECT id FROM markets WHERE group_id = @g)`,
-	"receipt_links":      `SELECT * FROM receipt_links WHERE market_id IN (SELECT id FROM markets WHERE group_id = @g)`,
-	"list_items":         `SELECT * FROM list_items WHERE list_id IN (SELECT id FROM shopping_lists WHERE group_id = @g)`,
+	// Credits of an Alelo card go only to its holder, like its balance (RF-83).
+	"alelo_credits": `SELECT * FROM alelo_credits WHERE alelo_id IN (SELECT id FROM alelo_cards WHERE ` + ofUser + `)`,
+	"prices":        `SELECT * FROM prices WHERE market_id IN (SELECT id FROM markets WHERE group_id = @g)`,
+	"receipts":      `SELECT * FROM receipts WHERE market_id IN (SELECT id FROM markets WHERE group_id = @g)`,
+	"receipt_links": `SELECT * FROM receipt_links WHERE market_id IN (SELECT id FROM markets WHERE group_id = @g)`,
+	"list_items":    `SELECT * FROM list_items WHERE list_id IN (SELECT id FROM shopping_lists WHERE group_id = @g)`,
 
 	// Shared by everyone: the category tree has no group.
 	"categories": `SELECT * FROM categories`,
@@ -135,8 +140,11 @@ func WriteZip(ctx context.Context, conn *sql.DB, w io.Writer) error {
 
 // tableQuery returns the query that selects the rows of a table for the active group, or an error when the table has no rule.
 func tableQuery(ctx context.Context, tx *sql.Tx, table string) (string, error) {
-	if table == "users" {
+	switch table {
+	case "users":
 		return usersQuery(ctx, tx)
+	case "alelo_cards":
+		return aleloCardsQuery(ctx, tx)
 	}
 	q, ok := rules[table]
 	if !ok {
@@ -147,25 +155,53 @@ func tableQuery(ctx context.Context, tx *sql.Tx, table string) (string, error) {
 
 // usersQuery selects the users who are members of the group, leaving out the PIN columns, which never leave the database.
 func usersQuery(ctx context.Context, tx *sql.Tx) (string, error) {
-	rows, err := tx.QueryContext(ctx, `SELECT name FROM pragma_table_info('users') ORDER BY cid`)
+	cols, err := columns(ctx, tx, "users")
 	if err != nil {
 		return "", err
+	}
+	var kept []string
+	for _, c := range cols {
+		if !strings.HasPrefix(c, "pin_") {
+			kept = append(kept, `"`+c+`"`)
+		}
+	}
+	return `SELECT ` + strings.Join(kept, ", ") + ` FROM users WHERE ` + ofMembers, nil
+}
+
+// aleloCardsQuery selects the Alelo cards of the members with the starting balance only on the cards of the user
+// asking, since the balance of a card is shown only to its holder (RF-83).
+func aleloCardsQuery(ctx context.Context, tx *sql.Tx) (string, error) {
+	cols, err := columns(ctx, tx, "alelo_cards")
+	if err != nil {
+		return "", err
+	}
+	out := make([]string, 0, len(cols))
+	for _, c := range cols {
+		if c == "initial_balance_cents" {
+			out = append(out, `CASE WHEN `+ofUser+` THEN initial_balance_cents END AS initial_balance_cents`)
+			continue
+		}
+		out = append(out, `"`+c+`"`)
+	}
+	return `SELECT ` + strings.Join(out, ", ") + ` FROM alelo_cards WHERE ` + ofMembers, nil
+}
+
+// columns lists the columns of a table in their order.
+func columns(ctx context.Context, tx *sql.Tx, table string) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT name FROM pragma_table_info(?) ORDER BY cid`, table)
+	if err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 	var cols []string
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
-			return "", err
+			return nil, err
 		}
-		if !strings.HasPrefix(name, "pin_") {
-			cols = append(cols, `"`+name+`"`)
-		}
+		cols = append(cols, name)
 	}
-	if err := rows.Err(); err != nil {
-		return "", err
-	}
-	return `SELECT ` + strings.Join(cols, ", ") + ` FROM users WHERE ` + ofMembers, nil
+	return cols, rows.Err()
 }
 
 // listTables returns the user tables in name order.

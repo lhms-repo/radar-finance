@@ -114,6 +114,45 @@ func TestWriteZipScopesTheGroup(t *testing.T) {
 	}
 }
 
+// TestAleloCreditsOnlyForTheHolder exports the credits and the starting balance of an Alelo card only to its
+// holder; another member of the group gets the card without them (RF-83).
+func TestAleloCreditsOnlyForTheHolder(t *testing.T) {
+	conn := testutil.OpenDB(t)
+	ana := testutil.NewUser(t, conn, "ana", "Ana Ficticia")
+	bruno := testutil.NewUser(t, conn, "bruno", "Bruno Ficticio")
+	home := testutil.NewGroup(t, conn, "Casa", ana, bruno)
+	if _, err := conn.Exec(`INSERT INTO alelo_cards (id, name, person_id, monthly_credit_cents, credit_day, initial_balance_cents, start_month, style, created_by, created_at, updated_at)
+		VALUES (7, 'Alelo Ana', ?, 80000, 5, 12345, '2026-11', 'tudo', ?, '2026-11-11 12:00:00+00:00', '2026-11-11 12:00:00+00:00')`, ana.PersonID, ana.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec(`INSERT INTO alelo_credits (alelo_id, month, amount_cents, credited_on, created_by, created_at) VALUES (7, '2026-11', 81234, '2026-11-05', ?, '2026-11-05 12:00:00+00:00')`, ana.ID); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		user   int64
+		holder bool
+	}{{"holder", ana.ID, true}, {"other member", bruno.ID, false}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := WriteZip(auth.WithUserID(home, tt.user), conn, &buf); err != nil {
+				t.Fatal(err)
+			}
+			files := readZip(t, buf.Bytes())
+			if !strings.Contains(files["alelo_cards.csv"], "Alelo Ana") {
+				t.Fatalf("alelo_cards.csv = %q, want the card", files["alelo_cards.csv"])
+			}
+			if got := strings.Contains(files["alelo_cards.csv"], "12345"); got != tt.holder {
+				t.Fatalf("starting balance exported = %v, want %v", got, tt.holder)
+			}
+			if got := strings.Contains(files["alelo_credits.csv"], "81234"); got != tt.holder {
+				t.Fatalf("credit exported = %v, want %v", got, tt.holder)
+			}
+		})
+	}
+}
+
 // TestEveryTableHasARule keeps a new table from being exported whole by accident.
 func TestEveryTableHasARule(t *testing.T) {
 	conn := testutil.OpenDB(t)
