@@ -1,4 +1,5 @@
 import NumberFlow from "@number-flow/react";
+import { MemberSplitField, useSplitState } from "@/features/settle/MemberSplitField";
 import { SpaceField, useSpaceChoice } from "@/app/space";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
@@ -190,6 +191,8 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
   const aleloPurchase = useAddAleloPurchase();
   // Where the entry goes: the active space, or the personal one or another group of the person (RF-83).
   const where = useSpaceChoice();
+  // How the members divide the expense, by the weights unless chosen otherwise (RN-28).
+  const memberSplit = useSplitState("entry");
   const mutation = { purchase, recurrence, expense, bill, alelo: aleloPurchase, oneOffIncome: oneOff, recurringIncome: recurring }[combo];
   // Any save in flight blocks another one, even after the type changes, so one tap never records twice.
   const saving = [purchase, recurrence, expense, oneOff, recurring, bill, aleloPurchase].some((m) => m.isPending);
@@ -230,6 +233,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
               installments: v.installments,
               buyerPersonId: v.buyerPersonId || undefined,
               split: splitBody(v.split),
+              memberSplit: memberSplit.value,
             },
             space: where.target,
           },
@@ -237,13 +241,13 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
         );
         break;
       case "recurrence":
-        recurrence.mutate({ cardId: v.cardId, body: { description: v.description, categoryId: v.categoryId, amountCents: v.amountCents, startDate: v.date } }, done);
+        recurrence.mutate({ cardId: v.cardId, body: { description: v.description, categoryId: v.categoryId, amountCents: v.amountCents, startDate: v.date, memberSplit: memberSplit.value } }, done);
         break;
       case "expense":
-        expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description }, space: where.target }, done);
+        expense.mutate({ id: v.accountId, body: { amountCents: v.amountCents, date: v.date, categoryId: v.categoryId, description: v.description, memberSplit: memberSplit.value }, space: where.target }, done);
         break;
       case "alelo":
-        aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents } }, done);
+        aleloPurchase.mutate({ id: v.aleloId, body: { date: v.date, description: v.description, amountCents: v.amountCents, memberSplit: memberSplit.value } }, done);
         break;
       case "bill":
         bill.mutate(
@@ -254,6 +258,7 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
             dueDay: v.day,
             expectedCents: v.amountCents,
             startMonth: v.date.slice(0, 7),
+            memberSplit: memberSplit.value,
             space: where.target,
           },
           done,
@@ -379,6 +384,9 @@ function QuickEntrySheet({ preset, onClose }: { preset: QuickEntryPreset; onClos
 
         {/* Recurrences and Alelo purchases stay in the active space. */}
         {combo !== "recurrence" && combo !== "alelo" && <SpaceField value={where.space} onChange={where.setSpace} />}
+        {combo !== "oneOffIncome" && combo !== "recurringIncome" && (
+          <MemberSplitField value={memberSplit.value} onChange={memberSplit.onChange} space={combo === "recurrence" || combo === "alelo" ? undefined : where.space} />
+        )}
         <FieldError message={mutation.error?.message} />
         <ConfirmButton done={done} pending={saving} />
       </form>

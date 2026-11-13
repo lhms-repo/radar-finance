@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MemberSplitField, useSplitState } from "@/features/settle/MemberSplitField";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Pencil, Plus, ShoppingBasket, Trash2, Undo2, Utensils } from "lucide-react";
 import { useState } from "react";
@@ -393,18 +394,20 @@ const purchaseSchema = z.object({
 /** Records a purchase with a free description; it counts as Alimentação, Compras para casa (RF-33, RN-15). */
 function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCard; onClose: () => void }) {
   const add = useAddAleloPurchase();
+  const split = useSplitState("alelo");
   const form = useForm<z.infer<typeof purchaseSchema>>({ resolver: zodResolver(purchaseSchema), resetOptions: { keepDirtyValues: true }, values: { description: "", amountCents: 0, date: todayISO() } });
   const errors = form.formState.errors;
 
   /** Clears the mutation state and closes. */
   const close = () => {
     add.reset();
+    split.reset();
     form.reset();
     onClose();
   };
 
   /** Validates and sends the form. */
-  const submit = form.handleSubmit((v) => add.mutate({ id: card.id, body: v }, { onSuccess: close }));
+  const submit = form.handleSubmit((v) => add.mutate({ id: card.id, body: { ...v, memberSplit: split.value } }, { onSuccess: close }));
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()} title={`Compra no ${card.name}`} description="Entra no gasto como Alimentação, Compras para casa.">
@@ -420,6 +423,7 @@ function PurchaseDialog({ open, card, onClose }: { open: boolean; card: AleloCar
             <Input id="alelo-date" type="date" {...form.register("date")} />
           </Field>
         </div>
+        <MemberSplitField value={split.value} onChange={split.onChange} />
         <FieldError message={add.error?.message} />
         <DialogActions>
           <Button variant="ghost" onClick={close}>

@@ -20,6 +20,7 @@ import { GroupPage } from "@/pages/GroupPage";
 import { ImportPage } from "@/pages/ImportPage";
 import { IncomesPage } from "@/pages/IncomesPage";
 import { ReceivablesPage } from "@/pages/ReceivablesPage";
+import { SettlementPage } from "@/pages/SettlementPage";
 import { RulesPage } from "@/pages/RulesPage";
 import { SavingsPage } from "@/pages/SavingsPage";
 import { LoginPage } from "@/pages/LoginPage";
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
       { path: "bills", element: <BillsPage /> },
       { path: "savings", element: <SavingsPage /> },
       { path: "receivables", element: <ReceivablesPage /> },
+      { path: "settlement", element: <SettlementPage /> },
       { path: "market", element: <MarketPage /> },
       { path: "market/receipt", element: <ReceiptPage /> },
       { path: "market/lists/:id", element: <ListPage /> },

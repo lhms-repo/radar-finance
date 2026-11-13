@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { MemberSplitField, useSplitState } from "@/features/settle/MemberSplitField";
 import { MoveToSpace, SpaceField, useSpaceChoice } from "@/app/space";
 import { Check, Trash2 } from "lucide-react";
 import { Controller, useForm } from "react-hook-form";
@@ -56,6 +57,7 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
   const remove = useDeleteBill();
   const mutation = bill ? update : create;
   const where = useSpaceChoice();
+  const split = useSplitState("bill", bill?.id);
   const form = useForm<z.infer<typeof billSchema>>({
     resolver: zodResolver(billSchema),
     resetOptions: { keepDirtyValues: true },
@@ -76,13 +78,14 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
     create.reset();
     update.reset();
     remove.reset();
+    split.reset();
     form.reset();
     onClose();
   };
 
   /** Validates and sends the form. */
   const submit = form.handleSubmit((v) => {
-    const body = { ...v, endMonth: v.endMonth || undefined };
+    const body = { ...v, endMonth: v.endMonth || undefined, memberSplit: split.value };
     if (bill) update.mutate({ id: bill.id, body }, { onSuccess: close });
     else create.mutate({ ...body, space: where.target }, { onSuccess: close });
   });
@@ -120,6 +123,7 @@ export function BillFormDialog({ open, bill, onClose }: { open: boolean; bill?: 
           </Field>
         </div>
         {bill ? <MoveToSpace kind="bill" itemId={bill.id} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
+        <MemberSplitField value={split.value} onChange={split.onChange} space={where.space} />
         <FieldError message={mutation.error?.message ?? remove.error?.message} />
         <DialogActions className="sm:justify-between">
           {bill ? (
@@ -291,6 +295,7 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
   const remove = useDeleteFinancing();
   const mutation = financing ? update : create;
   const where = useSpaceChoice();
+  const split = useSplitState("financing", financing?.id);
   const form = useForm<z.infer<typeof financingSchema>>({
     resolver: zodResolver(financingSchema),
     resetOptions: { keepDirtyValues: true },
@@ -313,14 +318,15 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
     create.reset();
     update.reset();
     remove.reset();
+    split.reset();
     form.reset();
     onClose();
   };
 
   /** Validates and sends the form; editing keeps the amounts, which change through a correction. */
   const submit = form.handleSubmit((v) => {
-    if (financing) update.mutate({ id: financing.id, body: { name: v.name, categoryId: v.categoryId, accountId: v.accountId, dueDay: v.dueDay } }, { onSuccess: close });
-    else create.mutate({ ...v, space: where.target }, { onSuccess: close });
+    if (financing) update.mutate({ id: financing.id, body: { name: v.name, categoryId: v.categoryId, accountId: v.accountId, dueDay: v.dueDay, memberSplit: split.value } }, { onSuccess: close });
+    else create.mutate({ ...v, memberSplit: split.value, space: where.target }, { onSuccess: close });
   });
 
   return (
@@ -373,6 +379,7 @@ export function FinancingFormDialog({ open, financing, onClose }: { open: boolea
           </>
         )}
         {financing ? <MoveToSpace kind="financing" itemId={financing.id} onMoved={close} /> : <SpaceField value={where.space} onChange={where.setSpace} />}
+        <MemberSplitField value={split.value} onChange={split.onChange} space={where.space} />
         <FieldError message={mutation.error?.message ?? remove.error?.message} />
         <DialogActions className="sm:justify-between">
           {financing ? (

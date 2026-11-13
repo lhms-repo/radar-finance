@@ -2070,6 +2070,11 @@ export interface components {
         GroupMember: {
             /** Format: int64 */
             userId: number;
+            /**
+             * Format: int64
+             * @description Person of the member, used in divisions and the settlement (RN-28).
+             */
+            personId: number;
             login: string;
             name: string;
             role: components["schemas"]["GroupRole"];
