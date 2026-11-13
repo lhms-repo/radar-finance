@@ -15,3 +15,14 @@ WHERE token = ?;
 -- name: DeleteExpiredSessions :execrows
 DELETE FROM sessions
 WHERE expiry_ms <= ?;
+
+-- name: SetSessionGroup :exec
+-- Only a group switch writes it; the commits of scs keep it (RF-81).
+UPDATE sessions
+SET group_id = ?
+WHERE token = ?;
+
+-- name: SessionGroup :one
+SELECT CAST(coalesce(group_id, 0) AS INTEGER) AS group_id
+FROM sessions
+WHERE token = ?;

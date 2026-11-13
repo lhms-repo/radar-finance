@@ -147,3 +147,49 @@ func TestSignOutSurvivesLateCommit(t *testing.T) {
 		})
 	}
 }
+
+// TestSwitchSurvivesLateCommit keeps the new group when a request that loaded the session before the switch
+// saves it after; scs saves the whole session at the end of every request with an idle timeout (RF-81).
+func TestSwitchSurvivesLateCommit(t *testing.T) {
+	ctx := context.Background()
+	sm := NewSessionManager(openDB(t), SessionOptions{Idle: time.Hour, Lifetime: 24 * time.Hour})
+	login, err := sm.Load(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := SignIn(login, sm, 7, 1); err != nil {
+		t.Fatal(err)
+	}
+	token, _, err := sm.Commit(login)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A slow request loads the session with group 1, then a switch to group 2 commits first.
+	slow, err := sm.Load(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sw, err := sm.Load(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := SwitchGroup(sw, sm, 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sm.Commit(sw); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sm.Commit(slow); err != nil {
+		t.Fatal(err)
+	}
+	after, err := sm.Load(ctx, token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if g := CurrentGroup(after, sm); g != 2 {
+		t.Fatalf("group after a late commit = %d, want 2", g)
+	}
+	if u := CurrentUser(after, sm); u != 7 {
+		t.Fatalf("user after a late commit = %d, want 7", u)
+	}
+}

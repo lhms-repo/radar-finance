@@ -394,6 +394,7 @@ type Session struct {
 	Token    string
 	Data     []byte
 	ExpiryMs int64
+	GroupID  sql.NullInt64
 }
 
 type ShoppingList struct {
