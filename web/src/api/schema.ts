@@ -1959,8 +1959,11 @@ export interface components {
         /** @enum {string} */
         GroupRole: "admin" | "member";
         SpaceMove: {
-            /** @enum {string} */
-            kind: "entry" | "purchase" | "bill" | "financing" | "income" | "savings";
+            /**
+             * @description Card recurrences never move, since that would rewrite closed invoices; end one and create another.
+             * @enum {string}
+             */
+            kind: "entry" | "purchase" | "bill" | "financing" | "income" | "savings" | "alelo";
             /** Format: int64 */
             itemId: number;
         };
@@ -2867,9 +2870,12 @@ export interface components {
             personName: string;
             monthlyCreditCents: components["schemas"]["Cents"];
             creditDay: number;
-            balanceCents: components["schemas"]["Cents"];
+            /** @description Real balance with the purchases of every space; only for the holder (RF-83). */
+            balanceCents?: components["schemas"]["Cents"];
             startMonth: components["schemas"]["Month"];
             active: boolean;
+            /** @description The user reading it is the holder (RF-83). */
+            owned: boolean;
         };
         AleloPurchase: {
             /** Format: int64 */
@@ -2879,22 +2885,32 @@ export interface components {
             description: string;
             amountCents: components["schemas"]["Cents"];
             createdByName?: string;
+            /** @description Space of the purchase, on the full month of the holder (RF-83). */
+            groupName?: string;
+            /**
+             * Format: int64
+             * @description Id of the space of the purchase; only purchases of the active space can be changed there (RF-83).
+             */
+            groupId?: number;
         };
+        /** @description Month of an Alelo card. A group reads only its purchases; the holder reads every space with balances and credit in her personal space (RF-83). */
         AleloMonth: {
             month: components["schemas"]["Month"];
-            openingCents: components["schemas"]["Cents"];
-            /** @description False before the first month of the card. */
+            /** @description Every space with balances and credit, only in the personal space of the holder. */
+            full: boolean;
+            openingCents?: components["schemas"]["Cents"];
+            /** @description False before the first month of the card and outside the full month. */
             hasCredit: boolean;
-            expectedCreditCents: components["schemas"]["Cents"];
+            expectedCreditCents?: components["schemas"]["Cents"];
             /** Format: date */
-            expectedCreditOn: string;
+            expectedCreditOn?: string;
             creditConfirmed: boolean;
             creditCents: components["schemas"]["Cents"];
             /** Format: date */
             creditedOn?: string;
             purchases: components["schemas"]["AleloPurchase"][];
             spentCents: components["schemas"]["Cents"];
-            closingCents: components["schemas"]["Cents"];
+            closingCents?: components["schemas"]["Cents"];
         };
         AleloCreditCreate: {
             amountCents?: components["schemas"]["Cents"];
@@ -5198,7 +5214,10 @@ export interface operations {
     addRecurrence: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path: {
                 id: components["parameters"]["Id"];
             };
@@ -5841,7 +5860,10 @@ export interface operations {
     addAleloPurchase: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path: {
                 id: components["parameters"]["Id"];
             };

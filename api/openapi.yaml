@@ -1430,6 +1430,8 @@ paths:
       operationId: addRecurrence
       tags: [cards]
       summary: Registers a recurrence charged on every invoice (RF-17).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -1999,6 +2001,8 @@ paths:
       operationId: addAleloPurchase
       tags: [alelo]
       summary: Records a purchase with a free description, filed as groceries (RF-33, RN-15).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -3312,7 +3316,8 @@ components:
       properties:
         kind:
           type: string
-          enum: [entry, purchase, bill, financing, income, savings]
+          description: Card recurrences never move, since that would rewrite closed invoices; end one and create another.
+          enum: [entry, purchase, bill, financing, income, savings, alelo]
         itemId:
           type: integer
           format: int64
@@ -4993,7 +4998,7 @@ components:
 
     AleloCard:
       type: object
-      required: [id, name, personId, personName, monthlyCreditCents, creditDay, balanceCents, startMonth, style, active]
+      required: [id, name, personId, personName, monthlyCreditCents, creditDay, startMonth, style, active, owned]
       properties:
         style:
           $ref: "#/components/schemas/AleloStyle"
@@ -5012,11 +5017,16 @@ components:
         creditDay:
           type: integer
         balanceCents:
-          $ref: "#/components/schemas/Cents"
+          description: Real balance with the purchases of every space; only for the holder (RF-83).
+          allOf:
+            - $ref: "#/components/schemas/Cents"
         startMonth:
           $ref: "#/components/schemas/Month"
         active:
           type: boolean
+        owned:
+          type: boolean
+          description: The user reading it is the holder (RF-83).
 
     AleloPurchase:
       type: object
@@ -5034,18 +5044,29 @@ components:
           $ref: "#/components/schemas/Cents"
         createdByName:
           type: string
+        groupName:
+          description: Space of the purchase, on the full month of the holder (RF-83).
+          type: string
+        groupId:
+          description: Id of the space of the purchase; only purchases of the active space can be changed there (RF-83).
+          type: integer
+          format: int64
 
     AleloMonth:
       type: object
-      required: [month, openingCents, hasCredit, expectedCreditCents, expectedCreditOn, creditConfirmed, creditCents, purchases, spentCents, closingCents]
+      description: Month of an Alelo card. A group reads only its purchases; the holder reads every space with balances and credit in her personal space (RF-83).
+      required: [month, full, hasCredit, creditConfirmed, creditCents, purchases, spentCents]
       properties:
         month:
           $ref: "#/components/schemas/Month"
+        full:
+          type: boolean
+          description: Every space with balances and credit, only in the personal space of the holder.
         openingCents:
           $ref: "#/components/schemas/Cents"
         hasCredit:
           type: boolean
-          description: False before the first month of the card.
+          description: False before the first month of the card and outside the full month.
         expectedCreditCents:
           $ref: "#/components/schemas/Cents"
         expectedCreditOn:
