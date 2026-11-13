@@ -196,7 +196,7 @@ func (s *Service) Create(ctx context.Context, userID int64, in Input) (Financing
 			return fmt.Errorf("create financing: %w", err)
 		}
 		id = f.ID
-		return membersplit.Save(ctx, q, groupID, membersplit.KindFinancing, id, in.Members, in.InstallmentCents)
+		return membersplit.Save(ctx, q, groupID, membersplit.KindFinancing, id, in.Members, in.InstallmentCents, s.now(), true)
 	})
 	if err != nil {
 		return Financing{}, err
@@ -230,7 +230,7 @@ func (s *Service) Update(ctx context.Context, id int64, c Changes) (Financing, e
 		}); err != nil {
 			return err
 		}
-		return membersplit.Save(ctx, q, groupID, membersplit.KindFinancing, id, c.Members, cur.InstallmentCents)
+		return membersplit.Save(ctx, q, groupID, membersplit.KindFinancing, id, c.Members, cur.InstallmentCents, s.now(), false)
 	})
 	if err != nil {
 		return Financing{}, err

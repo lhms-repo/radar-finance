@@ -114,7 +114,7 @@ func (s *Service) CreateGroup(ctx context.Context, name string, adminUserID int6
 		if err := q.SetGroupSettlesFrom(ctx, store.SetGroupSettlesFromParams{SettlesFrom: sql.NullString{String: day, Valid: true}, ID: g.ID}); err != nil {
 			return err
 		}
-		if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: g.ID, PersonID: u.PersonID, WeightBp: fullWeightBP, FromDay: day}); err != nil {
+		if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: g.ID, PersonID: u.PersonID, WeightBp: fullWeightBP, FromDay: day, SetAt: s.moment()}); err != nil {
 			return err
 		}
 		return ensurePersonal(ctx, q, u.PersonID, u.ID, now)
@@ -231,7 +231,7 @@ func (s *Service) AddMember(ctx context.Context, groupID, userID int64, role Rol
 		if err := ensurePersonal(ctx, q, u.PersonID, u.ID, now); err != nil {
 			return err
 		}
-		return equalWeights(ctx, q, groupID, s.today())
+		return equalWeights(ctx, q, groupID, s.today(), s.moment())
 	})
 }
 
@@ -278,7 +278,7 @@ func (s *Service) CreateMember(ctx context.Context, groupID int64, login, name, 
 		if err := ensurePersonal(ctx, q, p.ID, u.ID, now); err != nil {
 			return err
 		}
-		return equalWeights(ctx, q, groupID, s.today())
+		return equalWeights(ctx, q, groupID, s.today(), s.moment())
 	})
 	if err != nil {
 		return User{}, err
@@ -565,9 +565,9 @@ func membership(ctx context.Context, q *store.Queries, groupID, userID int64) (R
 	return Role(m.Role), true, nil
 }
 
-// equalWeights gives every member the same weight, the leftover points to the first one, in force from day on;
-// an administrator may set other weights later (RN-28).
-func equalWeights(ctx context.Context, q *store.Queries, groupID int64, day string) error {
+// equalWeights gives every member the same weight, the leftover points to the first one, in force from day at the
+// moment setAt on, so what was recorded before keeps its division; an administrator may set other weights later (RN-28).
+func equalWeights(ctx context.Context, q *store.Queries, groupID int64, day, setAt string) error {
 	members, err := q.ListGroupMembers(ctx, groupID)
 	if err != nil {
 		return err
@@ -581,7 +581,7 @@ func equalWeights(ctx context.Context, q *store.Queries, groupID int64, day stri
 		if err := q.SetGroupMemberWeight(ctx, store.SetGroupMemberWeightParams{WeightBp: w, GroupID: groupID, PersonID: m.PersonID}); err != nil {
 			return err
 		}
-		if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: groupID, PersonID: m.PersonID, WeightBp: w, FromDay: day}); err != nil {
+		if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: groupID, PersonID: m.PersonID, WeightBp: w, FromDay: day, SetAt: setAt}); err != nil {
 			return err
 		}
 	}
@@ -589,7 +589,7 @@ func equalWeights(ctx context.Context, q *store.Queries, groupID int64, day stri
 }
 
 // SetWeights gives each member of the group her weight in basis points, all above zero and adding up to 10000, in
-// force from today; expenses before today keep the weights they had (RF-79, RN-28).
+// force from now on; what was recorded before keeps the weights it had (RF-79, RN-28).
 func (s *Service) SetWeights(ctx context.Context, groupID int64, weights map[int64]int64) error {
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		if _, err := sharedGroup(ctx, q, groupID); err != nil {
@@ -613,19 +613,23 @@ func (s *Service) SetWeights(ctx context.Context, groupID int64, weights map[int
 		if sum != fullWeightBP {
 			return ErrWeights
 		}
-		day := s.today()
+		day, at := s.today(), s.moment()
 		for _, m := range members {
 			w := weights[m.PersonID]
 			if err := q.SetGroupMemberWeight(ctx, store.SetGroupMemberWeightParams{WeightBp: w, GroupID: groupID, PersonID: m.PersonID}); err != nil {
 				return err
 			}
-			if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: groupID, PersonID: m.PersonID, WeightBp: w, FromDay: day}); err != nil {
+			if err := q.UpsertGroupWeight(ctx, store.UpsertGroupWeightParams{GroupID: groupID, PersonID: m.PersonID, WeightBp: w, FromDay: day, SetAt: at}); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
 }
+
+// moment is the current instant in UTC, RFC 3339 with nanoseconds, kept with a weight so that on the day of a change
+// only what is recorded after it uses the new weights (RN-28).
+func (s *Service) moment() string { return s.now().UTC().Format(time.RFC3339Nano) }
 
 // today is the current business day, in America/Sao_Paulo, as YYYY-MM-DD.
 func (s *Service) today() string {

@@ -304,7 +304,7 @@ func TestMigrateSettlement(t *testing.T) {
 			t.Errorf("%s: got %d, want %d", c.name, got, c.want)
 		}
 	}
-	if _, err := conn.Exec(`INSERT INTO member_splits (item_kind, item_id, mode, person_id, share_cents) VALUES ('entry', 1, 'equal', 1, 0)`); err != nil {
+	if _, err := conn.Exec(`INSERT INTO member_splits (item_kind, item_id, mode) VALUES ('entry', 1, 'equal')`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.Exec(`UPDATE entries SET group_id = 2 WHERE id = 1`); err != nil {

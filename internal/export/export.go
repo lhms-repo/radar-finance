@@ -53,6 +53,13 @@ var rules = map[string]string{
 	"group_members":   `SELECT * FROM group_members WHERE group_id = @g`,
 	"group_weights":   `SELECT * FROM group_weights WHERE group_id = @g`,
 	"settlements":     `SELECT * FROM settlements WHERE group_id = @g`,
+	"member_split_shares": `SELECT * FROM member_split_shares WHERE split_id IN (SELECT id FROM member_splits ms WHERE` +
+		` (ms.item_kind = 'entry' AND ms.item_id IN (SELECT id FROM entries WHERE group_id = @g))` +
+		` OR (ms.item_kind = 'purchase' AND ms.item_id IN (SELECT id FROM purchases WHERE group_id = @g))` +
+		` OR (ms.item_kind = 'recurrence' AND ms.item_id IN (SELECT id FROM recurrences WHERE group_id = @g))` +
+		` OR (ms.item_kind = 'bill' AND ms.item_id IN (SELECT id FROM bills WHERE group_id = @g))` +
+		` OR (ms.item_kind = 'financing' AND ms.item_id IN (SELECT id FROM financings WHERE group_id = @g))` +
+		` OR (ms.item_kind = 'alelo' AND ms.item_id IN (SELECT id FROM alelo_purchases WHERE group_id = @g)))`,
 	"member_splits": `SELECT * FROM member_splits ms WHERE` +
 		` (ms.item_kind = 'entry' AND ms.item_id IN (SELECT id FROM entries WHERE group_id = @g))` +
 		` OR (ms.item_kind = 'purchase' AND ms.item_id IN (SELECT id FROM purchases WHERE group_id = @g))` +

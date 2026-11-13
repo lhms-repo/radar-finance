@@ -45,18 +45,18 @@ func (q *Queries) CreateSettlement(ctx context.Context, arg CreateSettlementPara
 	return id, err
 }
 
-const deleteMemberSplit = `-- name: DeleteMemberSplit :exec
+const deleteItemSplits = `-- name: DeleteItemSplits :exec
 DELETE FROM member_splits
 WHERE item_kind = ?1 AND item_id = ?2
 `
 
-type DeleteMemberSplitParams struct {
+type DeleteItemSplitsParams struct {
 	ItemKind string
 	ItemID   int64
 }
 
-func (q *Queries) DeleteMemberSplit(ctx context.Context, arg DeleteMemberSplitParams) error {
-	_, err := q.db.ExecContext(ctx, deleteMemberSplit, arg.ItemKind, arg.ItemID)
+func (q *Queries) DeleteItemSplits(ctx context.Context, arg DeleteItemSplitsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteItemSplits, arg.ItemKind, arg.ItemID)
 	return err
 }
 
@@ -84,18 +84,19 @@ func (q *Queries) GetSettlement(ctx context.Context, arg GetSettlementParams) (G
 }
 
 const groupInstallments = `-- name: GroupInstallments :many
-SELECT i.id, i.purchase_id, i.invoice_month, i.number, i.amount_cents, p.merchant, p.installment_count,
+SELECT i.id, i.purchase_id, i.invoice_month, i.number, i.amount_cents, p.merchant, p.installment_count, p.created_at,
        CAST(coalesce((SELECT sum(si.amount_cents) FROM split_installments si JOIN splits s ON s.id = si.split_id
                       WHERE s.purchase_id = p.id AND si.number = i.number), 0) AS INTEGER) AS third_party_cents
 FROM installments i
 JOIN purchases p ON p.id = i.purchase_id
-WHERE p.group_id = CAST(?1 AS INTEGER) AND i.card_id = ?2
+WHERE p.group_id = CAST(?1 AS INTEGER) AND i.card_id = ?2 AND p.purchased_on >= ?3
 ORDER BY i.invoice_month, i.id
 `
 
 type GroupInstallmentsParams struct {
 	GroupID int64
 	CardID  int64
+	Since   string
 }
 
 type GroupInstallmentsRow struct {
@@ -106,12 +107,14 @@ type GroupInstallmentsRow struct {
 	AmountCents      int64
 	Merchant         string
 	InstallmentCount int64
+	CreatedAt        time.Time
 	ThirdPartyCents  int64
 }
 
 // Installments of the group's purchases on a card with the part of other people in each, for the settlement (RF-84).
+// Only purchases made from the start of the settlement count, with all their installments (RN-31).
 func (q *Queries) GroupInstallments(ctx context.Context, arg GroupInstallmentsParams) ([]GroupInstallmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, groupInstallments, arg.GroupID, arg.CardID)
+	rows, err := q.db.QueryContext(ctx, groupInstallments, arg.GroupID, arg.CardID, arg.Since)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +130,7 @@ func (q *Queries) GroupInstallments(ctx context.Context, arg GroupInstallmentsPa
 			&i.AmountCents,
 			&i.Merchant,
 			&i.InstallmentCount,
+			&i.CreatedAt,
 			&i.ThirdPartyCents,
 		); err != nil {
 			return nil, err
@@ -155,55 +159,116 @@ func (q *Queries) GroupSettlesFrom(ctx context.Context, id int64) (string, error
 	return settles_from, err
 }
 
-const insertMemberSplit = `-- name: InsertMemberSplit :exec
-INSERT INTO member_splits (item_kind, item_id, mode, person_id, share_cents)
+const insertSplitRule = `-- name: InsertSplitRule :one
+INSERT INTO member_splits (item_kind, item_id, from_day, set_at, mode)
 VALUES (?1, ?2, ?3, ?4, ?5)
+RETURNING id
 `
 
-type InsertMemberSplitParams struct {
-	ItemKind   string
-	ItemID     int64
-	Mode       string
+type InsertSplitRuleParams struct {
+	ItemKind string
+	ItemID   int64
+	FromDay  string
+	SetAt    string
+	Mode     string
+}
+
+func (q *Queries) InsertSplitRule(ctx context.Context, arg InsertSplitRuleParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, insertSplitRule,
+		arg.ItemKind,
+		arg.ItemID,
+		arg.FromDay,
+		arg.SetAt,
+		arg.Mode,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const insertSplitShare = `-- name: InsertSplitShare :exec
+INSERT INTO member_split_shares (split_id, person_id, share_cents)
+VALUES (?1, ?2, ?3)
+`
+
+type InsertSplitShareParams struct {
+	SplitID    int64
 	PersonID   int64
 	ShareCents int64
 }
 
-func (q *Queries) InsertMemberSplit(ctx context.Context, arg InsertMemberSplitParams) error {
-	_, err := q.db.ExecContext(ctx, insertMemberSplit,
-		arg.ItemKind,
-		arg.ItemID,
-		arg.Mode,
-		arg.PersonID,
-		arg.ShareCents,
-	)
+func (q *Queries) InsertSplitShare(ctx context.Context, arg InsertSplitShareParams) error {
+	_, err := q.db.ExecContext(ctx, insertSplitShare, arg.SplitID, arg.PersonID, arg.ShareCents)
 	return err
 }
 
+const latestSplitRule = `-- name: LatestSplitRule :one
+SELECT id, mode
+FROM member_splits
+WHERE item_kind = ?1 AND item_id = ?2
+ORDER BY from_day DESC, set_at DESC
+LIMIT 1
+`
+
+type LatestSplitRuleParams struct {
+	ItemKind string
+	ItemID   int64
+}
+
+type LatestSplitRuleRow struct {
+	ID   int64
+	Mode string
+}
+
+// The division in force now for an item: the last one recorded (RN-28).
+func (q *Queries) LatestSplitRule(ctx context.Context, arg LatestSplitRuleParams) (LatestSplitRuleRow, error) {
+	row := q.db.QueryRowContext(ctx, latestSplitRule, arg.ItemKind, arg.ItemID)
+	var i LatestSplitRuleRow
+	err := row.Scan(&i.ID, &i.Mode)
+	return i, err
+}
+
 const listGroupMemberSplits = `-- name: ListGroupMemberSplits :many
-SELECT ms.item_kind, ms.item_id, ms.mode, ms.person_id, ms.share_cents
+SELECT ms.id, ms.item_kind, ms.item_id, ms.from_day, ms.set_at, ms.mode,
+       CAST(coalesce(sh.person_id, 0) AS INTEGER) AS person_id, CAST(coalesce(sh.share_cents, 0) AS INTEGER) AS share_cents
 FROM member_splits ms
+LEFT JOIN member_split_shares sh ON sh.split_id = ms.id
 WHERE (ms.item_kind = 'entry' AND EXISTS (SELECT 1 FROM entries x WHERE x.id = ms.item_id AND x.group_id = CAST(?1 AS INTEGER)))
    OR (ms.item_kind = 'purchase' AND EXISTS (SELECT 1 FROM purchases x WHERE x.id = ms.item_id AND x.group_id = CAST(?1 AS INTEGER)))
    OR (ms.item_kind = 'recurrence' AND EXISTS (SELECT 1 FROM recurrences x WHERE x.id = ms.item_id AND x.group_id = CAST(?1 AS INTEGER)))
    OR (ms.item_kind = 'bill' AND EXISTS (SELECT 1 FROM bills x WHERE x.id = ms.item_id AND x.group_id = CAST(?1 AS INTEGER)))
    OR (ms.item_kind = 'financing' AND EXISTS (SELECT 1 FROM financings x WHERE x.id = ms.item_id AND x.group_id = CAST(?1 AS INTEGER)))
    OR (ms.item_kind = 'alelo' AND EXISTS (SELECT 1 FROM alelo_purchases x WHERE x.id = ms.item_id AND x.group_id = CAST(?1 AS INTEGER)))
-ORDER BY ms.item_kind, ms.item_id, ms.person_id
+ORDER BY ms.item_kind, ms.item_id, ms.from_day, ms.set_at, sh.person_id
 `
 
-// Every division of the items of a group, read once for the settlement (RN-28).
-func (q *Queries) ListGroupMemberSplits(ctx context.Context, groupID int64) ([]MemberSplit, error) {
+type ListGroupMemberSplitsRow struct {
+	ID         int64
+	ItemKind   string
+	ItemID     int64
+	FromDay    string
+	SetAt      string
+	Mode       string
+	PersonID   int64
+	ShareCents int64
+}
+
+// Every division of the items of a group with its history, read once for the settlement (RN-28).
+func (q *Queries) ListGroupMemberSplits(ctx context.Context, groupID int64) ([]ListGroupMemberSplitsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listGroupMemberSplits, groupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []MemberSplit{}
+	items := []ListGroupMemberSplitsRow{}
 	for rows.Next() {
-		var i MemberSplit
+		var i ListGroupMemberSplitsRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.ItemKind,
 			&i.ItemID,
+			&i.FromDay,
+			&i.SetAt,
 			&i.Mode,
 			&i.PersonID,
 			&i.ShareCents,
@@ -222,16 +287,17 @@ func (q *Queries) ListGroupMemberSplits(ctx context.Context, groupID int64) ([]M
 }
 
 const listGroupWeights = `-- name: ListGroupWeights :many
-SELECT w.person_id, w.weight_bp, w.from_day
+SELECT w.person_id, w.weight_bp, w.from_day, w.set_at
 FROM group_weights w
 WHERE w.group_id = CAST(?1 AS INTEGER)
-ORDER BY w.from_day, w.person_id
+ORDER BY w.from_day, w.set_at, w.person_id
 `
 
 type ListGroupWeightsRow struct {
 	PersonID int64
 	WeightBp int64
 	FromDay  string
+	SetAt    string
 }
 
 // Weights of the members over time, oldest first (RN-28).
@@ -244,48 +310,12 @@ func (q *Queries) ListGroupWeights(ctx context.Context, groupID int64) ([]ListGr
 	items := []ListGroupWeightsRow{}
 	for rows.Next() {
 		var i ListGroupWeightsRow
-		if err := rows.Scan(&i.PersonID, &i.WeightBp, &i.FromDay); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listMemberSplit = `-- name: ListMemberSplit :many
-SELECT mode, person_id, share_cents
-FROM member_splits
-WHERE item_kind = ?1 AND item_id = ?2
-ORDER BY person_id
-`
-
-type ListMemberSplitParams struct {
-	ItemKind string
-	ItemID   int64
-}
-
-type ListMemberSplitRow struct {
-	Mode       string
-	PersonID   int64
-	ShareCents int64
-}
-
-func (q *Queries) ListMemberSplit(ctx context.Context, arg ListMemberSplitParams) ([]ListMemberSplitRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMemberSplit, arg.ItemKind, arg.ItemID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListMemberSplitRow{}
-	for rows.Next() {
-		var i ListMemberSplitRow
-		if err := rows.Scan(&i.Mode, &i.PersonID, &i.ShareCents); err != nil {
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.WeightBp,
+			&i.FromDay,
+			&i.SetAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -352,6 +382,54 @@ func (q *Queries) ListSettlements(ctx context.Context, groupID int64) ([]ListSet
 	return items, nil
 }
 
+const listSplitShares = `-- name: ListSplitShares :many
+SELECT person_id, share_cents
+FROM member_split_shares
+WHERE split_id = ?1
+ORDER BY person_id
+`
+
+type ListSplitSharesRow struct {
+	PersonID   int64
+	ShareCents int64
+}
+
+func (q *Queries) ListSplitShares(ctx context.Context, splitID int64) ([]ListSplitSharesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSplitShares, splitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSplitSharesRow{}
+	for rows.Next() {
+		var i ListSplitSharesRow
+		if err := rows.Scan(&i.PersonID, &i.ShareCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const purchaseGroupPart = `-- name: PurchaseGroupPart :one
+SELECT CAST(coalesce((SELECT sum(i.amount_cents) FROM installments i WHERE i.purchase_id = ?1), 0)
+          - coalesce((SELECT sum(si.amount_cents) FROM split_installments si JOIN splits s ON s.id = si.split_id WHERE s.purchase_id = ?1), 0) AS INTEGER) AS cents
+`
+
+// What the members divide of a purchase as stored: its installments without the shares of other people (RF-84).
+func (q *Queries) PurchaseGroupPart(ctx context.Context, purchaseID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, purchaseGroupPart, purchaseID)
+	var cents int64
+	err := row.Scan(&cents)
+	return cents, err
+}
+
 const setGroupSettlesFrom = `-- name: SetGroupSettlesFrom :exec
 UPDATE groups
 SET settles_from = ?1
@@ -369,7 +447,7 @@ func (q *Queries) SetGroupSettlesFrom(ctx context.Context, arg SetGroupSettlesFr
 }
 
 const settlementAleloPurchases = `-- name: SettlementAleloPurchases :many
-SELECT ap.id, ap.purchased_on, ap.amount_cents, ap.description, ac.person_id AS payer_id, ac.name AS card_name
+SELECT ap.id, ap.purchased_on, ap.amount_cents, ap.description, ap.created_at, ac.person_id AS payer_id, ac.name AS card_name
 FROM alelo_purchases ap
 JOIN alelo_cards ac ON ac.id = ap.alelo_id
 WHERE ap.group_id = CAST(?1 AS INTEGER)
@@ -388,6 +466,7 @@ type SettlementAleloPurchasesRow struct {
 	PurchasedOn string
 	AmountCents int64
 	Description string
+	CreatedAt   time.Time
 	PayerID     int64
 	CardName    string
 }
@@ -407,6 +486,7 @@ func (q *Queries) SettlementAleloPurchases(ctx context.Context, arg SettlementAl
 			&i.PurchasedOn,
 			&i.AmountCents,
 			&i.Description,
+			&i.CreatedAt,
 			&i.PayerID,
 			&i.CardName,
 		); err != nil {
@@ -424,7 +504,7 @@ func (q *Queries) SettlementAleloPurchases(ctx context.Context, arg SettlementAl
 }
 
 const settlementExpenses = `-- name: SettlementExpenses :many
-SELECT e.id, e.occurred_on, e.amount_cents, e.description, a.person_id AS payer_id, a.name AS account_name,
+SELECT e.id, e.occurred_on, e.amount_cents, e.description, e.created_at, a.person_id AS payer_id, a.name AS account_name,
        coalesce(c.name, '') AS category_name,
        CAST(coalesce(e.bill_id, 0) AS INTEGER) AS bill_id,
        CAST(coalesce((SELECT fe.financing_id FROM financing_events fe WHERE fe.entry_id = e.id), 0) AS INTEGER) AS financing_id
@@ -447,6 +527,7 @@ type SettlementExpensesRow struct {
 	OccurredOn   string
 	AmountCents  int64
 	Description  string
+	CreatedAt    time.Time
 	PayerID      int64
 	AccountName  string
 	CategoryName string
@@ -470,6 +551,7 @@ func (q *Queries) SettlementExpenses(ctx context.Context, arg SettlementExpenses
 			&i.OccurredOn,
 			&i.AmountCents,
 			&i.Description,
+			&i.CreatedAt,
 			&i.PayerID,
 			&i.AccountName,
 			&i.CategoryName,
@@ -515,9 +597,9 @@ func (q *Queries) SplitItemInGroup(ctx context.Context, arg SplitItemInGroupPara
 }
 
 const upsertGroupWeight = `-- name: UpsertGroupWeight :exec
-INSERT INTO group_weights (group_id, person_id, weight_bp, from_day)
-VALUES (CAST(?1 AS INTEGER), ?2, ?3, ?4)
-ON CONFLICT (group_id, person_id, from_day) DO UPDATE SET weight_bp = excluded.weight_bp
+INSERT INTO group_weights (group_id, person_id, weight_bp, from_day, set_at)
+VALUES (CAST(?1 AS INTEGER), ?2, ?3, ?4, ?5)
+ON CONFLICT (group_id, person_id, from_day, set_at) DO UPDATE SET weight_bp = excluded.weight_bp
 `
 
 type UpsertGroupWeightParams struct {
@@ -525,6 +607,7 @@ type UpsertGroupWeightParams struct {
 	PersonID int64
 	WeightBp int64
 	FromDay  string
+	SetAt    string
 }
 
 func (q *Queries) UpsertGroupWeight(ctx context.Context, arg UpsertGroupWeightParams) error {
@@ -533,6 +616,7 @@ func (q *Queries) UpsertGroupWeight(ctx context.Context, arg UpsertGroupWeightPa
 		arg.PersonID,
 		arg.WeightBp,
 		arg.FromDay,
+		arg.SetAt,
 	)
 	return err
 }

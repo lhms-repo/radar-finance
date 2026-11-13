@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/italogfx/radar-finance/internal/category"
@@ -29,6 +30,8 @@ type Recurrence struct {
 	// GroupName and SpaceID are the space of the recurrence, on the full invoice of the owner (RF-83).
 	GroupName string
 	SpaceID   int64
+	// CreatedAt is when it was recorded, for the division in force on the day of a change (RN-28).
+	CreatedAt time.Time
 	// AmountCents is the price on the current invoice, or on the first one when it has not started yet.
 	AmountCents int64
 	StartMonth  civil.Month
@@ -123,7 +126,7 @@ func (s *Service) AddRecurrence(ctx context.Context, userID int64, in Recurrence
 		if err := q.UpsertRecurrencePrice(ctx, store.UpsertRecurrencePriceParams{RecurrenceID: id, FromMonth: start.String(), AmountCents: in.AmountCents}); err != nil {
 			return err
 		}
-		return membersplit.Save(ctx, q, groupID, membersplit.KindRecurrence, id, in.Members, in.AmountCents)
+		return membersplit.Save(ctx, q, groupID, membersplit.KindRecurrence, id, in.Members, in.AmountCents, s.now(), true)
 	})
 	if err != nil {
 		return Recurrence{}, err
@@ -158,7 +161,7 @@ func (s *Service) UpdateRecurrence(ctx context.Context, id int64, ch RecurrenceC
 		}); err != nil {
 			return fmt.Errorf("update recurrence: %w", err)
 		}
-		if err := membersplit.Save(ctx, q, groupID, membersplit.KindRecurrence, id, ch.Members, ch.AmountCents); err != nil {
+		if err := membersplit.Save(ctx, q, groupID, membersplit.KindRecurrence, id, ch.Members, ch.AmountCents, s.now(), false); err != nil {
 			return err
 		}
 		from := c.Cycle().InvoiceFor(s.today())
@@ -278,7 +281,7 @@ func (s *Service) recurrencesIn(ctx context.Context, q *store.Queries, c Card, v
 		}
 		rec := Recurrence{
 			ID: r.ID, CardID: r.CardID, Description: r.Description, CategoryID: r.CategoryID, CategoryName: r.CategoryName,
-			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, GroupName: r.GroupName, SpaceID: r.SpaceID, StartMonth: start, prices: byID[r.ID],
+			ParentCategoryName: r.ParentCategoryName, CategoryIcon: r.CategoryIcon, GroupName: r.GroupName, SpaceID: r.SpaceID, CreatedAt: r.CreatedAt, StartMonth: start, prices: byID[r.ID],
 		}
 		if r.EndMonth.Valid {
 			end, err := civil.ParseMonth(r.EndMonth.String)
