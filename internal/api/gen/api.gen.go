@@ -259,6 +259,24 @@ func (e ImportCommitLineKind) Valid() bool {
 	}
 }
 
+// Defines values for ImportDetectResultFormat.
+const (
+	NubankInvoice      ImportDetectResultFormat = "nubank_invoice"
+	SantanderStatement ImportDetectResultFormat = "santander_statement"
+)
+
+// Valid indicates whether the value is a known member of the ImportDetectResultFormat enum.
+func (e ImportDetectResultFormat) Valid() bool {
+	switch e {
+	case NubankInvoice:
+		return true
+	case SantanderStatement:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ImportPreviewLineKind.
 const (
 	ImportPreviewLineKindCredit   ImportPreviewLineKind = "credit"
@@ -649,6 +667,30 @@ func (e SplitInputMode) Valid() bool {
 	case SplitInputModeCustom:
 		return true
 	case SplitInputModeEqual:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StatementKind.
+const (
+	StatementKindCardPayment StatementKind = "card_payment"
+	StatementKindExpense     StatementKind = "expense"
+	StatementKindIncome      StatementKind = "income"
+	StatementKindSalary      StatementKind = "salary"
+)
+
+// Valid indicates whether the value is a known member of the StatementKind enum.
+func (e StatementKind) Valid() bool {
+	switch e {
+	case StatementKindCardPayment:
+		return true
+	case StatementKindExpense:
+		return true
+	case StatementKindIncome:
+		return true
+	case StatementKindSalary:
 		return true
 	default:
 		return false
@@ -1560,6 +1602,20 @@ type ImportCommitRequest struct {
 	InvoiceMonth Month              `json:"invoiceMonth"`
 	Lines        []ImportCommitLine `json:"lines"`
 }
+
+// ImportDetectRequest defines model for ImportDetectRequest.
+type ImportDetectRequest struct {
+	// Content Text of the CSV file.
+	Content string `json:"content"`
+}
+
+// ImportDetectResult defines model for ImportDetectResult.
+type ImportDetectResult struct {
+	Format ImportDetectResultFormat `json:"format"`
+}
+
+// ImportDetectResultFormat defines model for ImportDetectResult.Format.
+type ImportDetectResultFormat string
 
 // ImportDuplicate defines model for ImportDuplicate.
 type ImportDuplicate struct {
@@ -2746,6 +2802,141 @@ type Statement struct {
 	OpeningCents *Cents `json:"openingCents,omitempty"`
 }
 
+// StatementCommitLine defines model for StatementCommitLine.
+type StatementCommitLine struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents  `json:"amountCents"`
+	CardId      *int64 `json:"cardId,omitempty"`
+	CategoryId  *int64 `json:"categoryId,omitempty"`
+
+	// CategoryKey System key of the default subcategory of an expense, empty for Sem categoria definida.
+	CategoryKey  string             `json:"categoryKey"`
+	Date         openapi_types.Date `json:"date"`
+	Description  string             `json:"description"`
+	Detail       string             `json:"detail"`
+	FriendlyName string             `json:"friendlyName"`
+	IncomeId     *int64             `json:"incomeId,omitempty"`
+
+	// IncomeMonth Example: 2026-11
+	IncomeMonth *Month `json:"incomeMonth,omitempty"`
+
+	// InvoiceMonth Example: 2026-11
+	InvoiceMonth *Month `json:"invoiceMonth,omitempty"`
+
+	// Kind What a statement line becomes (RF-87 to RF-89).
+	Kind StatementKind `json:"kind"`
+
+	// Merchant Detail without its leading date, or the description; the key of alias rules.
+	Merchant string `json:"merchant"`
+	Remember bool   `json:"remember"`
+	Skip     bool   `json:"skip"`
+}
+
+// StatementCommitRequest defines model for StatementCommitRequest.
+type StatementCommitRequest struct {
+	AccountId    int64                 `json:"accountId"`
+	ClosingCents int64                 `json:"closingCents"`
+	FileName     *string               `json:"fileName,omitempty"`
+	Lines        []StatementCommitLine `json:"lines"`
+}
+
+// StatementImportRecord defines model for StatementImportRecord.
+type StatementImportRecord struct {
+	AccountId     int64     `json:"accountId"`
+	AccountName   string    `json:"accountName"`
+	ClosingCents  int64     `json:"closingCents"`
+	CreatedAt     time.Time `json:"createdAt"`
+	CreatedByName string    `json:"createdByName"`
+	EntryCount    int       `json:"entryCount"`
+	FileName      string    `json:"fileName"`
+	Id            int64     `json:"id"`
+	LineCount     int       `json:"lineCount"`
+}
+
+// StatementKind What a statement line becomes (RF-87 to RF-89).
+type StatementKind string
+
+// StatementLine defines model for StatementLine.
+type StatementLine struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents `json:"amountCents"`
+
+	// CategoryKey System key of the default subcategory of an expense, empty for Sem categoria definida.
+	CategoryKey string             `json:"categoryKey"`
+	Date        openapi_types.Date `json:"date"`
+	Description string             `json:"description"`
+	Detail      string             `json:"detail"`
+
+	// Kind What a statement line becomes (RF-87 to RF-89).
+	Kind StatementKind `json:"kind"`
+
+	// Merchant Detail without its leading date, or the description; the key of alias rules.
+	Merchant string `json:"merchant"`
+}
+
+// StatementPreview defines model for StatementPreview.
+type StatementPreview struct {
+	// ClosingCents Balance of the account after the most recent line of the statement (RF-90).
+	ClosingCents int64                  `json:"closingCents"`
+	Lines        []StatementPreviewLine `json:"lines"`
+}
+
+// StatementPreviewLine defines model for StatementPreviewLine.
+type StatementPreviewLine struct {
+	// AmountCents Amount in cents (RN-21).
+	AmountCents Cents `json:"amountCents"`
+
+	// CardId Card whose closed invoice the payment pays (RF-89).
+	CardId     *int64 `json:"cardId,omitempty"`
+	CategoryId *int64 `json:"categoryId,omitempty"`
+
+	// CategoryKey System key of the default subcategory of an expense, empty for Sem categoria definida.
+	CategoryKey  string             `json:"categoryKey"`
+	Date         openapi_types.Date `json:"date"`
+	Description  string             `json:"description"`
+	Detail       string             `json:"detail"`
+	Duplicate    *ImportDuplicate   `json:"duplicate,omitempty"`
+	FriendlyName string             `json:"friendlyName"`
+
+	// IncomeId Expected income the salary confirms (RF-88).
+	IncomeId *int64 `json:"incomeId,omitempty"`
+
+	// IncomeMonth Example: 2026-11
+	IncomeMonth *Month  `json:"incomeMonth,omitempty"`
+	IncomeName  *string `json:"incomeName,omitempty"`
+	Index       int     `json:"index"`
+
+	// InvoiceMonth Example: 2026-11
+	InvoiceMonth *Month `json:"invoiceMonth,omitempty"`
+
+	// Kind What a statement line becomes (RF-87 to RF-89).
+	Kind StatementKind `json:"kind"`
+
+	// Merchant Detail without its leading date, or the description; the key of alias rules.
+	Merchant string `json:"merchant"`
+	RuleId   *int64 `json:"ruleId,omitempty"`
+	Skip     bool   `json:"skip"`
+}
+
+// StatementPreviewRequest defines model for StatementPreviewRequest.
+type StatementPreviewRequest struct {
+	AccountId int64 `json:"accountId"`
+
+	// Content Text of the CSV file.
+	Content string `json:"content"`
+}
+
+// StatementResult defines model for StatementResult.
+type StatementResult struct {
+	// BalanceCents Real balance of the account after the import, only for the holder, to compare with the statement (RF-90).
+	BalanceCents *int64 `json:"balanceCents,omitempty"`
+	ClosingCents int64  `json:"closingCents"`
+	Created      int    `json:"created"`
+	ImportId     int64  `json:"importId"`
+	RulesSaved   int    `json:"rulesSaved"`
+	Skipped      int    `json:"skipped"`
+}
+
 // Theme defines model for Theme.
 type Theme string
 
@@ -3034,6 +3225,9 @@ type CreateGroupJSONRequestBody = GroupName
 // CommitImportJSONRequestBody defines body for CommitImport for application/json ContentType.
 type CommitImportJSONRequestBody = ImportCommitRequest
 
+// DetectImportJSONRequestBody defines body for DetectImport for application/json ContentType.
+type DetectImportJSONRequestBody = ImportDetectRequest
+
 // PreviewImportJSONRequestBody defines body for PreviewImport for application/json ContentType.
 type PreviewImportJSONRequestBody = ImportPreviewRequest
 
@@ -3126,6 +3320,12 @@ type CreateSettlementPaymentJSONRequestBody = SettlementPaymentCreate
 
 // MoveToSpaceJSONRequestBody defines body for MoveToSpace for application/json ContentType.
 type MoveToSpaceJSONRequestBody = SpaceMove
+
+// CommitStatementJSONRequestBody defines body for CommitStatement for application/json ContentType.
+type CommitStatementJSONRequestBody = StatementCommitRequest
+
+// PreviewStatementJSONRequestBody defines body for PreviewStatement for application/json ContentType.
+type PreviewStatementJSONRequestBody = StatementPreviewRequest
 
 // CreateTransferJSONRequestBody defines body for CreateTransfer for application/json ContentType.
 type CreateTransferJSONRequestBody = TransferCreate
@@ -3342,6 +3542,9 @@ type ServerInterface interface {
 	// CommitImport Records the confirmed lines on the chosen invoice and saves the rules asked for (RF-53, RF-55, RF-57).
 	// (POST /imports)
 	CommitImport(w http.ResponseWriter, r *http.Request)
+	// DetectImport Tells which known CSV a file is, the Nubank invoice or the Santander statement (RF-86).
+	// (POST /imports/detect)
+	DetectImport(w http.ResponseWriter, r *http.Request)
 	// PreviewImport Reads the Nubank invoice CSV and returns each line with rules and duplicates, without saving (RF-53, RF-56, RN-20).
 	// (POST /imports/preview)
 	PreviewImport(w http.ResponseWriter, r *http.Request)
@@ -3546,6 +3749,18 @@ type ServerInterface interface {
 	// MoveToSpace Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83).
 	// (POST /spaces/{id}/moves)
 	MoveToSpace(w http.ResponseWriter, r *http.Request, id Id)
+	// ListStatementImports Statement import history of the user in the active space, newest first.
+	// (GET /statements)
+	ListStatementImports(w http.ResponseWriter, r *http.Request)
+	// CommitStatement Records the confirmed lines in the account and saves the rules asked for (RF-86 to RF-90).
+	// (POST /statements)
+	CommitStatement(w http.ResponseWriter, r *http.Request)
+	// PreviewStatement Reads the Santander account statement and returns what each line becomes, without saving (RF-86 to RF-89, RN-32).
+	// (POST /statements/preview)
+	PreviewStatement(w http.ResponseWriter, r *http.Request)
+	// UndoStatementImport Removes every entry of a statement import, with its invoice payments and income confirmations (RF-90).
+	// (DELETE /statements/{id})
+	UndoStatementImport(w http.ResponseWriter, r *http.Request, id Id)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(w http.ResponseWriter, r *http.Request)
@@ -5410,6 +5625,20 @@ func (siw *ServerInterfaceWrapper) CommitImport(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// DetectImport operation middleware
+func (siw *ServerInterfaceWrapper) DetectImport(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DetectImport(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // PreviewImport operation middleware
 func (siw *ServerInterfaceWrapper) PreviewImport(w http.ResponseWriter, r *http.Request) {
 
@@ -7057,6 +7286,74 @@ func (siw *ServerInterfaceWrapper) MoveToSpace(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// ListStatementImports operation middleware
+func (siw *ServerInterfaceWrapper) ListStatementImports(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListStatementImports(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CommitStatement operation middleware
+func (siw *ServerInterfaceWrapper) CommitStatement(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CommitStatement(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewStatement operation middleware
+func (siw *ServerInterfaceWrapper) PreviewStatement(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewStatement(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UndoStatementImport operation middleware
+func (siw *ServerInterfaceWrapper) UndoStatementImport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id Id
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UndoStatementImport(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListBackups operation middleware
 func (siw *ServerInterfaceWrapper) ListBackups(w http.ResponseWriter, r *http.Request) {
 
@@ -7361,6 +7658,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/imports", wrapper.ListImports)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/imports", wrapper.CommitImport)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/imports/{id}", wrapper.UndoImport)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/imports/detect", wrapper.DetectImport)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/statements/preview", wrapper.PreviewStatement)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/statements", wrapper.ListStatementImports)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/statements", wrapper.CommitStatement)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/statements/{id}", wrapper.UndoStatementImport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/market/markets", wrapper.ListMarkets)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/market/markets", wrapper.CreateMarket)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/market/markets/{id}", wrapper.DeleteMarket)
@@ -11623,6 +11925,56 @@ func (response CommitImport409JSONResponse) VisitCommitImportResponse(w http.Res
 	return err
 }
 
+type DetectImportRequestObject struct {
+	Body *DetectImportJSONRequestBody
+}
+
+type DetectImportResponseObject interface {
+	VisitDetectImportResponse(w http.ResponseWriter) error
+}
+
+type DetectImport200JSONResponse ImportDetectResult
+
+func (response DetectImport200JSONResponse) VisitDetectImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetectImport400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response DetectImport400JSONResponse) VisitDetectImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DetectImport401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DetectImport401JSONResponse) VisitDetectImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type PreviewImportRequestObject struct {
 	Body *PreviewImportJSONRequestBody
 }
@@ -15416,6 +15768,227 @@ func (response MoveToSpace409JSONResponse) VisitMoveToSpaceResponse(w http.Respo
 	return err
 }
 
+type ListStatementImportsRequestObject struct {
+}
+
+type ListStatementImportsResponseObject interface {
+	VisitListStatementImportsResponse(w http.ResponseWriter) error
+}
+
+type ListStatementImports200JSONResponse []StatementImportRecord
+
+func (response ListStatementImports200JSONResponse) VisitListStatementImportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListStatementImports401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListStatementImports401JSONResponse) VisitListStatementImportsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitStatementRequestObject struct {
+	Body *CommitStatementJSONRequestBody
+}
+
+type CommitStatementResponseObject interface {
+	VisitCommitStatementResponse(w http.ResponseWriter) error
+}
+
+type CommitStatement201JSONResponse StatementResult
+
+func (response CommitStatement201JSONResponse) VisitCommitStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitStatement400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CommitStatement400JSONResponse) VisitCommitStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitStatement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CommitStatement401JSONResponse) VisitCommitStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitStatement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CommitStatement404JSONResponse) VisitCommitStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CommitStatement409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CommitStatement409JSONResponse) VisitCommitStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewStatementRequestObject struct {
+	Body *PreviewStatementJSONRequestBody
+}
+
+type PreviewStatementResponseObject interface {
+	VisitPreviewStatementResponse(w http.ResponseWriter) error
+}
+
+type PreviewStatement200JSONResponse StatementPreview
+
+func (response PreviewStatement200JSONResponse) VisitPreviewStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewStatement400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PreviewStatement400JSONResponse) VisitPreviewStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewStatement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PreviewStatement401JSONResponse) VisitPreviewStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewStatement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PreviewStatement404JSONResponse) VisitPreviewStatementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoStatementImportRequestObject struct {
+	Id Id `json:"id"`
+}
+
+type UndoStatementImportResponseObject interface {
+	VisitUndoStatementImportResponse(w http.ResponseWriter) error
+}
+
+type UndoStatementImport204Response struct {
+}
+
+func (response UndoStatementImport204Response) VisitUndoStatementImportResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UndoStatementImport401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UndoStatementImport401JSONResponse) VisitUndoStatementImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UndoStatementImport404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UndoStatementImport404JSONResponse) VisitUndoStatementImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListBackupsRequestObject struct {
 }
 
@@ -15874,6 +16447,9 @@ type StrictServerInterface interface {
 	// CommitImport Records the confirmed lines on the chosen invoice and saves the rules asked for (RF-53, RF-55, RF-57).
 	// (POST /imports)
 	CommitImport(ctx context.Context, request CommitImportRequestObject) (CommitImportResponseObject, error)
+	// DetectImport Tells which known CSV a file is, the Nubank invoice or the Santander statement (RF-86).
+	// (POST /imports/detect)
+	DetectImport(ctx context.Context, request DetectImportRequestObject) (DetectImportResponseObject, error)
 	// PreviewImport Reads the Nubank invoice CSV and returns each line with rules and duplicates, without saving (RF-53, RF-56, RN-20).
 	// (POST /imports/preview)
 	PreviewImport(ctx context.Context, request PreviewImportRequestObject) (PreviewImportResponseObject, error)
@@ -16078,6 +16654,18 @@ type StrictServerInterface interface {
 	// MoveToSpace Moves an item of the active space, with its entries, to the personal space or another group of the user (RF-83).
 	// (POST /spaces/{id}/moves)
 	MoveToSpace(ctx context.Context, request MoveToSpaceRequestObject) (MoveToSpaceResponseObject, error)
+	// ListStatementImports Statement import history of the user in the active space, newest first.
+	// (GET /statements)
+	ListStatementImports(ctx context.Context, request ListStatementImportsRequestObject) (ListStatementImportsResponseObject, error)
+	// CommitStatement Records the confirmed lines in the account and saves the rules asked for (RF-86 to RF-90).
+	// (POST /statements)
+	CommitStatement(ctx context.Context, request CommitStatementRequestObject) (CommitStatementResponseObject, error)
+	// PreviewStatement Reads the Santander account statement and returns what each line becomes, without saving (RF-86 to RF-89, RN-32).
+	// (POST /statements/preview)
+	PreviewStatement(ctx context.Context, request PreviewStatementRequestObject) (PreviewStatementResponseObject, error)
+	// UndoStatementImport Removes every entry of a statement import, with its invoice payments and income confirmations (RF-90).
+	// (DELETE /statements/{id})
+	UndoStatementImport(ctx context.Context, request UndoStatementImportRequestObject) (UndoStatementImportResponseObject, error)
 	// ListBackups Lists the backup copies, newest first (RNF-05).
 	// (GET /system/backups)
 	ListBackups(ctx context.Context, request ListBackupsRequestObject) (ListBackupsResponseObject, error)
@@ -18191,6 +18779,37 @@ func (sh *strictHandler) CommitImport(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DetectImport operation middleware
+func (sh *strictHandler) DetectImport(w http.ResponseWriter, r *http.Request) {
+	var request DetectImportRequestObject
+
+	var body DetectImportJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DetectImport(ctx, request.(DetectImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DetectImport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DetectImportResponseObject); ok {
+		if err := validResponse.VisitDetectImportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // PreviewImport operation middleware
 func (sh *strictHandler) PreviewImport(w http.ResponseWriter, r *http.Request) {
 	var request PreviewImportRequestObject
@@ -20120,6 +20739,118 @@ func (sh *strictHandler) MoveToSpace(w http.ResponseWriter, r *http.Request, id 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(MoveToSpaceResponseObject); ok {
 		if err := validResponse.VisitMoveToSpaceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListStatementImports operation middleware
+func (sh *strictHandler) ListStatementImports(w http.ResponseWriter, r *http.Request) {
+	var request ListStatementImportsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListStatementImports(ctx, request.(ListStatementImportsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListStatementImports")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListStatementImportsResponseObject); ok {
+		if err := validResponse.VisitListStatementImportsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CommitStatement operation middleware
+func (sh *strictHandler) CommitStatement(w http.ResponseWriter, r *http.Request) {
+	var request CommitStatementRequestObject
+
+	var body CommitStatementJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CommitStatement(ctx, request.(CommitStatementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CommitStatement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CommitStatementResponseObject); ok {
+		if err := validResponse.VisitCommitStatementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreviewStatement operation middleware
+func (sh *strictHandler) PreviewStatement(w http.ResponseWriter, r *http.Request) {
+	var request PreviewStatementRequestObject
+
+	var body PreviewStatementJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewStatement(ctx, request.(PreviewStatementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewStatement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewStatementResponseObject); ok {
+		if err := validResponse.VisitPreviewStatementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UndoStatementImport operation middleware
+func (sh *strictHandler) UndoStatementImport(w http.ResponseWriter, r *http.Request, id Id) {
+	var request UndoStatementImportRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UndoStatementImport(ctx, request.(UndoStatementImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UndoStatementImport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UndoStatementImportResponseObject); ok {
+		if err := validResponse.VisitUndoStatementImportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

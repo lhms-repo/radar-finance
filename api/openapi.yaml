@@ -2613,6 +2613,111 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /imports/detect:
+    post:
+      operationId: detectImport
+      tags: [imports]
+      summary: Tells which known CSV a file is, the Nubank invoice or the Santander statement (RF-86).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportDetectRequest"
+      responses:
+        "200":
+          description: Format of the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportDetectResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /statements/preview:
+    post:
+      operationId: previewStatement
+      tags: [imports]
+      summary: Reads the Santander account statement and returns what each line becomes, without saving (RF-86 to RF-89, RN-32).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatementPreviewRequest"
+      responses:
+        "200":
+          description: Lines of the statement and its closing balance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatementPreview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /statements:
+    get:
+      operationId: listStatementImports
+      tags: [imports]
+      summary: Statement import history of the user in the active space, newest first.
+      responses:
+        "200":
+          description: Statement imports.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StatementImportRecord"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: commitStatement
+      tags: [imports]
+      summary: Records the confirmed lines in the account and saves the rules asked for (RF-86 to RF-90).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StatementCommitRequest"
+      responses:
+        "201":
+          description: What the import did.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatementResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /statements/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    delete:
+      operationId: undoStatementImport
+      tags: [imports]
+      summary: Removes every entry of a statement import, with its invoice payments and income confirmations (RF-90).
+      responses:
+        "204":
+          description: Done.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /market/markets:
     get:
       operationId: listMarkets
@@ -5768,6 +5873,200 @@ components:
           type: integer
         purchaseCount:
           type: integer
+        createdByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ImportDetectRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: Text of the CSV file.
+
+    ImportDetectResult:
+      type: object
+      required: [format]
+      properties:
+        format:
+          type: string
+          enum: [nubank_invoice, santander_statement]
+
+    StatementKind:
+      type: string
+      description: What a statement line becomes (RF-87 to RF-89).
+      enum: [expense, income, salary, card_payment]
+
+    StatementPreviewRequest:
+      type: object
+      required: [accountId, content]
+      properties:
+        accountId:
+          type: integer
+          format: int64
+        content:
+          type: string
+          description: Text of the CSV file.
+
+    StatementLine:
+      type: object
+      required: [date, description, detail, merchant, amountCents, kind, categoryKey]
+      properties:
+        date:
+          type: string
+          format: date
+        description:
+          type: string
+        detail:
+          type: string
+        merchant:
+          type: string
+          description: Detail without its leading date, or the description; the key of alias rules.
+        amountCents:
+          $ref: "#/components/schemas/Cents"
+        kind:
+          $ref: "#/components/schemas/StatementKind"
+        categoryKey:
+          type: string
+          description: System key of the default subcategory of an expense, empty for Sem categoria definida.
+
+    StatementPreviewLine:
+      allOf:
+        - $ref: "#/components/schemas/StatementLine"
+        - type: object
+          required: [index, friendlyName, skip]
+          properties:
+            index:
+              type: integer
+            friendlyName:
+              type: string
+            categoryId:
+              type: integer
+              format: int64
+            ruleId:
+              type: integer
+              format: int64
+            duplicate:
+              $ref: "#/components/schemas/ImportDuplicate"
+            incomeId:
+              description: Expected income the salary confirms (RF-88).
+              type: integer
+              format: int64
+            incomeName:
+              type: string
+            incomeMonth:
+              $ref: "#/components/schemas/Month"
+            cardId:
+              description: Card whose closed invoice the payment pays (RF-89).
+              type: integer
+              format: int64
+            invoiceMonth:
+              $ref: "#/components/schemas/Month"
+            skip:
+              type: boolean
+
+    StatementPreview:
+      type: object
+      required: [lines, closingCents]
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatementPreviewLine"
+        closingCents:
+          description: Balance of the account after the most recent line of the statement (RF-90).
+          type: integer
+          format: int64
+
+    StatementCommitLine:
+      allOf:
+        - $ref: "#/components/schemas/StatementLine"
+        - type: object
+          required: [friendlyName, skip, remember]
+          properties:
+            friendlyName:
+              type: string
+            categoryId:
+              type: integer
+              format: int64
+            skip:
+              type: boolean
+            remember:
+              type: boolean
+            incomeId:
+              type: integer
+              format: int64
+            incomeMonth:
+              $ref: "#/components/schemas/Month"
+            cardId:
+              type: integer
+              format: int64
+            invoiceMonth:
+              $ref: "#/components/schemas/Month"
+
+    StatementCommitRequest:
+      type: object
+      required: [accountId, closingCents, lines]
+      properties:
+        accountId:
+          type: integer
+          format: int64
+        fileName:
+          type: string
+          maxLength: 200
+        closingCents:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatementCommitLine"
+
+    StatementResult:
+      type: object
+      required: [importId, created, skipped, rulesSaved, closingCents]
+      properties:
+        importId:
+          type: integer
+          format: int64
+        created:
+          type: integer
+        skipped:
+          type: integer
+        rulesSaved:
+          type: integer
+        closingCents:
+          type: integer
+          format: int64
+        balanceCents:
+          description: Real balance of the account after the import, only for the holder, to compare with the statement (RF-90).
+          type: integer
+          format: int64
+
+    StatementImportRecord:
+      type: object
+      required: [id, accountId, accountName, fileName, lineCount, entryCount, closingCents, createdByName, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        accountId:
+          type: integer
+          format: int64
+        accountName:
+          type: string
+        fileName:
+          type: string
+        lineCount:
+          type: integer
+        entryCount:
+          type: integer
+        closingCents:
+          type: integer
+          format: int64
         createdByName:
           type: string
         createdAt:

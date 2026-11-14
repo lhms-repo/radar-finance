@@ -1584,6 +1584,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/imports/detect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Tells which known CSV a file is, the Nubank invoice or the Santander statement (RF-86). */
+        post: operations["detectImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/statements/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reads the Santander account statement and returns what each line becomes, without saving (RF-86 to RF-89, RN-32). */
+        post: operations["previewStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Statement import history of the user in the active space, newest first. */
+        get: operations["listStatementImports"];
+        put?: never;
+        /** Records the confirmed lines in the account and saves the rules asked for (RF-86 to RF-90). */
+        post: operations["commitStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/statements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Removes every entry of a statement import, with its invoice payments and income confirmations (RF-90). */
+        delete: operations["undoStatementImport"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/market/markets": {
         parameters: {
             query?: never;
@@ -3255,6 +3326,118 @@ export interface components {
             fileName: string;
             lineCount: number;
             purchaseCount: number;
+            createdByName: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ImportDetectRequest: {
+            /** @description Text of the CSV file. */
+            content: string;
+        };
+        ImportDetectResult: {
+            /** @enum {string} */
+            format: "nubank_invoice" | "santander_statement";
+        };
+        /**
+         * @description What a statement line becomes (RF-87 to RF-89).
+         * @enum {string}
+         */
+        StatementKind: "expense" | "income" | "salary" | "card_payment";
+        StatementPreviewRequest: {
+            /** Format: int64 */
+            accountId: number;
+            /** @description Text of the CSV file. */
+            content: string;
+        };
+        StatementLine: {
+            /** Format: date */
+            date: string;
+            description: string;
+            detail: string;
+            /** @description Detail without its leading date, or the description; the key of alias rules. */
+            merchant: string;
+            amountCents: components["schemas"]["Cents"];
+            kind: components["schemas"]["StatementKind"];
+            /** @description System key of the default subcategory of an expense, empty for Sem categoria definida. */
+            categoryKey: string;
+        };
+        StatementPreviewLine: components["schemas"]["StatementLine"] & {
+            index: number;
+            friendlyName: string;
+            /** Format: int64 */
+            categoryId?: number;
+            /** Format: int64 */
+            ruleId?: number;
+            duplicate?: components["schemas"]["ImportDuplicate"];
+            /**
+             * Format: int64
+             * @description Expected income the salary confirms (RF-88).
+             */
+            incomeId?: number;
+            incomeName?: string;
+            incomeMonth?: components["schemas"]["Month"];
+            /**
+             * Format: int64
+             * @description Card whose closed invoice the payment pays (RF-89).
+             */
+            cardId?: number;
+            invoiceMonth?: components["schemas"]["Month"];
+            skip: boolean;
+        };
+        StatementPreview: {
+            lines: components["schemas"]["StatementPreviewLine"][];
+            /**
+             * Format: int64
+             * @description Balance of the account after the most recent line of the statement (RF-90).
+             */
+            closingCents: number;
+        };
+        StatementCommitLine: components["schemas"]["StatementLine"] & {
+            friendlyName: string;
+            /** Format: int64 */
+            categoryId?: number;
+            skip: boolean;
+            remember: boolean;
+            /** Format: int64 */
+            incomeId?: number;
+            incomeMonth?: components["schemas"]["Month"];
+            /** Format: int64 */
+            cardId?: number;
+            invoiceMonth?: components["schemas"]["Month"];
+        };
+        StatementCommitRequest: {
+            /** Format: int64 */
+            accountId: number;
+            fileName?: string;
+            /** Format: int64 */
+            closingCents: number;
+            lines: components["schemas"]["StatementCommitLine"][];
+        };
+        StatementResult: {
+            /** Format: int64 */
+            importId: number;
+            created: number;
+            skipped: number;
+            rulesSaved: number;
+            /** Format: int64 */
+            closingCents: number;
+            /**
+             * Format: int64
+             * @description Real balance of the account after the import, only for the holder, to compare with the statement (RF-90).
+             */
+            balanceCents?: number;
+        };
+        StatementImportRecord: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            accountId: number;
+            accountName: string;
+            fileName: string;
+            lineCount: number;
+            entryCount: number;
+            /** Format: int64 */
+            closingCents: number;
             createdByName: string;
             /** Format: date-time */
             createdAt: string;
@@ -6539,6 +6722,130 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    detectImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportDetectRequest"];
+            };
+        };
+        responses: {
+            /** @description Format of the file. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportDetectResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    previewStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Lines of the statement and its closing balance. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementPreview"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listStatementImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Statement imports. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementImportRecord"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    commitStatement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementCommitRequest"];
+            };
+        };
+        responses: {
+            /** @description What the import did. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    undoStatementImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     listMarkets: {

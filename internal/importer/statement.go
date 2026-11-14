@@ -28,8 +28,9 @@ type StatementPreviewLine struct {
 	CategoryID   *int64
 	RuleID       *int64
 	Duplicate    *Duplicate
-	// IncomeID and IncomeMonth are the expected income the salary confirms (RF-88).
+	// IncomeID, IncomeName and IncomeMonth are the expected income the salary confirms (RF-88).
 	IncomeID    *int64
+	IncomeName  string
 	IncomeMonth civil.Month
 	// CardID and InvoiceMonth are the invoice the card payment pays, suggested by its total (RF-89).
 	CardID       *int64
@@ -152,7 +153,7 @@ func (s *Statements) Preview(ctx context.Context, accountID int64, content strin
 		case StatementSalary:
 			if o, ok := expected.take(l); ok {
 				id := o.IncomeID
-				p.IncomeID, p.IncomeMonth = &id, o.ExpectedOn.MonthOf()
+				p.IncomeID, p.IncomeName, p.IncomeMonth = &id, o.Name, o.ExpectedOn.MonthOf()
 			}
 		case StatementCardPayment:
 			if inv, ok := invoices.take(l); ok {
