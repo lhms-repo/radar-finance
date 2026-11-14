@@ -1,0 +1,20 @@
+Extrato de conta corrente
+Cliente;CLIENTE FICTICIO
+Agência;0000
+Conta;00.000000.0
+Período do extrato;01/11/2026 a 14/11/2026
+
+Lançamentos:
+Data;Descrição;Detalhe;Valor;Saldo
+14/11/2026;Compra cartao deb mc;13/11 PADARIA FICTICIA;-R$ 23,50;R$ 1.876,50
+12/11/2026;Pix enviado;Fulano Ficticio;-R$ 100,00;R$ 1.900,00
+10/11/2026;Pagamento cartao credito bce;;-R$ 450,00;R$ 2.000,00
+05/11/2026;Credito de salario;EMPRESA FICTICIA LTDA;R$ 2.500,00;R$ 2.450,00
+04/11/2026;Tarifa mensalidade pacote servicos;;-R$ 32,90;-R$ 50,00
+04/11/2026;Iof imposto operacoes financeiras;;-R$ 1,23;-R$ 17,10
+04/11/2026;Juros saldo utiliz ate limite;;-R$ 5,87;-R$ 15,87
+03/11/2026;Aplicacao cdb/rdb;;-R$ 200,00;-R$ 10,00
+03/11/2026;Remuneracao aplicacao automatica;;R$ 0,15;R$ 190,00
+02/11/2026;Resgate cdb/rdb;;R$ 1.000,00;R$ 189,85
+02/11/2026;Pix recebido;Beltrano Ficticio;R$ 80,00;-R$ 810,15
+01/11/2026;Pix devolvido;Mercado Ficticio;R$ 9,85;-R$ 890,15
