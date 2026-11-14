@@ -23,6 +23,16 @@ import { cn } from "@/lib/utils";
 /** A preview line as edited by the user before confirming, with the split chosen for it. */
 type Draft = ImportPreviewLine & { remember: boolean; split: SplitValue };
 
+/** Reads a CSV as UTF-8, or as Windows-1252 when it is not valid UTF-8, as some bank exports are. */
+async function readText(file: File) {
+  const bytes = await file.arrayBuffer();
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes);
+  }
+}
+
 /** Kind of file the page imports. */
 type Mode = "nubank" | "santander";
 
@@ -36,7 +46,7 @@ export function ImportPage() {
   /** Reads the chosen file, asks the server what it is and hands it to the matching import. */
   const pick = async (file: File | undefined) => {
     if (!file) return;
-    const content = await file.text();
+    const content = await readText(file);
     detect.mutate(content, {
       onSuccess: (format) => {
         setMode(format === "santander_statement" ? "santander" : "nubank");
@@ -87,18 +97,21 @@ function NubankImport({ picked, onPick }: { picked: PickedFile | null; onPick: (
   const activeCards = (cards.data ?? []).filter((c) => c.active);
   const chosenCard = cardId || activeCards[0]?.id || 0;
 
-  const previewed = useRef<PickedFile | null>(null);
+  const previewed = useRef<{ picked: PickedFile; card: number; invoice: string } | null>(null);
 
-  // A new file picked in the page is previewed for the chosen card and invoice, once.
+  // A file picked in the page is previewed for the chosen card and invoice; choosing others before importing
+  // previews it again.
   useEffect(() => {
-    if (!picked || !chosenCard || previewed.current === picked) return;
-    previewed.current = picked;
+    if (!picked || !chosenCard || lines) return;
+    const last = previewed.current;
+    if (last && last.picked === picked && last.card === chosenCard && last.invoice === invoice) return;
+    previewed.current = { picked, card: chosenCard, invoice };
     setFileName(picked.name);
     preview.mutate(
       { cardId: chosenCard, invoiceMonth: invoice, content: picked.content },
       { onSuccess: (data) => setLines(data.map((l) => ({ ...l, remember: false, split: EMPTY_SPLIT }))) },
     );
-  }, [picked, chosenCard, invoice, preview]);
+  }, [picked, chosenCard, invoice, lines, preview]);
 
   /** Changes one line; a new name or category is remembered by default (RF-55). */
   const edit = (index: number, patch: Partial<Draft>) =>

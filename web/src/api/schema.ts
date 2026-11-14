@@ -3391,6 +3391,11 @@ export interface components {
              * @description Balance of the account after the most recent line of the statement (RF-90).
              */
             closingCents: number;
+            /**
+             * Format: date
+             * @description Day of the closing balance; absent when the file brings no balance.
+             */
+            closingOn?: string;
         };
         StatementCommitLine: components["schemas"]["StatementLine"] & {
             friendlyName: string;
@@ -3411,6 +3416,8 @@ export interface components {
             fileName?: string;
             /** Format: int64 */
             closingCents: number;
+            /** Format: date */
+            closingOn?: string;
             lines: components["schemas"]["StatementCommitLine"][];
         };
         StatementResult: {
@@ -3421,11 +3428,18 @@ export interface components {
             rulesSaved: number;
             /** Format: int64 */
             closingCents: number;
+            /** Format: date */
+            closingOn?: string;
             /**
              * Format: int64
-             * @description Real balance of the account after the import, only for the holder, to compare with the statement (RF-90).
+             * @description Real balance of the account at the end of the closing day, with every space; only for the holder and when the closing is known (RF-90).
              */
             balanceCents?: number;
+            /**
+             * Format: int64
+             * @description Balance today that makes the account match the statement, to send to the adjustment (RF-06, RF-90).
+             */
+            adjustToCents?: number;
         };
         StatementImportRecord: {
             /** Format: int64 */
@@ -3433,6 +3447,8 @@ export interface components {
             /** Format: int64 */
             accountId: number;
             accountName: string;
+            /** @description Space the entries of the import went to (RF-83). */
+            groupName: string;
             fileName: string;
             lineCount: number;
             entryCount: number;
@@ -6753,7 +6769,10 @@ export interface operations {
     previewStatement: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -6801,7 +6820,10 @@ export interface operations {
     commitStatement: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83). */
+                "X-Radar-Space"?: components["parameters"]["Space"];
+            };
             path?: never;
             cookie?: never;
         };

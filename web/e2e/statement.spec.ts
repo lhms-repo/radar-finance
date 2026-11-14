@@ -18,13 +18,13 @@ test("statement: Santander CSV detected, salary confirming the income, duplicate
   test.slow();
   // Projects share one database, so the account, the income and the merchants carry the project name.
   const tag = testInfo.project.name;
-  const account = `Conta S ${tag}`;
+  const account = `Conta Extrato ${tag}`;
   const salary = `Salário S ${tag}`;
   const bakery = `PADARIA FICT ${tag}`;
   const persons = (await (await page.request.get("/api/persons")).json()) as { id: number; name: string }[];
   const ana = persons.find((p) => p.name === USERS[0]!.name)!;
   const created = await page.request.post("/api/accounts", { data: { name: account, personId: ana.id, initialBalanceCents: 0 } });
-  expect(created.ok()).toBeTruthy();
+  expect(created.ok(), await created.text()).toBeTruthy();
   const { id: accountId } = (await created.json()) as { id: number };
   const income = await page.request.post("/api/incomes", {
     data: { kind: "recurring", name: salary, personId: ana.id, accountId, amountCents: 250_000, day: 1, startMonth: day(1).month },
@@ -44,14 +44,17 @@ test("statement: Santander CSV detected, salary confirming the income, duplicate
   ].join("\n");
   const file = { name: "extrato-ficticio.csv", mimeType: "text/csv", buffer: Buffer.from(csv) };
 
+  // Picked on the Nubank side, the file is told apart by its content and the page switches to the statement (RF-86).
   await page.goto("/settings/import");
-  await page.getByRole("radiogroup", { name: "Tipo de arquivo" }).getByRole("radio", { name: "Extrato do Santander" }).click();
-  await page.getByLabel("Conta").selectOption({ label: account });
   await page.locator('input[type="file"]').setInputFiles(file);
+  await expect(page.getByRole("radiogroup", { name: "Tipo de arquivo" }).getByRole("radio", { name: "Extrato do Santander" })).toHaveAttribute("aria-checked", "true");
+  // Choosing the account and the space previews it again: the salary is an income of Casa.
+  await page.getByLabel("Conta").selectOption({ label: account });
+  await page.getByLabel("Onde").selectOption({ label: "Casa" });
 
   // Each line says what it becomes; the card payment has no closed invoice with that total, so it stays out (RF-89).
   await expect(page.getByText(`4 linhas para ${account}`)).toBeVisible();
-  await expect(page.getByText(`Salário, confirma ${salary}`)).toBeVisible();
+  await expect(page.getByText(new RegExp(`^Salário, confirma ${salary} de `))).toBeVisible();
   await expect(page.getByText("Pagamento de fatura sem fatura fechada com esse valor")).toBeVisible();
   await expect(page.getByLabel(`Categoria de Tarifa mensalidade pacote servicos`)).toHaveValue(/\d+/);
   await expect(page.getByText("3 para importar")).toBeVisible();
@@ -73,6 +76,7 @@ test("statement: Santander CSV detected, salary confirming the income, duplicate
   await page.goto("/settings/import");
   await page.getByRole("radiogroup", { name: "Tipo de arquivo" }).getByRole("radio", { name: "Extrato do Santander" }).click();
   await page.getByLabel("Conta").selectOption({ label: account });
+  await page.getByLabel("Onde").selectOption({ label: "Casa" });
   await page.locator('input[type="file"]').setInputFiles(file);
   await expect(page.getByText("Possível duplicata")).toHaveCount(3);
   await expect(page.getByText("0 para importar")).toBeVisible();

@@ -2641,6 +2641,8 @@ paths:
       operationId: previewStatement
       tags: [imports]
       summary: Reads the Santander account statement and returns what each line becomes, without saving (RF-86 to RF-89, RN-32).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -2681,6 +2683,8 @@ paths:
       operationId: commitStatement
       tags: [imports]
       summary: Records the confirmed lines in the account and saves the rules asked for (RF-86 to RF-90).
+      parameters:
+        - $ref: "#/components/parameters/Space"
       requestBody:
         required: true
         content:
@@ -5980,6 +5984,10 @@ components:
           description: Balance of the account after the most recent line of the statement (RF-90).
           type: integer
           format: int64
+        closingOn:
+          description: Day of the closing balance; absent when the file brings no balance.
+          type: string
+          format: date
 
     StatementCommitLine:
       allOf:
@@ -6020,6 +6028,9 @@ components:
         closingCents:
           type: integer
           format: int64
+        closingOn:
+          type: string
+          format: date
         lines:
           type: array
           items:
@@ -6041,14 +6052,21 @@ components:
         closingCents:
           type: integer
           format: int64
+        closingOn:
+          type: string
+          format: date
         balanceCents:
-          description: Real balance of the account after the import, only for the holder, to compare with the statement (RF-90).
+          description: Real balance of the account at the end of the closing day, with every space; only for the holder and when the closing is known (RF-90).
+          type: integer
+          format: int64
+        adjustToCents:
+          description: Balance today that makes the account match the statement, to send to the adjustment (RF-06, RF-90).
           type: integer
           format: int64
 
     StatementImportRecord:
       type: object
-      required: [id, accountId, accountName, fileName, lineCount, entryCount, closingCents, createdByName, createdAt]
+      required: [id, accountId, accountName, groupName, fileName, lineCount, entryCount, closingCents, createdByName, createdAt]
       properties:
         id:
           type: integer
@@ -6057,6 +6075,9 @@ components:
           type: integer
           format: int64
         accountName:
+          type: string
+        groupName:
+          description: Space the entries of the import went to (RF-83).
           type: string
         fileName:
           type: string

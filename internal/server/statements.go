@@ -37,6 +37,10 @@ func (a *API) PreviewStatement(ctx context.Context, req gen.PreviewStatementRequ
 		return nil, err
 	}
 	out := gen.StatementPreview{ClosingCents: p.ClosingCents, Lines: make([]gen.StatementPreviewLine, 0, len(p.Lines))}
+	if !p.ClosingOn.IsZero() {
+		on := apiDate(p.ClosingOn)
+		out.ClosingOn = &on
+	}
 	for _, l := range p.Lines {
 		line := gen.StatementPreviewLine{
 			Index: l.Index, Date: apiDate(l.Date), Description: l.Description, Detail: l.Detail, Merchant: l.Merchant, AmountCents: l.AmountCents,
@@ -81,15 +85,19 @@ func (a *API) CommitStatement(ctx context.Context, req gen.CommitStatementReques
 		}
 		lines = append(lines, cl)
 	}
-	res, err := a.d.Statements.Commit(ctx, auth.UserID(ctx), req.Body.AccountId, deref(req.Body.FileName), req.Body.ClosingCents, lines)
+	var closingOn civil.Date
+	if req.Body.ClosingOn != nil {
+		closingOn = fromDate(*req.Body.ClosingOn)
+	}
+	res, err := a.d.Statements.Commit(ctx, auth.UserID(ctx), req.Body.AccountId, deref(req.Body.FileName), req.Body.ClosingCents, closingOn, lines)
 	if err != nil {
 		return nil, err
 	}
 	out := gen.StatementResult{ImportId: res.ImportID, Created: res.Created, Skipped: res.Skipped, RulesSaved: res.RulesSaved, ClosingCents: res.ClosingCents}
 	// The real balance tells every space, so only the holder reads it to compare with the statement (RF-83, RF-90).
-	if acc, err := a.d.Ledger.GetAccount(ctx, req.Body.AccountId); err == nil && acc.Owned {
-		balance := acc.BalanceCents
-		out.BalanceCents = &balance
+	if acc, err := a.d.Ledger.GetAccount(ctx, req.Body.AccountId); err == nil && acc.Owned && res.Known {
+		on, balance, adjustTo := apiDate(res.ClosingOn), res.BalanceCents, res.AdjustToCents
+		out.ClosingOn, out.BalanceCents, out.AdjustToCents = &on, &balance, &adjustTo
 	}
 	return gen.CommitStatement201JSONResponse(out), nil
 }
@@ -103,7 +111,7 @@ func (a *API) ListStatementImports(ctx context.Context, _ gen.ListStatementImpor
 	out := make(gen.ListStatementImports200JSONResponse, 0, len(list))
 	for _, i := range list {
 		out = append(out, gen.StatementImportRecord{
-			Id: i.ID, AccountId: i.AccountID, AccountName: i.AccountName, FileName: i.FileName, LineCount: i.LineCount,
+			Id: i.ID, AccountId: i.AccountID, AccountName: i.AccountName, GroupName: i.GroupName, FileName: i.FileName, LineCount: i.LineCount,
 			EntryCount: i.EntryCount, ClosingCents: i.ClosingCents, CreatedByName: i.CreatedByName, CreatedAt: i.CreatedAt,
 		})
 	}

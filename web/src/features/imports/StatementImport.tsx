@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, FileUp, Scale, Undo2, Upload } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useMe } from "@/app/session";
+import { SpaceField, useSpaces } from "@/app/space";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
 import { Field, FieldError } from "@/components/ui/field";
@@ -19,12 +20,15 @@ import {
   type StatementPreviewLine,
   type StatementResult,
 } from "@/features/imports/api";
-import { formatDate, formatDayMonth, monthName, todayISO } from "@/lib/format";
+import { formatDate, formatDayMonth, monthName } from "@/lib/format";
 import { fade, spring } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /** A statement line as edited by the user before confirming. */
 type Draft = StatementPreviewLine & { remember: boolean };
+
+/** The result of an import with the account it was for, so a later choice of account never adjusts the wrong one. */
+type Done = StatementResult & { accountId: number };
 
 /** A file read in the page, handed over when it turns out to be a statement. */
 export type PickedFile = { name: string; content: string };
@@ -34,31 +38,38 @@ export function StatementImport({ picked, onPick }: { picked: PickedFile | null;
   const accounts = useAccounts();
   const [accountId, setAccountId] = useState(0);
   const [lines, setLines] = useState<Draft[] | null>(null);
-  const [closing, setClosing] = useState(0);
-  const [result, setResult] = useState<StatementResult | null>(null);
+  const [closing, setClosing] = useState<{ cents: number; on?: string }>({ cents: 0 });
+  const [result, setResult] = useState<Done | null>(null);
+  const [space, setSpace] = useState<number | undefined>(undefined);
+  const { spaces, active: activeSpace } = useSpaces();
   const preview = usePreviewStatement();
   const commit = useCommitStatement();
   const fileId = useId();
   const active = (accounts.data ?? []).filter((a) => a.active);
   const chosen = accountId || active.find((a) => a.owned)?.id || active[0]?.id || 0;
   const account = active.find((a) => a.id === chosen);
-  const previewed = useRef<PickedFile | null>(null);
+  // The statement is of an account of a person, so it starts in the personal space of the holder (RF-83).
+  const where = space ?? (account?.owned ? spaces.find((s) => s.personal)?.id : undefined) ?? activeSpace;
+  const previewed = useRef<{ picked: PickedFile; account: number; space: number } | null>(null);
 
-  // A new file picked in the page is previewed for the chosen account, once.
+  // A file picked in the page is previewed for the chosen account and space; choosing another one before
+  // importing previews it again.
   useEffect(() => {
-    if (!picked || !chosen || previewed.current === picked) return;
-    previewed.current = picked;
+    if (!picked || !chosen || !where || lines) return;
+    const last = previewed.current;
+    if (last && last.picked === picked && last.account === chosen && last.space === where) return;
+    previewed.current = { picked, account: chosen, space: where };
     setResult(null);
     preview.mutate(
-      { accountId: chosen, content: picked.content },
+      { accountId: chosen, content: picked.content, space: where },
       {
         onSuccess: (data) => {
-          setClosing(data.closingCents);
+          setClosing({ cents: data.closingCents, on: data.closingOn });
           setLines(data.lines.map((l) => ({ ...l, remember: false })));
         },
       },
     );
-  }, [picked, chosen, preview]);
+  }, [picked, chosen, where, lines, preview]);
 
   /** Changes one line; a new name or category is remembered by default (RF-55). */
   const edit = (index: number, patch: Partial<Draft>) =>
@@ -78,7 +89,9 @@ export function StatementImport({ picked, onPick }: { picked: PickedFile | null;
       {
         accountId: chosen,
         fileName: picked?.name,
-        closingCents: closing,
+        closingCents: closing.cents,
+        closingOn: closing.on,
+        space: where,
         lines: lines.map((l) => ({
           date: l.date,
           description: l.description,
@@ -100,7 +113,7 @@ export function StatementImport({ picked, onPick }: { picked: PickedFile | null;
       {
         onSuccess: (r) => {
           setLines(null);
-          setResult(r);
+          setResult({ ...r, accountId: chosen });
         },
       },
     );
@@ -115,7 +128,11 @@ export function StatementImport({ picked, onPick }: { picked: PickedFile | null;
           <CardDescription>No app ou no site do Santander, exporte o extrato da conta corrente em CSV. Os lançamentos entram na conta escolhida aqui.</CardDescription>
         </div>
         <Field label="Conta" htmlFor="statement-account">
-          <NativeSelect id="statement-account" value={chosen} onChange={(e) => setAccountId(Number(e.target.value))} disabled={!!lines}>
+          <NativeSelect id="statement-account" value={chosen} onChange={(e) => {
+              // Another account previews the file again.
+              setAccountId(Number(e.target.value));
+              setLines(null);
+            }}>
             {active.length === 0 && <option value={0}>Nenhuma conta cadastrada</option>}
             {active.map((a) => (
               <option key={a.id} value={a.id}>
@@ -124,6 +141,16 @@ export function StatementImport({ picked, onPick }: { picked: PickedFile | null;
             ))}
           </NativeSelect>
         </Field>
+        {where !== undefined && (
+          <SpaceField
+            value={where}
+            onChange={(next) => {
+              // Another space previews the file again, with its incomes and duplicates.
+              setSpace(next);
+              setLines(null);
+            }}
+          />
+        )}
         {!lines ? (
           <label htmlFor={fileId} className={cn("flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed p-8 text-center transition-colors hover:bg-accent", !chosen && "pointer-events-none opacity-50")}>
             <Upload className="size-6 text-primary" />
@@ -187,7 +214,7 @@ export function StatementImport({ picked, onPick }: { picked: PickedFile | null;
         )}
       </AnimatePresence>
 
-      {result && <BalanceCheck accountId={chosen} result={result} />}
+      {result && <BalanceCheck result={result} />}
       <StatementHistory />
     </>
   );
@@ -196,8 +223,11 @@ export function StatementImport({ picked, onPick }: { picked: PickedFile | null;
 /** Label of what a statement line becomes. */
 function kindLabel(l: Draft, cardName?: string) {
   switch (l.kind) {
-    case "salary":
-      return l.incomeId ? `Salário, confirma ${l.incomeName ?? "a renda"}` : "Salário, receita avulsa";
+    case "salary": {
+      if (!l.incomeId || !l.incomeMonth) return "Salário, receita avulsa";
+      const [y, m] = l.incomeMonth.split("-").map(Number);
+      return `Salário, confirma ${l.incomeName ?? "a renda"} de ${monthName(y!, m!).toLowerCase()}`;
+    }
     case "card_payment": {
       if (!l.cardId || !l.invoiceMonth) return "Pagamento de fatura sem fatura fechada com esse valor";
       const [y, m] = l.invoiceMonth.split("-").map(Number);
@@ -273,8 +303,9 @@ function StatementRow({ line: l, onChange }: { line: Draft; onChange: (patch: Pa
   );
 }
 
-/** Compares the closing balance of the statement with the account in the Radar and offers the adjustment (RF-90, RF-06). */
-function BalanceCheck({ accountId, result }: { accountId: number; result: StatementResult }) {
+/** Compares the closing balance of the statement with the account in the Radar on the same day and offers the
+ * adjustment the server worked out (RF-90, RF-06). */
+function BalanceCheck({ result }: { result: Done }) {
   const adjust = useAdjustBalance();
   const me = useMe();
   const [done, setDone] = useState(false);
@@ -288,13 +319,13 @@ function BalanceCheck({ accountId, result }: { accountId: number; result: Statem
       </div>
       <dl className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-3 text-sm">
         <div>
-          <dt className="text-xs text-muted-foreground">Saldo no extrato</dt>
+          <dt className="text-xs text-muted-foreground">Saldo no extrato{result.closingOn ? ` em ${formatDate(result.closingOn)}` : ""}</dt>
           <dd className="font-medium">
             <Money cents={result.closingCents} />
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Saldo no Radar</dt>
+          <dt className="text-xs text-muted-foreground">Saldo no Radar no mesmo dia</dt>
           <dd className="font-medium">{radar === undefined ? <span className="text-muted-foreground">só para quem é titular</span> : <Money cents={radar} />}</dd>
         </div>
       </dl>
@@ -311,7 +342,10 @@ function BalanceCheck({ accountId, result }: { accountId: number; result: Statem
             variant="outline"
             disabled={adjust.isPending}
             onClick={() =>
-              adjust.mutate({ id: accountId, body: { balanceCents: result.closingCents, date: todayISO(), description: "Ajuste pelo extrato" } }, { onSuccess: () => setDone(true) })
+              adjust.mutate(
+                { id: result.accountId, body: { balanceCents: result.adjustToCents ?? result.closingCents, date: result.closingOn!, description: "Ajuste pelo extrato" } },
+                { onSuccess: () => setDone(true) },
+              )
             }
           >
             Ajustar saldo
@@ -340,7 +374,7 @@ function StatementHistory() {
             <FileUp className="size-4 shrink-0 text-primary" />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium">
-                {i.accountName}, {formatDate(i.createdAt.slice(0, 10))}
+                {i.accountName}, {formatDate(i.createdAt.slice(0, 10))} · {i.groupName}
               </span>
               <span className="block truncate text-xs text-muted-foreground">
                 {i.entryCount} lançamentos · {i.fileName || "sem nome"} · por {i.createdByName}

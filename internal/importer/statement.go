@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/italogfx/radar-finance/internal/card"
 	"github.com/italogfx/radar-finance/internal/civil"
@@ -17,8 +18,14 @@ import (
 	"github.com/italogfx/radar-finance/internal/scope"
 )
 
-// maxStatementName bounds the description an imported line gets, the limit of an entry.
-const maxStatementName = 120
+// Limits of a statement import: the description of an entry, and the name and original text of an alias rule.
+const (
+	maxStatementName = 120
+	maxRuleName      = 80
+	maxRuleOriginal  = 120
+	// earlySalaryDays is how early a salary may fall and still confirm the income of the next month (RF-88).
+	earlySalaryDays = 7
+)
 
 // StatementPreviewLine is a statement line with what it becomes, before anything is saved (RF-86 to RF-89, RN-32).
 type StatementPreviewLine struct {
@@ -43,6 +50,8 @@ type StatementPreviewLine struct {
 type StatementPreview struct {
 	Lines        []StatementPreviewLine
 	ClosingCents int64
+	// ClosingOn is the day of the closing balance, zero when the file brings no balance.
+	ClosingOn civil.Date
 }
 
 // StatementCommitLine is a statement line as confirmed by the user.
@@ -66,6 +75,12 @@ type StatementResult struct {
 	Skipped      int
 	RulesSaved   int
 	ClosingCents int64
+	ClosingOn    civil.Date
+	// BalanceCents is the real balance of the account at the end of the closing day, with every space, and
+	// AdjustToCents the balance today that makes it match the statement; both only when the closing is known (RF-90).
+	BalanceCents  int64
+	AdjustToCents int64
+	Known         bool
 }
 
 // StatementImport is one statement import of the history.
@@ -77,6 +92,7 @@ type StatementImport struct {
 	LineCount     int
 	EntryCount    int
 	ClosingCents  int64
+	GroupName     string
 	CreatedByName string
 	CreatedAt     time.Time
 }
@@ -101,7 +117,8 @@ func (s *Statements) Preview(ctx context.Context, accountID int64, content strin
 	if err != nil {
 		return StatementPreview{}, err
 	}
-	if _, err := s.ledger.GetAccount(ctx, accountID); err != nil {
+	acc, err := s.ledger.GetAccount(ctx, accountID)
+	if err != nil {
 		return StatementPreview{}, err
 	}
 	st, err := ParseSantander(strings.NewReader(content))
@@ -124,11 +141,14 @@ func (s *Statements) Preview(ctx context.Context, accountID int64, content strin
 	if err != nil {
 		return StatementPreview{}, err
 	}
-	invoices, err := s.closedInvoices(ctx, st.Lines)
-	if err != nil {
-		return StatementPreview{}, err
+	// Only the holder of the account pays her own card from it, in her personal space (RF-83, RF-89).
+	invoices := &invoicePool{}
+	if acc.Owned {
+		if invoices, err = s.closedInvoices(ctx, st.Lines); err != nil {
+			return StatementPreview{}, err
+		}
 	}
-	out := StatementPreview{ClosingCents: st.ClosingCents, Lines: make([]StatementPreviewLine, 0, len(st.Lines))}
+	out := StatementPreview{ClosingCents: st.ClosingCents, ClosingOn: st.ClosingOn, Lines: make([]StatementPreviewLine, 0, len(st.Lines))}
 	used := map[int64]bool{}
 	for i, l := range st.Lines {
 		p := StatementPreviewLine{StatementLine: l, Index: i, FriendlyName: truncate(l.Merchant, maxStatementName)}
@@ -148,6 +168,11 @@ func (s *Statements) Preview(ctx context.Context, accountID int64, content strin
 		}
 		if dup != nil {
 			p.Duplicate, p.Skip = dup, true
+		}
+		// A duplicate is already in the Radar, so it does not take the income or the invoice of a later line.
+		if dup != nil {
+			out.Lines = append(out.Lines, p)
+			continue
 		}
 		switch l.Kind {
 		case StatementSalary:
@@ -170,7 +195,7 @@ func (s *Statements) Preview(ctx context.Context, accountID int64, content strin
 
 // Commit records the confirmed lines in the account and saves the rules asked for, in one transaction. A card
 // payment is recorded in the personal space of the card owner, where the invoice is paid (RF-83, RF-86 to RF-90).
-func (s *Statements) Commit(ctx context.Context, userID, accountID int64, fileName string, closingCents int64, lines []StatementCommitLine) (StatementResult, error) {
+func (s *Statements) Commit(ctx context.Context, userID, accountID int64, fileName string, closingCents int64, closingOn civil.Date, lines []StatementCommitLine) (StatementResult, error) {
 	if len(lines) == 0 {
 		return StatementResult{}, ErrNothingToImport
 	}
@@ -181,10 +206,11 @@ func (s *Statements) Commit(ctx context.Context, userID, accountID int64, fileNa
 	if err != nil {
 		return StatementResult{}, err
 	}
-	if _, err := s.ledger.GetAccount(ctx, accountID); err != nil {
+	acc, err := s.ledger.GetAccount(ctx, accountID)
+	if err != nil {
 		return StatementResult{}, err
 	}
-	res := StatementResult{ClosingCents: closingCents}
+	res := StatementResult{ClosingCents: closingCents, ClosingOn: closingOn}
 	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
 		now := s.now().UTC()
 		imp, err := q.CreateStatementImport(ctx, store.CreateStatementImportParams{
@@ -212,7 +238,7 @@ func (s *Statements) Commit(ctx context.Context, userID, accountID int64, fileNa
 			if name == "" {
 				name = truncate(l.Merchant, maxStatementName)
 			}
-			id, err := s.record(ctx, q, userID, accountID, l, name, defaults)
+			id, err := s.record(ctx, q, userID, acc, l, name, defaults)
 			if err != nil {
 				return err
 			}
@@ -224,19 +250,45 @@ func (s *Statements) Commit(ctx context.Context, userID, accountID int64, fileNa
 				continue
 			}
 			key := Normalize(l.Merchant)
-			if r, ok := rules[key]; ok && r.FriendlyName == name && sameID(r.CategoryID, l.CategoryID) {
+			// A rule keeps a shorter name and original than a statement line; a text too long for it is not remembered.
+			ruleName := truncate(name, maxRuleName)
+			if utf8.RuneCountInString(key) > maxRuleOriginal {
 				continue
 			}
-			if _, _, err := checkRule(ctx, q, RuleInput{Original: l.Merchant, FriendlyName: name, CategoryID: l.CategoryID}); err != nil {
+			if r, ok := rules[key]; ok && r.FriendlyName == ruleName && sameID(r.CategoryID, l.CategoryID) {
+				continue
+			}
+			if _, _, err := checkRule(ctx, q, RuleInput{Original: l.Merchant, FriendlyName: ruleName, CategoryID: l.CategoryID}); err != nil {
 				return err
 			}
-			r, err := q.CreateAliasRule(ctx, store.CreateAliasRuleParams{Original: key, FriendlyName: name, CategoryID: nullID(l.CategoryID), CreatedBy: userID, CreatedAt: now})
+			r, err := q.CreateAliasRule(ctx, store.CreateAliasRuleParams{Original: key, FriendlyName: ruleName, CategoryID: nullID(l.CategoryID), CreatedBy: userID, CreatedAt: now})
 			if err != nil {
 				return fmt.Errorf("save rule: %w", err)
 			}
-			rules[key] = Rule{ID: r.ID, FriendlyName: name, CategoryID: l.CategoryID}
+			rules[key] = Rule{ID: r.ID, FriendlyName: ruleName, CategoryID: l.CategoryID}
 			res.RulesSaved++
 		}
+		if res.Created == 0 {
+			return ErrNothingToImport
+		}
+		if closingOn.IsZero() {
+			return nil
+		}
+		// The balance at the end of the closing day, with every space, is what the statement shows; the adjustment
+		// that makes it match moves today's balance by the same difference (RF-06, RF-90).
+		groupID, err := scope.Group(ctx)
+		if err != nil {
+			return err
+		}
+		at, err := q.AccountBalanceBefore(ctx, store.AccountBalanceBeforeParams{Day: closingOn.AddDays(1).String(), AccountID: accountID, GroupID: groupID})
+		if err != nil {
+			return fmt.Errorf("balance at the closing day: %w", err)
+		}
+		now2, err := q.AccountBalance(ctx, store.AccountBalanceParams{ID: accountID, GroupID: groupID})
+		if err != nil {
+			return fmt.Errorf("balance today: %w", err)
+		}
+		res.BalanceCents, res.AdjustToCents, res.Known = at, now2+closingCents-at, true
 		return nil
 	})
 	if err != nil {
@@ -246,7 +298,8 @@ func (s *Statements) Commit(ctx context.Context, userID, accountID int64, fileNa
 }
 
 // record writes one confirmed line as what it is and returns the entry id (RF-87 to RF-89).
-func (s *Statements) record(ctx context.Context, q *store.Queries, userID, accountID int64, l StatementCommitLine, name string, defaults map[string]int64) (int64, error) {
+func (s *Statements) record(ctx context.Context, q *store.Queries, userID int64, acc ledger.Account, l StatementCommitLine, name string, defaults map[string]int64) (int64, error) {
+	accountID := acc.ID
 	switch l.Kind {
 	case StatementExpense:
 		category := defaults[l.CategoryKey]
@@ -260,6 +313,10 @@ func (s *Statements) record(ctx context.Context, q *store.Queries, userID, accou
 		}
 		return s.ledger.AddIncomeTx(ctx, q, userID, ledger.NewIncome{AccountID: accountID, AmountCents: l.AmountCents, Date: l.Date, Description: name})
 	case StatementCardPayment:
+		// The invoice is paid by the card owner from her own account, in her personal space (RF-83, RF-89).
+		if !acc.Owned {
+			return 0, card.ErrPayInPersonal
+		}
 		personal, err := s.ownerSpace(ctx, q, *l.CardID)
 		if err != nil {
 			return 0, err
@@ -300,11 +357,7 @@ func (s *Statements) Imports(ctx context.Context) ([]StatementImport, error) {
 	if err != nil {
 		return nil, err
 	}
-	groupID, err := scope.Group(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := store.New(s.conn).ListStatementImports(ctx, store.ListStatementImportsParams{GroupID: groupID, CreatedBy: userID})
+	rows, err := store.New(s.conn).ListStatementImports(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list statement imports: %w", err)
 	}
@@ -312,7 +365,7 @@ func (s *Statements) Imports(ctx context.Context) ([]StatementImport, error) {
 	for _, r := range rows {
 		out = append(out, StatementImport{
 			ID: r.ID, AccountID: r.AccountID, AccountName: r.AccountName, FileName: r.FileName, LineCount: int(r.LineCount),
-			EntryCount: int(r.EntryCount), ClosingCents: r.ClosingCents, CreatedByName: r.CreatedByName, CreatedAt: r.CreatedAt,
+			EntryCount: int(r.EntryCount), ClosingCents: r.ClosingCents, GroupName: r.GroupName, CreatedByName: r.CreatedByName, CreatedAt: r.CreatedAt,
 		})
 	}
 	return out, nil
@@ -325,12 +378,8 @@ func (s *Statements) Undo(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	groupID, err := scope.Group(ctx)
-	if err != nil {
-		return err
-	}
 	return db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if _, err := q.GetStatementImport(ctx, store.GetStatementImportParams{ID: id, GroupID: groupID, CreatedBy: userID}); errors.Is(err, sql.ErrNoRows) {
+		if _, err := q.GetStatementImport(ctx, store.GetStatementImportParams{ID: id, CreatedBy: userID}); errors.Is(err, sql.ErrNoRows) {
 			return ErrImportNotFound
 		} else if err != nil {
 			return err
@@ -338,13 +387,17 @@ func (s *Statements) Undo(ctx context.Context, id int64) error {
 		if err := q.DeleteStatementImportEntries(ctx, sql.NullInt64{Int64: id, Valid: true}); err != nil {
 			return err
 		}
-		return q.DeleteStatementImport(ctx, store.DeleteStatementImportParams{ID: id, GroupID: groupID, CreatedBy: userID})
+		return q.DeleteStatementImport(ctx, store.DeleteStatementImportParams{ID: id, CreatedBy: userID})
 	})
 }
 
 // statementDuplicate looks for an entry of the account, in any space, with the same signed amount within a day of
 // the line; what matched one line is not used again (RN-32).
 func statementDuplicate(ctx context.Context, q *store.Queries, accountID int64, l StatementLine, used map[int64]bool) (*Duplicate, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return nil, err
+	}
 	signed := l.AmountCents
 	if l.Kind == StatementExpense || l.Kind == StatementCardPayment {
 		signed = -signed
@@ -364,7 +417,12 @@ func statementDuplicate(ctx context.Context, q *store.Queries, accountID int64, 
 			return nil, err
 		}
 		used[r.ID] = true
-		return &Duplicate{Description: r.Description, Date: &on, AmountCents: r.AmountCents}, nil
+		// What another space recorded stays private to it: only that something is there shows (RF-83).
+		desc := r.Description
+		if r.GroupID != groupID {
+			desc = "Lançamento em outro espaço"
+		}
+		return &Duplicate{Description: desc, Date: &on, AmountCents: r.AmountCents}, nil
 	}
 	return nil, nil
 }
@@ -377,7 +435,9 @@ type expectedPool struct{ list []income.Occurrence }
 func (p *expectedPool) take(l StatementLine) (income.Occurrence, bool) {
 	for _, m := range []civil.Month{l.Date.MonthOf(), l.Date.MonthOf().Add(1)} {
 		for i, o := range p.list {
-			if o.ExpectedCents == l.AmountCents && o.ExpectedOn.MonthOf() == m {
+			// The next month counts only for a salary that fell at most a week early.
+			early := m != l.Date.MonthOf() && l.Date.Before(o.ExpectedOn.AddDays(-earlySalaryDays))
+			if o.ExpectedCents == l.AmountCents && o.ExpectedOn.MonthOf() == m && !early {
 				p.list = append(p.list[:i], p.list[i+1:]...)
 				return o, true
 			}
@@ -414,6 +474,7 @@ type invoiceChoice struct {
 	CardID     int64
 	Month      civil.Month
 	TotalCents int64
+	Cycle      card.Cycle
 }
 
 // invoicePool holds the invoices a payment may pay, each one usable by a single line.
@@ -422,7 +483,7 @@ type invoicePool struct{ list []invoiceChoice }
 // take returns the invoice closed before the payment day whose total is the amount of the line (RF-89).
 func (p *invoicePool) take(l StatementLine) (invoiceChoice, bool) {
 	for i, inv := range p.list {
-		if inv.TotalCents == l.AmountCents && inv.Month.First().Before(l.Date) {
+		if inv.TotalCents == l.AmountCents && inv.Cycle.InvoiceFor(l.Date).Add(-1) == inv.Month {
 			p.list = append(p.list[:i], p.list[i+1:]...)
 			return inv, true
 		}
@@ -459,7 +520,7 @@ func (s *Statements) closedInvoices(ctx context.Context, lines []StatementLine) 
 		}
 		for _, l := range payments {
 			m := c.Cycle().InvoiceFor(l.Date).Add(-1)
-			key := invoiceChoice{CardID: c.ID, Month: m}
+			key := invoiceChoice{CardID: c.ID, Month: m, Cycle: c.Cycle()}
 			if seen[key] {
 				continue
 			}
@@ -469,7 +530,7 @@ func (s *Statements) closedInvoices(ctx context.Context, lines []StatementLine) 
 				return nil, err
 			}
 			if inv.Full && inv.Payment == nil && inv.TotalCents > 0 {
-				pool.list = append(pool.list, invoiceChoice{CardID: c.ID, Month: m, TotalCents: inv.TotalCents})
+				pool.list = append(pool.list, invoiceChoice{CardID: c.ID, Month: m, TotalCents: inv.TotalCents, Cycle: c.Cycle()})
 			}
 		}
 	}
@@ -485,13 +546,20 @@ func defaultCategories(ctx context.Context, q *store.Queries) (map[string]int64,
 	}
 	out := map[string]int64{"": fallback}
 	for _, key := range []string{KeyBankFees, KeyTaxes, KeyInterest, KeyInvestments} {
+		out[key] = fallback
 		id, err := q.GetCategoryBySystemKey(ctx, sql.NullString{String: key, Valid: true})
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			out[key] = fallback
-		case err != nil:
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
 			return nil, err
-		default:
+		}
+		// A subcategory turned off, or under a category turned off, cannot take entries, so it falls back too.
+		c, err := q.GetSelectableCategory(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if c.Active && c.ParentActive {
 			out[key] = id
 		}
 	}

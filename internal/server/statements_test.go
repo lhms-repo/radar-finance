@@ -37,6 +37,7 @@ func TestStatementRoutes(t *testing.T) {
 	}
 	var preview struct {
 		ClosingCents int64             `json:"closingCents"`
+		ClosingOn    string            `json:"closingOn"`
 		Lines        []json.RawMessage `json:"lines"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&preview)
@@ -51,20 +52,21 @@ func TestStatementRoutes(t *testing.T) {
 		m["remember"] = false
 		lines = append(lines, m)
 	}
-	body, _ := json.Marshal(map[string]any{"accountId": acc.ID, "fileName": "extrato.csv", "closingCents": preview.ClosingCents, "lines": lines})
+	body, _ := json.Marshal(map[string]any{"accountId": acc.ID, "fileName": "extrato.csv", "closingCents": preview.ClosingCents, "closingOn": preview.ClosingOn, "lines": lines})
 	resp = postJSON(t, c, srv, "/api/statements", string(body))
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("commit = %d", resp.StatusCode)
 	}
 	var res struct {
-		ImportID     int64  `json:"importId"`
-		Created      int    `json:"created"`
-		Skipped      int    `json:"skipped"`
-		BalanceCents *int64 `json:"balanceCents"`
+		ImportID      int64  `json:"importId"`
+		Created       int    `json:"created"`
+		Skipped       int    `json:"skipped"`
+		BalanceCents  *int64 `json:"balanceCents"`
+		AdjustToCents *int64 `json:"adjustToCents"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&res)
 	// No card in the Radar: the card payment stays out; every other line goes in, and the holder reads the balance.
-	if res.Created != 11 || res.Skipped != 1 || res.BalanceCents == nil {
+	if res.Created != 11 || res.Skipped != 1 || res.BalanceCents == nil || res.AdjustToCents == nil || *res.AdjustToCents != 187_650 {
 		t.Fatalf("result = %+v", res)
 	}
 

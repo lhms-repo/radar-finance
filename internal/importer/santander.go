@@ -59,10 +59,12 @@ type StatementLine struct {
 	CategoryKey string
 }
 
-// Statement is a whole statement with its closing balance, the balance after the most recent line (RF-90).
+// Statement is a whole statement with its closing balance, the balance after the most recent line, and its day;
+// ClosingOn is zero when the file brings no balance (RF-90).
 type Statement struct {
 	Lines        []StatementLine
 	ClosingCents int64
+	ClosingOn    civil.Date
 }
 
 var (
@@ -80,7 +82,7 @@ func Detect(content string) (Format, error) {
 		if i == 0 && strings.HasPrefix(strings.ToLower(line), "date,title,amount") {
 			return FormatNubankInvoice, nil
 		}
-		if strings.EqualFold(line, "Extrato de conta corrente") || isStatementHeader(line) {
+		if strings.HasPrefix(fold(line), "extrato de conta corrente") || isStatementHeader(line) {
 			return FormatSantanderStatement, nil
 		}
 	}
@@ -113,7 +115,12 @@ func ParseSantander(r io.Reader) (Statement, error) {
 	cr.FieldsPerRecord = -1
 	cr.LazyQuotes = true
 	var st Statement
-	var balances []int64
+	type balanceAt struct {
+		on    civil.Date
+		cents int64
+		order int
+	}
+	var balances []balanceAt
 	for {
 		rec, err := cr.Read()
 		if errors.Is(err, io.EOF) {
@@ -129,54 +136,72 @@ func ParseSantander(r io.Reader) (Statement, error) {
 		if len(rec) < 5 {
 			return Statement{}, &LineError{Line: n, Reason: "esperava data, descrição, detalhe, valor e saldo"}
 		}
-		l, balance, err := parseStatementLine(rec)
+		// Rows without an amount, like a previous balance or a footer, are not movements.
+		if strings.TrimSpace(rec[3]) == "" {
+			continue
+		}
+		l, balance, hasBalance, err := parseStatementLine(rec)
 		if err != nil {
 			return Statement{}, &LineError{Line: n, Reason: err.Error()}
 		}
 		st.Lines = append(st.Lines, l)
-		balances = append(balances, balance)
+		if hasBalance {
+			balances = append(balances, balanceAt{on: l.Date, cents: balance, order: len(st.Lines)})
+		}
 	}
 	if len(st.Lines) == 0 {
 		return Statement{}, ErrNothingToImport
 	}
-	// The newest line closes the period: the first one when the bank lists newest first, as it does, else the last.
-	st.ClosingCents = balances[0]
-	if st.Lines[0].Date.Before(st.Lines[len(st.Lines)-1].Date) {
-		st.ClosingCents = balances[len(balances)-1]
+	if len(balances) == 0 {
+		return st, nil
 	}
+	// The newest line closes the period. The bank lists newest first, so on the same day the first row is the newest,
+	// unless the file goes oldest first, which the dates of its first and last lines tell.
+	oldestFirst := st.Lines[0].Date.Before(st.Lines[len(st.Lines)-1].Date)
+	best := balances[0]
+	for _, b := range balances[1:] {
+		if best.on.Before(b.on) || (b.on == best.on && oldestFirst) {
+			best = b
+		}
+	}
+	st.ClosingCents, st.ClosingOn = best.cents, best.on
 	return st, nil
 }
 
-// isStatementHeader tells the header of the statement lines, with or without accents.
+// isStatementHeader tells the header of the statement lines, with or without accents, quotes or trailing separators.
 func isStatementHeader(line string) bool {
-	return fold(line) == "data;descricao;detalhe;valor;saldo"
+	clean := strings.TrimRight(strings.ReplaceAll(fold(line), `"`, ""), "; ")
+	return clean == "data;descricao;detalhe;valor;saldo"
 }
 
-// parseStatementLine reads one record of date, description, detail, amount and balance.
-func parseStatementLine(rec []string) (StatementLine, int64, error) {
+// parseStatementLine reads one record of date, description, detail, amount and balance; the balance may be empty.
+func parseStatementLine(rec []string) (StatementLine, int64, bool, error) {
 	m := brDate.FindStringSubmatch(strings.TrimSpace(rec[0]))
 	if m == nil {
-		return StatementLine{}, 0, errors.New("data inválida, esperava DD/MM/AAAA")
+		return StatementLine{}, 0, false, errors.New("data inválida, esperava DD/MM/AAAA")
 	}
 	d, err := civil.ParseDate(m[3] + "-" + m[2] + "-" + m[1])
 	if err != nil {
-		return StatementLine{}, 0, errors.New("data inválida")
+		return StatementLine{}, 0, false, errors.New("data inválida")
 	}
 	desc := spaces.ReplaceAllString(strings.TrimSpace(rec[1]), " ")
 	detail := spaces.ReplaceAllString(strings.TrimSpace(rec[2]), " ")
 	if desc == "" {
-		return StatementLine{}, 0, errors.New("descrição vazia")
+		return StatementLine{}, 0, false, errors.New("descrição vazia")
 	}
 	cents, err := parseCents(reais(rec[3]))
 	if err != nil {
-		return StatementLine{}, 0, err
+		return StatementLine{}, 0, false, err
 	}
 	if cents == 0 {
-		return StatementLine{}, 0, errors.New("valor zerado")
+		return StatementLine{}, 0, false, errors.New("valor zerado")
 	}
-	balance, err := parseCents(reais(rec[4]))
-	if err != nil {
-		return StatementLine{}, 0, errors.New("saldo inválido")
+	var balance int64
+	hasBalance := strings.TrimSpace(rec[4]) != ""
+	if hasBalance {
+		if balance, err = parseCents(reais(rec[4])); err != nil {
+			return StatementLine{}, 0, false, errors.New("saldo inválido")
+		}
 	}
 	merchant := leadingDay.ReplaceAllString(detail, "")
 	if merchant == "" {
@@ -203,7 +228,7 @@ func parseStatementLine(rec []string) (StatementLine, int64, error) {
 	if cents < 0 {
 		l.AmountCents = -cents
 	}
-	return l, balance, nil
+	return l, balance, hasBalance, nil
 }
 
 // reais drops the currency sign and the spaces of an amount like -R$ 1.234,56.
