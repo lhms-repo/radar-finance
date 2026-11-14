@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, unwrap, type components } from "@/api/client";
+import { spaceHeader, type SpaceTarget } from "@/app/space";
 import { ACCOUNT_KEYS } from "@/features/accounts/api";
 import { haptic } from "@/lib/haptics";
 
@@ -110,7 +111,8 @@ export function useStatementImports() {
 /** Reads the statement on the server and returns what each line becomes (RF-86 to RF-89). */
 export function usePreviewStatement() {
   return useMutation({
-    mutationFn: async (body: components["schemas"]["StatementPreviewRequest"]) => unwrap(await api.POST("/statements/preview", { body })),
+    mutationFn: async ({ space, ...body }: components["schemas"]["StatementPreviewRequest"] & SpaceTarget) =>
+      unwrap(await api.POST("/statements/preview", { params: { header: spaceHeader(space) }, body })),
   });
 }
 
@@ -118,7 +120,8 @@ export function usePreviewStatement() {
 export function useCommitStatement() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: components["schemas"]["StatementCommitRequest"]) => unwrap(await api.POST("/statements", { body })),
+    mutationFn: async ({ space, ...body }: components["schemas"]["StatementCommitRequest"] & SpaceTarget) =>
+      unwrap(await api.POST("/statements", { params: { header: spaceHeader(space) }, body })),
     onSuccess: (r) => {
       haptic();
       toast.success("Extrato importado", { description: `${r.created} lançamentos, ${r.skipped} ignorados, ${r.rulesSaved} regras novas.` });

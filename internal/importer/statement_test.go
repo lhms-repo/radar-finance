@@ -148,12 +148,16 @@ func TestStatementCommitAndUndo(t *testing.T) {
 		})
 	}
 	lines[1].FriendlyName = "Fulano"
-	res, err := f.s.Commit(f.ana, auth.UserID(f.ana), f.accountID, "extrato.csv", p.ClosingCents, lines)
+	res, err := f.s.Commit(f.ana, auth.UserID(f.ana), f.accountID, "extrato.csv", p.ClosingCents, p.ClosingOn, lines)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Created != 11 || res.Skipped != 1 || res.RulesSaved != 1 {
 		t.Fatalf("result = %+v", res)
+	}
+	// Nothing after the closing day, so the balance today moves to the statement balance (RF-90).
+	if !res.Known || res.ClosingOn.String() != "2026-11-14" || res.AdjustToCents != 187_650 {
+		t.Fatalf("balances = %+v", res)
 	}
 	count := func(query string, args ...any) int {
 		t.Helper()
@@ -196,6 +200,9 @@ func TestStatementCommitAndUndo(t *testing.T) {
 	if n := count(`SELECT count(*) FROM entries WHERE statement_import_id IS NOT NULL`); n != 0 {
 		t.Fatalf("entries left after undo = %d", n)
 	}
+	if n := count(`SELECT count(*) FROM entries WHERE description = 'Padaria'`); n != 1 {
+		t.Fatalf("hand recorded entries after undo = %d, want 1", n)
+	}
 	if n := count(`SELECT count(*) FROM invoice_payments`); n != 0 {
 		t.Fatalf("invoice payments left after undo = %d", n)
 	}
@@ -229,7 +236,7 @@ func TestStatementCardPaymentRules(t *testing.T) {
 				CardID:        &cardID, InvoiceMonth: nov,
 			}
 			ctx := tt.as(f)
-			_, err := f.s.Commit(ctx, auth.UserID(ctx), f.accountID, "extrato.csv", 0, []StatementCommitLine{line})
+			_, err := f.s.Commit(ctx, auth.UserID(ctx), f.accountID, "extrato.csv", 0, civil.Date{}, []StatementCommitLine{line})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
@@ -262,5 +269,56 @@ func TestExpectedPoolPrefersTheSameMonth(t *testing.T) {
 				t.Fatalf("take = %+v, %v", o, ok)
 			}
 		})
+	}
+}
+
+// TestStatementPaymentOfACardDueEarly matches the payment made before the due month starts, on a card that closes
+// on the 28th and is due on the 5th (RF-89).
+func TestStatementPaymentOfACardDueEarly(t *testing.T) {
+	f := newStmtFixture(t)
+	cards := card.NewService(f.conn).WithToday(func() civil.Date { return civil.Date{Year: 2026, Month: time.October, Day: 30} })
+	f.s = NewStatements(f.conn, cards)
+	var ana int64
+	if err := f.conn.QueryRow(`SELECT person_id FROM users WHERE login = 'ana'`).Scan(&ana); err != nil {
+		t.Fatal(err)
+	}
+	c, err := cards.CreateCard(f.ana, auth.UserID(f.ana), card.CardInput{Name: "Cartão Cedo", PersonID: ana, LimitCents: 1_000_000, ClosingDay: 28, DueDay: 5, Color: "purple", Finish: "matte"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cards.AddPurchase(f.ana, auth.UserID(f.ana), card.PurchaseInput{CardID: c.ID, Date: civil.Date{Year: 2026, Month: time.October, Day: 10}, Merchant: "Loja Cedo", CategoryID: f.cat["Delivery"], AmountCents: 33_300, Installments: 1}); err != nil {
+		t.Fatal(err)
+	}
+	content := "Data;Descrição;Detalhe;Valor;Saldo\n30/10/2026;Pagamento cartao credito bce;;-R$ 333,00;R$ 10,00\n"
+	p, err := f.s.Preview(f.ana, f.accountID, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := p.Lines[0]
+	if l.Skip || l.CardID == nil || *l.CardID != c.ID || l.InvoiceMonth != (civil.Month{Year: 2026, Month: time.November}) {
+		t.Fatalf("payment = %+v", l)
+	}
+}
+
+// TestStatementDuplicateOfAnotherSpace flags an entry of another space without showing what it is (RF-83, RN-32).
+func TestStatementDuplicateOfAnotherSpace(t *testing.T) {
+	f := newStmtFixture(t)
+	personal := auth.WithUserID(scope.WithGroup(context.Background(), 2), auth.UserID(f.ana))
+	p, err := f.s.Preview(personal, f.accountID, f.content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := p.Lines[0].Duplicate
+	if d == nil || d.Description != "Lançamento em outro espaço" {
+		t.Fatalf("duplicate = %+v", d)
+	}
+}
+
+// TestExpectedPoolNextMonthOnlyWhenEarly keeps a salary far from the next expected day off that income (RF-88).
+func TestExpectedPoolNextMonthOnlyWhenEarly(t *testing.T) {
+	dec := civil.Date{Year: 2026, Month: time.December, Day: 5}
+	pool := &expectedPool{list: []income.Occurrence{{IncomeID: 1, ExpectedOn: dec, ExpectedCents: 250_000}}}
+	if _, ok := pool.take(StatementLine{Date: civil.Date{Year: 2026, Month: time.November, Day: 20}, AmountCents: 250_000, Kind: StatementSalary}); ok {
+		t.Fatal("a salary of the 20th took the income of the 5th of the next month")
 	}
 }

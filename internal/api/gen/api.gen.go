@@ -2836,6 +2836,7 @@ type StatementCommitLine struct {
 type StatementCommitRequest struct {
 	AccountId    int64                 `json:"accountId"`
 	ClosingCents int64                 `json:"closingCents"`
+	ClosingOn    *openapi_types.Date   `json:"closingOn,omitempty"`
 	FileName     *string               `json:"fileName,omitempty"`
 	Lines        []StatementCommitLine `json:"lines"`
 }
@@ -2849,8 +2850,11 @@ type StatementImportRecord struct {
 	CreatedByName string    `json:"createdByName"`
 	EntryCount    int       `json:"entryCount"`
 	FileName      string    `json:"fileName"`
-	Id            int64     `json:"id"`
-	LineCount     int       `json:"lineCount"`
+
+	// GroupName Space the entries of the import went to (RF-83).
+	GroupName string `json:"groupName"`
+	Id        int64  `json:"id"`
+	LineCount int    `json:"lineCount"`
 }
 
 // StatementKind What a statement line becomes (RF-87 to RF-89).
@@ -2877,8 +2881,11 @@ type StatementLine struct {
 // StatementPreview defines model for StatementPreview.
 type StatementPreview struct {
 	// ClosingCents Balance of the account after the most recent line of the statement (RF-90).
-	ClosingCents int64                  `json:"closingCents"`
-	Lines        []StatementPreviewLine `json:"lines"`
+	ClosingCents int64 `json:"closingCents"`
+
+	// ClosingOn Day of the closing balance; absent when the file brings no balance.
+	ClosingOn *openapi_types.Date    `json:"closingOn,omitempty"`
+	Lines     []StatementPreviewLine `json:"lines"`
 }
 
 // StatementPreviewLine defines model for StatementPreviewLine.
@@ -2928,13 +2935,17 @@ type StatementPreviewRequest struct {
 
 // StatementResult defines model for StatementResult.
 type StatementResult struct {
-	// BalanceCents Real balance of the account after the import, only for the holder, to compare with the statement (RF-90).
-	BalanceCents *int64 `json:"balanceCents,omitempty"`
-	ClosingCents int64  `json:"closingCents"`
-	Created      int    `json:"created"`
-	ImportId     int64  `json:"importId"`
-	RulesSaved   int    `json:"rulesSaved"`
-	Skipped      int    `json:"skipped"`
+	// AdjustToCents Balance today that makes the account match the statement, to send to the adjustment (RF-06, RF-90).
+	AdjustToCents *int64 `json:"adjustToCents,omitempty"`
+
+	// BalanceCents Real balance of the account at the end of the closing day, with every space; only for the holder and when the closing is known (RF-90).
+	BalanceCents *int64              `json:"balanceCents,omitempty"`
+	ClosingCents int64               `json:"closingCents"`
+	ClosingOn    *openapi_types.Date `json:"closingOn,omitempty"`
+	Created      int                 `json:"created"`
+	ImportId     int64               `json:"importId"`
+	RulesSaved   int                 `json:"rulesSaved"`
+	Skipped      int                 `json:"skipped"`
 }
 
 // Theme defines model for Theme.
@@ -3109,6 +3120,18 @@ type SearchEntriesParams struct {
 type GetSettlementParams struct {
 	// Month Month of the expenses listed, as YYYY-MM.
 	Month Month `form:"month" json:"month"`
+}
+
+// CommitStatementParams defines parameters for CommitStatement.
+type CommitStatementParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
+}
+
+// PreviewStatementParams defines parameters for PreviewStatement.
+type PreviewStatementParams struct {
+	// XRadarSpace Space to create the item in, the personal one or another group of the user; the active one when absent (RF-83).
+	XRadarSpace *Space `json:"X-Radar-Space,omitempty"`
 }
 
 // CreateAccountJSONRequestBody defines body for CreateAccount for application/json ContentType.
@@ -3754,10 +3777,10 @@ type ServerInterface interface {
 	ListStatementImports(w http.ResponseWriter, r *http.Request)
 	// CommitStatement Records the confirmed lines in the account and saves the rules asked for (RF-86 to RF-90).
 	// (POST /statements)
-	CommitStatement(w http.ResponseWriter, r *http.Request)
+	CommitStatement(w http.ResponseWriter, r *http.Request, params CommitStatementParams)
 	// PreviewStatement Reads the Santander account statement and returns what each line becomes, without saving (RF-86 to RF-89, RN-32).
 	// (POST /statements/preview)
-	PreviewStatement(w http.ResponseWriter, r *http.Request)
+	PreviewStatement(w http.ResponseWriter, r *http.Request, params PreviewStatementParams)
 	// UndoStatementImport Removes every entry of a statement import, with its invoice payments and income confirmations (RF-90).
 	// (DELETE /statements/{id})
 	UndoStatementImport(w http.ResponseWriter, r *http.Request, id Id)
@@ -7303,8 +7326,35 @@ func (siw *ServerInterfaceWrapper) ListStatementImports(w http.ResponseWriter, r
 // CommitStatement operation middleware
 func (siw *ServerInterfaceWrapper) CommitStatement(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CommitStatementParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CommitStatement(w, r)
+		siw.Handler.CommitStatement(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7317,8 +7367,35 @@ func (siw *ServerInterfaceWrapper) CommitStatement(w http.ResponseWriter, r *htt
 // PreviewStatement operation middleware
 func (siw *ServerInterfaceWrapper) PreviewStatement(w http.ResponseWriter, r *http.Request) {
 
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PreviewStatementParams
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "X-Radar-Space" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Radar-Space")]; found {
+		var XRadarSpace Space
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Radar-Space", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Radar-Space", valueList[0], &XRadarSpace, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: "int64"})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Radar-Space", Err: err})
+			return
+		}
+
+		params.XRadarSpace = &XRadarSpace
+
+	}
+
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PreviewStatement(w, r)
+		siw.Handler.PreviewStatement(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -15804,7 +15881,8 @@ func (response ListStatementImports401JSONResponse) VisitListStatementImportsRes
 }
 
 type CommitStatementRequestObject struct {
-	Body *CommitStatementJSONRequestBody
+	Params CommitStatementParams
+	Body   *CommitStatementJSONRequestBody
 }
 
 type CommitStatementResponseObject interface {
@@ -15882,7 +15960,8 @@ func (response CommitStatement409JSONResponse) VisitCommitStatementResponse(w ht
 }
 
 type PreviewStatementRequestObject struct {
-	Body *PreviewStatementJSONRequestBody
+	Params PreviewStatementParams
+	Body   *PreviewStatementJSONRequestBody
 }
 
 type PreviewStatementResponseObject interface {
@@ -20771,8 +20850,10 @@ func (sh *strictHandler) ListStatementImports(w http.ResponseWriter, r *http.Req
 }
 
 // CommitStatement operation middleware
-func (sh *strictHandler) CommitStatement(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) CommitStatement(w http.ResponseWriter, r *http.Request, params CommitStatementParams) {
 	var request CommitStatementRequestObject
+
+	request.Params = params
 
 	var body CommitStatementJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {
@@ -20802,8 +20883,10 @@ func (sh *strictHandler) CommitStatement(w http.ResponseWriter, r *http.Request)
 }
 
 // PreviewStatement operation middleware
-func (sh *strictHandler) PreviewStatement(w http.ResponseWriter, r *http.Request) {
+func (sh *strictHandler) PreviewStatement(w http.ResponseWriter, r *http.Request, params PreviewStatementParams) {
 	var request PreviewStatementRequestObject
+
+	request.Params = params
 
 	var body PreviewStatementJSONRequestBody
 	if err := runtime.BindJSONBody(r, &body); err != nil {

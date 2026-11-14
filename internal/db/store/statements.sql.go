@@ -12,7 +12,7 @@ import (
 )
 
 const accountEntriesNear = `-- name: AccountEntriesNear :many
-SELECT e.id, e.description, e.occurred_on, e.amount_cents
+SELECT e.id, e.description, e.occurred_on, e.amount_cents, CAST(coalesce(e.group_id, 0) AS INTEGER) AS group_id
 FROM entries e
 WHERE e.account_id = ?1 AND e.confirmed
   AND e.amount_cents = ?2
@@ -32,6 +32,7 @@ type AccountEntriesNearRow struct {
 	Description string
 	OccurredOn  string
 	AmountCents int64
+	GroupID     int64
 }
 
 // Confirmed entries of the account with the given signed amount within a day of the date, in every space, for the
@@ -55,6 +56,7 @@ func (q *Queries) AccountEntriesNear(ctx context.Context, arg AccountEntriesNear
 			&i.Description,
 			&i.OccurredOn,
 			&i.AmountCents,
+			&i.GroupID,
 		); err != nil {
 			return nil, err
 		}
@@ -113,17 +115,16 @@ func (q *Queries) CreateStatementImport(ctx context.Context, arg CreateStatement
 
 const deleteStatementImport = `-- name: DeleteStatementImport :exec
 DELETE FROM statement_imports
-WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER) AND created_by = ?3
+WHERE id = ?1 AND created_by = ?2
 `
 
 type DeleteStatementImportParams struct {
 	ID        int64
-	GroupID   int64
 	CreatedBy int64
 }
 
 func (q *Queries) DeleteStatementImport(ctx context.Context, arg DeleteStatementImportParams) error {
-	_, err := q.db.ExecContext(ctx, deleteStatementImport, arg.ID, arg.GroupID, arg.CreatedBy)
+	_, err := q.db.ExecContext(ctx, deleteStatementImport, arg.ID, arg.CreatedBy)
 	return err
 }
 
@@ -141,17 +142,16 @@ func (q *Queries) DeleteStatementImportEntries(ctx context.Context, importID sql
 const getStatementImport = `-- name: GetStatementImport :one
 SELECT id, group_id, account_id, file_name, line_count, closing_cents, created_by, created_at
 FROM statement_imports
-WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER) AND created_by = ?3
+WHERE id = ?1 AND created_by = ?2
 `
 
 type GetStatementImportParams struct {
 	ID        int64
-	GroupID   int64
 	CreatedBy int64
 }
 
 func (q *Queries) GetStatementImport(ctx context.Context, arg GetStatementImportParams) (StatementImport, error) {
-	row := q.db.QueryRowContext(ctx, getStatementImport, arg.ID, arg.GroupID, arg.CreatedBy)
+	row := q.db.QueryRowContext(ctx, getStatementImport, arg.ID, arg.CreatedBy)
 	var i StatementImport
 	err := row.Scan(
 		&i.ID,
@@ -167,20 +167,16 @@ func (q *Queries) GetStatementImport(ctx context.Context, arg GetStatementImport
 }
 
 const listStatementImports = `-- name: ListStatementImports :many
-SELECT i.id, i.group_id, i.account_id, i.file_name, i.line_count, i.closing_cents, i.created_by, i.created_at, a.name AS account_name, p.name AS created_by_name,
+SELECT i.id, i.group_id, i.account_id, i.file_name, i.line_count, i.closing_cents, i.created_by, i.created_at, a.name AS account_name, p.name AS created_by_name, g.name AS group_name,
        CAST((SELECT count(*) FROM entries e WHERE e.statement_import_id = i.id) AS INTEGER) AS entry_count
 FROM statement_imports i
 JOIN accounts a ON a.id = i.account_id
 JOIN users u ON u.id = i.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE i.group_id = CAST(?1 AS INTEGER) AND i.created_by = ?2
+JOIN groups g ON g.id = i.group_id
+WHERE i.created_by = ?1
 ORDER BY i.id DESC
 `
-
-type ListStatementImportsParams struct {
-	GroupID   int64
-	CreatedBy int64
-}
 
 type ListStatementImportsRow struct {
 	ID            int64
@@ -193,11 +189,13 @@ type ListStatementImportsRow struct {
 	CreatedAt     time.Time
 	AccountName   string
 	CreatedByName string
+	GroupName     string
 	EntryCount    int64
 }
 
-func (q *Queries) ListStatementImports(ctx context.Context, arg ListStatementImportsParams) ([]ListStatementImportsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listStatementImports, arg.GroupID, arg.CreatedBy)
+// The imports of the user in every space, since each one records in the space chosen on the screen (RF-83).
+func (q *Queries) ListStatementImports(ctx context.Context, createdBy int64) ([]ListStatementImportsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listStatementImports, createdBy)
 	if err != nil {
 		return nil, err
 	}
@@ -216,6 +214,7 @@ func (q *Queries) ListStatementImports(ctx context.Context, arg ListStatementImp
 			&i.CreatedAt,
 			&i.AccountName,
 			&i.CreatedByName,
+			&i.GroupName,
 			&i.EntryCount,
 		); err != nil {
 			return nil, err

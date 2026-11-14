@@ -19,8 +19,8 @@ func TestParseSantander(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.ClosingCents != 187_650 {
-		t.Fatalf("closing balance = %d, want 187650", st.ClosingCents)
+	if st.ClosingCents != 187_650 || st.ClosingOn.String() != "2026-11-14" {
+		t.Fatalf("closing balance = %d on %s, want 187650 on 2026-11-14", st.ClosingCents, st.ClosingOn)
 	}
 	want := []struct {
 		date     string
@@ -69,6 +69,7 @@ func TestParseSantanderErrors(t *testing.T) {
 		{name: "zero amount", content: header + "01/11/2026;Pix enviado;X;R$ 0,00;R$ 1,00\n", line: 4},
 		{name: "missing columns", content: header + "01/11/2026;Pix enviado;X\n", line: 4},
 		{name: "no lines", content: header, want: ErrNothingToImport},
+		{name: "only a previous balance", content: header + "01/11/2026;SALDO ANTERIOR;;;R$ 1,00\n", want: ErrNothingToImport},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -108,5 +109,22 @@ func TestDetect(t *testing.T) {
 				t.Fatalf("Detect = %q, %v; want %q, %v", got, err, tt.want, tt.err)
 			}
 		})
+	}
+}
+
+// TestParseSantanderTolerates reads variations of the export: quoted header with trailing separators, a previous
+// balance row, a line without balance and a single day listed newest first (RF-86, RF-90).
+func TestParseSantanderTolerates(t *testing.T) {
+	content := "\ufeffExtrato de conta corrente;;;;\r\n" +
+		"\"Data\";\"Descrição\";\"Detalhe\";\"Valor\";\"Saldo\";\r\n" +
+		"02/11/2026;Pix enviado;Fulano;-R$ 1.234,56;R$ 765,44;\r\n" +
+		"02/11/2026;Pix recebido;Beltrano;R$ 2.000,00;;\r\n" +
+		"01/11/2026;SALDO ANTERIOR;;;R$ 0,00\r\n"
+	st, err := ParseSantander(strings.NewReader(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Lines) != 2 || st.Lines[0].AmountCents != 123_456 || st.ClosingCents != 76_544 || st.ClosingOn.String() != "2026-11-02" {
+		t.Fatalf("statement = %+v", st)
 	}
 }

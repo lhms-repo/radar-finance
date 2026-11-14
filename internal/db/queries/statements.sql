@@ -6,19 +6,21 @@ VALUES (CAST(sqlc.arg(group_id) AS INTEGER), sqlc.arg(account_id), sqlc.arg(file
 RETURNING *;
 
 -- name: ListStatementImports :many
-SELECT i.*, a.name AS account_name, p.name AS created_by_name,
+SELECT i.*, a.name AS account_name, p.name AS created_by_name, g.name AS group_name,
        CAST((SELECT count(*) FROM entries e WHERE e.statement_import_id = i.id) AS INTEGER) AS entry_count
 FROM statement_imports i
 JOIN accounts a ON a.id = i.account_id
 JOIN users u ON u.id = i.created_by
 JOIN persons p ON p.id = u.person_id
-WHERE i.group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND i.created_by = sqlc.arg(created_by)
+JOIN groups g ON g.id = i.group_id
+-- The imports of the user in every space, since each one records in the space chosen on the screen (RF-83).
+WHERE i.created_by = sqlc.arg(created_by)
 ORDER BY i.id DESC;
 
 -- name: GetStatementImport :one
 SELECT *
 FROM statement_imports
-WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND created_by = sqlc.arg(created_by);
+WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
 
 -- name: DeleteStatementImportEntries :exec
 -- Invoice payments and member divisions of these entries go with them by cascade and trigger.
@@ -27,7 +29,7 @@ WHERE statement_import_id = sqlc.arg(import_id);
 
 -- name: DeleteStatementImport :exec
 DELETE FROM statement_imports
-WHERE id = sqlc.arg(id) AND group_id = CAST(sqlc.arg(group_id) AS INTEGER) AND created_by = sqlc.arg(created_by);
+WHERE id = sqlc.arg(id) AND created_by = sqlc.arg(created_by);
 
 -- name: SetEntryStatementImport :exec
 UPDATE entries
@@ -37,7 +39,7 @@ WHERE id = sqlc.arg(id);
 -- name: AccountEntriesNear :many
 -- Confirmed entries of the account with the given signed amount within a day of the date, in every space, for the
 -- duplicates of a statement line (RN-32).
-SELECT e.id, e.description, e.occurred_on, e.amount_cents
+SELECT e.id, e.description, e.occurred_on, e.amount_cents, CAST(coalesce(e.group_id, 0) AS INTEGER) AS group_id
 FROM entries e
 WHERE e.account_id = sqlc.arg(account_id) AND e.confirmed
   AND e.amount_cents = sqlc.arg(amount_cents)
