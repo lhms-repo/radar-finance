@@ -124,6 +124,7 @@ type Deps struct {
 	Reports       *report.Service
 	Notifications *notify.Service
 	Imports       *importer.Service
+	Statements    *importer.Statements
 	Market        *market.Service
 	Spaces        *space.Service
 	Settle        *settle.Service

@@ -159,6 +159,7 @@ func serve(log *slog.Logger) error {
 		Savings:       sav,
 		Reports:       reports,
 		Imports:       importer.NewService(conn, cards),
+		Statements:    importer.NewStatements(conn, cards),
 		Market:        markets,
 		Notifications: notify.NewService(conn, agenda.NewService(bills, financings, cards), reports, sav, income.NewService(conn)),
 		Sessions:      sessions,
