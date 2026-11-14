@@ -118,7 +118,7 @@ const createEntry = `-- name: CreateEntry :one
 INSERT INTO entries (account_id, kind, amount_cents, occurred_on, confirmed, category_id, description,
                      transfer_id, created_by, created_at, updated_at, group_id)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(?12 AS INTEGER))
-RETURNING id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id
+RETURNING id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id, statement_import_id
 `
 
 type CreateEntryParams struct {
@@ -170,6 +170,7 @@ func (q *Queries) CreateEntry(ctx context.Context, arg CreateEntryParams) (Entry
 		&i.BillID,
 		&i.BillMonth,
 		&i.GroupID,
+		&i.StatementImportID,
 	)
 	return i, err
 }
@@ -288,7 +289,7 @@ func (q *Queries) GetAccount(ctx context.Context, arg GetAccountParams) (Account
 }
 
 const getEntry = `-- name: GetEntry :one
-SELECT id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id
+SELECT id, account_id, kind, amount_cents, occurred_on, confirmed, category_id, description, transfer_id, created_by, created_at, updated_at, income_id, income_month, bill_id, bill_month, group_id, statement_import_id
 FROM entries
 WHERE id = ?1 AND group_id = CAST(?2 AS INTEGER)
 `
@@ -319,6 +320,7 @@ func (q *Queries) GetEntry(ctx context.Context, arg GetEntryParams) (Entry, erro
 		&i.BillID,
 		&i.BillMonth,
 		&i.GroupID,
+		&i.StatementImportID,
 	)
 	return i, err
 }

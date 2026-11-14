@@ -65,6 +65,7 @@ var (
 	ErrInvoiceOpen         = problem.Conflict("invoice_open", "A fatura ainda está aberta. O pagamento fica disponível a partir do fechamento.")
 	ErrNothingToPay        = problem.Conflict("invoice_nothing_to_pay", "Esta fatura não tem valor a pagar.")
 	ErrAlreadyPaid         = problem.Conflict("invoice_already_paid", "Esta fatura já foi paga.")
+	ErrPaymentAmount       = problem.Conflict("invoice_payment_amount", "O valor pago é diferente do total da fatura.")
 )
 
 // Card is a credit card with its limit use (RF-14, RF-20).

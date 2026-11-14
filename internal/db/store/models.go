@@ -126,23 +126,24 @@ type Category struct {
 }
 
 type Entry struct {
-	ID          int64
-	AccountID   int64
-	Kind        string
-	AmountCents int64
-	OccurredOn  string
-	Confirmed   bool
-	CategoryID  sql.NullInt64
-	Description string
-	TransferID  sql.NullInt64
-	CreatedBy   int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	IncomeID    sql.NullInt64
-	IncomeMonth sql.NullString
-	BillID      sql.NullInt64
-	BillMonth   sql.NullString
-	GroupID     sql.NullInt64
+	ID                int64
+	AccountID         int64
+	Kind              string
+	AmountCents       int64
+	OccurredOn        string
+	Confirmed         bool
+	CategoryID        sql.NullInt64
+	Description       string
+	TransferID        sql.NullInt64
+	CreatedBy         int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	IncomeID          sql.NullInt64
+	IncomeMonth       sql.NullString
+	BillID            sql.NullInt64
+	BillMonth         sql.NullString
+	GroupID           sql.NullInt64
+	StatementImportID sql.NullInt64
 }
 
 type Financing struct {
@@ -462,6 +463,17 @@ type SplitInstallment struct {
 	InvoiceMonth string
 	AmountCents  int64
 	EntryID      sql.NullInt64
+}
+
+type StatementImport struct {
+	ID           int64
+	GroupID      int64
+	AccountID    int64
+	FileName     string
+	LineCount    int64
+	ClosingCents int64
+	CreatedBy    int64
+	CreatedAt    time.Time
 }
 
 type Transfer struct {

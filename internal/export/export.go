@@ -56,6 +56,8 @@ var rules = map[string]string{
 	"group_members":   `SELECT * FROM group_members WHERE group_id = @g`,
 	"group_weights":   `SELECT * FROM group_weights WHERE group_id = @g`,
 	"settlements":     `SELECT * FROM settlements WHERE group_id = @g`,
+	// Statement imports of the user asking, like the history of invoice imports.
+	"statement_imports": `SELECT * FROM statement_imports WHERE group_id = @g AND created_by = @u`,
 	"member_split_shares": `SELECT * FROM member_split_shares WHERE split_id IN (SELECT id FROM member_splits ms WHERE` +
 		` (ms.item_kind = 'entry' AND ms.item_id IN (SELECT id FROM entries WHERE group_id = @g))` +
 		` OR (ms.item_kind = 'purchase' AND ms.item_id IN (SELECT id FROM purchases WHERE group_id = @g))` +

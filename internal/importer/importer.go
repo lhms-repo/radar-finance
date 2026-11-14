@@ -458,6 +458,11 @@ func (s *Service) duplicate(ctx context.Context, q *store.Queries, cardID int64,
 
 // latestRulesTx maps each normalized original to the most recent rule of the user (RN-19).
 func (s *Service) latestRulesTx(ctx context.Context, q *store.Queries, userID int64) (map[string]Rule, error) {
+	return latestRules(ctx, q, userID)
+}
+
+// latestRules maps each normalized original to the most recent rule of the user, for invoices and statements (RN-19).
+func latestRules(ctx context.Context, q *store.Queries, userID int64) (map[string]Rule, error) {
 	rows, err := q.ListAliasRules(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list rules: %w", err)
