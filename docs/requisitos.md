@@ -133,6 +133,11 @@ Cada requisito tem um código para ser referenciado nas validações e nos teste
 | RF-55 | Aplicar automaticamente as regras de apelido e de categoria nas importações seguintes. |
 | RF-56 | Detectar lançamentos possivelmente duplicados e pedir confirmação antes de gravar. |
 | RF-57 | Reconhecer parcelas no CSV e vinculá-las à compra parcelada correspondente. Quando a compra não existe no Radar, ela é criada só da parcela do CSV em diante, sem alterar faturas passadas. |
+| RF-86 | Importar o CSV de extrato de conta corrente do Santander numa conta, com pré-visualização antes de gravar. O Radar reconhece pelo conteúdo do arquivo se é fatura do Nubank ou extrato do Santander. Incluído em 14/11/2026. |
+| RF-87 | No extrato, compras no débito, Pix enviado, boletos, tarifas, IOF, juros e aplicações viram despesas na conta; Pix recebido, Pix devolvido, resgates e remuneração de aplicações viram receitas avulsas. Sem regra de apelido, tarifa cai em Tarifas bancárias, IOF em Impostos, juros em Juros e multas, aplicação em Investimentos e o resto em Sem categoria definida. As regras de apelido valem para o extrato pelo nome do detalhe da linha. Decidido em 14/11/2026. |
+| RF-88 | No extrato, o crédito de salário confirma a renda recorrente do mês cadastrada na mesma conta quando o valor é igual; sem renda que case, vira receita avulsa. Decidido em 14/11/2026. |
+| RF-89 | No extrato, o pagamento de cartão de crédito registra o pagamento da fatura fechada mais recente do cartão escolhido na pré-visualização, que o Radar sugere pelo valor. Só vale no Pessoal de quem tem o cartão e quando o valor é igual ao total da fatura; senão a linha fica de fora. Decidido em 14/11/2026. |
+| RF-90 | Depois de importar o extrato, comparar o saldo final do extrato com o saldo da conta no Radar e oferecer o ajuste de saldo (RF-06), que a pessoa titular confirma. A importação do extrato pode ser desfeita inteira. Decidido em 14/11/2026. |
 
 ### 2.12 Relatórios e indicadores
 
@@ -221,6 +226,7 @@ As regras abaixo definem como o sistema calcula e classifica os valores. Elas vi
 | RN-29 | Saldo de acerto de um membro = o que ele pagou de despesas do grupo, menos a cota dele nessas despesas, mais os pagamentos de acerto que fez, menos os que recebeu. A soma dos saldos do grupo é sempre zero. |
 | RN-30 | O pagamento de acerto entre membros é uma transferência entre contas de pessoas diferentes e não conta como gasto nem como renda. |
 | RN-31 | No grupo criado com os dados do casal, o acerto começa zerado na data da migração; nada anterior entra no saldo. Grupos novos começam o acerto na data em que são criados. Parcelas de compras no cartão feitas antes do início do acerto não entram, mesmo que a fatura feche depois; recorrências entram pelas faturas que fecham a partir do início. |
+| RN-32 | Linha de extrato é considerada possível duplicata quando já existe um lançamento na mesma conta, em qualquer espaço, com o mesmo valor e a mesma direção, com tolerância de um dia na data. Cada lançamento existente marca uma única linha. |
 
 ## 4. Requisitos não funcionais
 
@@ -374,7 +380,7 @@ Lista carregada na instalação. Todas podem ser renomeadas, movidas ou desativa
 | Compras | Roupas e calçados, Eletrônicos, Presentes |
 | Educação | Cursos, Livros e material |
 | Pets | Ração, Veterinário, Petshop |
-| Financeiro | Tarifas bancárias, Juros e multas, Impostos |
+| Financeiro | Tarifas bancárias, Juros e multas, Impostos, Investimentos |
 | Outros | Sem categoria definida |
 
 ## 7. Modelo de dados conceitual
@@ -511,7 +517,7 @@ Todas as animações respeitam a preferência de movimento reduzido do sistema o
 
 ## 9. Fases de construção
 
-O Radar é construído em fases, cada uma usada e validada antes da próxima. As fases 8 a 11, aprovadas em 12/11/2026, levam o Radar do casal para grupos. A fase 12, incluída em 13/11/2026, leva o Radar ao Android. Em toda fase, os testes das regras de negócio envolvidas são escritos antes do código, e as animações da seção 8.6 entram junto com os componentes que elas animam.
+O Radar é construído em fases, cada uma usada e validada antes da próxima. As fases 8 a 11, aprovadas em 12/11/2026, levam o Radar do casal para grupos. A fase 12, incluída em 13/11/2026, leva o Radar ao Android. A fase 13, incluída em 14/11/2026, importa o extrato de conta do Santander. Em toda fase, os testes das regras de negócio envolvidas são escritos antes do código, e as animações da seção 8.6 entram junto com os componentes que elas animam.
 
 | Fase | Entrega | Requisitos | Pronta quando |
 | --- | --- | --- | --- |
@@ -527,6 +533,7 @@ O Radar é construído em fases, cada uma usada e validada antes da próxima. As
 | 10. Acerto entre membros | Pesos, cotas de membros por despesa e por parcela, saldos e pagamentos entre membros | RF-84, RN-28 a RN-31 | Um exemplo com três membros fecha centavo a centavo e zera depois dos pagamentos |
 | 11. Textos e ponta a ponta | Os textos "casal" viram o nome do grupo; e2e com dois grupos e uma pessoa nos dois | Todos os desta lista | Dois grupos leem a mesma nota fiscal sem misturar produtos nem preços, e nenhuma tela fala em casal |
 | 12. Android | PWA no Chrome do Android: certificado e acesso pelo IP, instalação na tela inicial, voltar fechando folhas e diálogos, vibração pelo navegador, barra do sistema no tema, textos sem citar só o iPhone e Playwright com viewport de Android | RF-68, RNF-20 a RNF-26, seção 5.5 | Um Android instala o Radar pelo Chrome, entra com PIN, lança uma compra em até quatro toques, lê uma nota pela câmera e o voltar fecha as folhas sem sair da tela, com o iPhone funcionando como antes |
+| 13. Extrato de conta | Importação do extrato de conta corrente do Santander, com detecção do formato, tipos de linha, salário confirmando renda, pagamento de fatura, duplicatas em conta, desfazer e ajuste pelo saldo do extrato | RF-86 a RF-90, RN-32 | Um extrato real do Santander importado sem duplicatas, com o salário confirmando a renda, o pagamento ligado à fatura do cartão e o saldo final batendo com o extrato |
 
 ## 10. Fora do escopo da v1
 
@@ -534,7 +541,7 @@ Estes itens ficam registrados para versões futuras e não entram na primeira en
 
 - Acesso fora da rede local, a ser planejado com VPN e revisão de segurança;
 - Integração com Open Finance;
-- Importação de CSV de outros bancos além do Nubank;
+- Importação de CSV de outros bancos além da fatura do Nubank e do extrato de conta do Santander;
 - Importação de histórico anterior ao início do uso;
 - Lançamento offline no celular com sincronização posterior;
 - Notificações fora do sistema, como e-mail ou push;
