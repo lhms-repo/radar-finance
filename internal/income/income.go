@@ -339,12 +339,26 @@ func (s *Service) Month(ctx context.Context, m civil.Month) (MonthView, error) {
 
 // Confirm records the receipt of an occurrence as a confirmed entry (RF-10, RN-13).
 func (s *Service) Confirm(ctx context.Context, userID int64, c Confirmation) (ledger.Entry, error) {
-	groupID, err := scope.Group(ctx)
+	var entryID int64
+	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		var err error
+		entryID, err = s.ConfirmTx(ctx, q, userID, c)
+		return err
+	})
 	if err != nil {
 		return ledger.Entry{}, err
 	}
+	return s.ledger.Entry(ctx, entryID)
+}
+
+// ConfirmTx records the receipt inside a transaction of the caller and returns the entry id.
+func (s *Service) ConfirmTx(ctx context.Context, q *store.Queries, userID int64, c Confirmation) (int64, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
 	var entryID int64
-	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	err = func() error {
 		row, err := q.GetIncome(ctx, store.GetIncomeParams{ID: c.IncomeID, GroupID: groupID})
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
@@ -399,11 +413,8 @@ func (s *Service) Confirm(ctx context.Context, userID int64, c Confirmation) (le
 			return fmt.Errorf("confirm income: %w", err)
 		}
 		return nil
-	})
-	if err != nil {
-		return ledger.Entry{}, err
-	}
-	return s.ledger.Entry(ctx, entryID)
+	}()
+	return entryID, err
 }
 
 // checkConfirmedMonths refuses a change that leaves a confirmed month without an occurrence, which would hide the receipt and allow a second one.

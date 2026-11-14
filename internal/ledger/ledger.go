@@ -422,32 +422,38 @@ type NewIncome struct {
 
 // AddIncome records a confirmed one off income in an account (RF-13).
 func (s *Service) AddIncome(ctx context.Context, userID int64, in NewIncome) (Entry, error) {
-	if err := CheckPositive(in.AmountCents); err != nil {
-		return Entry{}, err
-	}
-	desc, err := CleanDescription(in.Description)
-	if err != nil {
-		return Entry{}, err
-	}
-	if in.Date.IsZero() {
-		return Entry{}, ErrDateRequired
-	}
 	var id int64
-	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
-		if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
-			return err
-		}
-		e, err := s.insert(ctx, q, userID, store.CreateEntryParams{
-			AccountID: in.AccountID, Kind: string(KindIncome), AmountCents: in.AmountCents,
-			OccurredOn: in.Date.String(), Confirmed: true, Description: desc,
-		})
-		id = e.ID
+	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		var err error
+		id, err = s.AddIncomeTx(ctx, q, userID, in)
 		return err
 	})
 	if err != nil {
 		return Entry{}, err
 	}
 	return s.Entry(ctx, id)
+}
+
+// AddIncomeTx records the one off income inside a transaction of the caller and returns the entry id.
+func (s *Service) AddIncomeTx(ctx context.Context, q *store.Queries, userID int64, in NewIncome) (int64, error) {
+	if err := CheckPositive(in.AmountCents); err != nil {
+		return 0, err
+	}
+	desc, err := CleanDescription(in.Description)
+	if err != nil {
+		return 0, err
+	}
+	if in.Date.IsZero() {
+		return 0, ErrDateRequired
+	}
+	if err := CheckActiveAccount(ctx, q, in.AccountID); err != nil {
+		return 0, err
+	}
+	e, err := s.insert(ctx, q, userID, store.CreateEntryParams{
+		AccountID: in.AccountID, Kind: string(KindIncome), AmountCents: in.AmountCents,
+		OccurredOn: in.Date.String(), Confirmed: true, Description: desc,
+	})
+	return e.ID, err
 }
 
 // AdjustBalance records the difference between the informed and the recorded balance (RF-06).

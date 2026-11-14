@@ -124,6 +124,8 @@ type Payment struct {
 	Month     civil.Month
 	AccountID int64
 	Date      civil.Date
+	// AmountCents, when set, must be the total of the invoice, as in a payment read from a statement (RF-89).
+	AmountCents int64
 }
 
 // Invoice returns the invoice of the card in month m as the active space reads it: its own lines, or the whole
@@ -266,11 +268,24 @@ func (s *Service) status(c Card, m civil.Month, paid bool, total int64) Status {
 // Pay records the payment of the whole closed invoice as an entry in an account of the owner, made in her
 // personal space (RF-21, RF-83, RN-07).
 func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, error) {
-	groupID, err := scope.Group(ctx)
+	err := db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+		_, err := s.PayTx(ctx, q, userID, p)
+		return err
+	})
 	if err != nil {
 		return Invoice{}, err
 	}
-	err = db.WithTx(ctx, s.conn, func(q *store.Queries) error {
+	return s.Invoice(ctx, p.CardID, p.Month)
+}
+
+// PayTx records the payment inside a transaction of the caller and returns the entry id (RF-21, RN-07).
+func (s *Service) PayTx(ctx context.Context, q *store.Queries, userID int64, p Payment) (int64, error) {
+	groupID, err := scope.Group(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var entryID int64
+	err = func() error {
 		inv, err := s.invoiceTx(ctx, q, p.CardID, p.Month, false)
 		if err != nil {
 			return err
@@ -284,6 +299,8 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, er
 			return ErrInvoiceOpen
 		case inv.TotalCents <= 0:
 			return ErrNothingToPay
+		case p.AmountCents != 0 && p.AmountCents != inv.TotalCents:
+			return ErrPaymentAmount
 		}
 		if p.Date.IsZero() {
 			return ledger.ErrDateRequired
@@ -304,14 +321,12 @@ func (s *Service) Pay(ctx context.Context, userID int64, p Payment) (Invoice, er
 		if err != nil {
 			return fmt.Errorf("create payment entry: %w", err)
 		}
+		entryID = e.ID
 		return q.CreateInvoicePayment(ctx, store.CreateInvoicePaymentParams{
 			GroupID: groupID, CardID: p.CardID, InvoiceMonth: p.Month.String(), EntryID: e.ID, AmountCents: inv.TotalCents, CreatedBy: userID, CreatedAt: now,
 		})
-	})
-	if err != nil {
-		return Invoice{}, err
-	}
-	return s.Invoice(ctx, p.CardID, p.Month)
+	}()
+	return entryID, err
 }
 
 // Forecast returns the totals of the next n invoices from the current one, as the active space reads them (RF-23).
