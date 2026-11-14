@@ -40,7 +40,7 @@ test("imports: Nubank CSV with preview, alias rule, duplicates and undo (RF-53 t
   await expect(form).toBeHidden();
 
   await page.goto("/settings");
-  await page.getByRole("link", { name: /Importar fatura/ }).click();
+  await page.getByRole("link", { name: /Importar CSV/ }).click();
   await page.getByLabel("Cartão").selectOption({ label: cardName });
   await page.locator('input[type="file"]').setInputFiles(file);
 
