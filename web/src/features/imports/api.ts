@@ -90,3 +90,56 @@ export function useDeleteRule() {
     },
   });
 }
+
+export type StatementPreviewLine = components["schemas"]["StatementPreviewLine"];
+export type StatementResult = components["schemas"]["StatementResult"];
+export type ImportFormat = components["schemas"]["ImportDetectResult"]["format"];
+
+/** Tells which known CSV a file is, the Nubank invoice or the Santander statement (RF-86). */
+export function useDetectImport() {
+  return useMutation({
+    mutationFn: async (content: string) => unwrap(await api.POST("/imports/detect", { body: { content } })).format,
+  });
+}
+
+/** Loads the statement import history. */
+export function useStatementImports() {
+  return useQuery({ queryKey: ["statement-imports"], queryFn: async () => unwrap(await api.GET("/statements")) });
+}
+
+/** Reads the statement on the server and returns what each line becomes (RF-86 to RF-89). */
+export function usePreviewStatement() {
+  return useMutation({
+    mutationFn: async (body: components["schemas"]["StatementPreviewRequest"]) => unwrap(await api.POST("/statements/preview", { body })),
+  });
+}
+
+/** Records the confirmed statement lines (RF-86 to RF-90). */
+export function useCommitStatement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: components["schemas"]["StatementCommitRequest"]) => unwrap(await api.POST("/statements", { body })),
+    onSuccess: (r) => {
+      haptic();
+      toast.success("Extrato importado", { description: `${r.created} lançamentos, ${r.skipped} ignorados, ${r.rulesSaved} regras novas.` });
+      // A statement touches entries, incomes and invoices, so every screen reloads.
+      void qc.invalidateQueries();
+    },
+  });
+}
+
+/** Removes every entry of a statement import (RF-90). */
+export function useUndoStatementImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await api.DELETE("/statements/{id}", { params: { path: { id } } });
+      if (!res.response.ok) unwrap({ ...res, data: undefined });
+    },
+    onSuccess: () => {
+      haptic();
+      toast.success("Importação desfeita");
+      void qc.invalidateQueries();
+    },
+  });
+}

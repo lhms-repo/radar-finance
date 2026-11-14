@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, ChevronLeft, FileUp, Undo2, Upload, Users } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardTitle } from "@/components/ui/card";
@@ -9,10 +9,12 @@ import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Money } from "@/components/ui/money";
 import { NativeSelect } from "@/components/ui/native-select";
+import { Segmented } from "@/components/ui/segmented";
 import { useCards } from "@/features/cards/api";
 import { EMPTY_SPLIT, SplitEditor, splitBody, type SplitValue } from "@/features/cards/SplitEditor";
 import { CategorySelect } from "@/features/categories/CategorySelect";
-import { useCommitImport, useImports, usePreviewImport, useUndoImport, type ImportPreviewLine } from "@/features/imports/api";
+import { useCommitImport, useDetectImport, useImports, usePreviewImport, useUndoImport, type ImportPreviewLine } from "@/features/imports/api";
+import { StatementImport, type PickedFile } from "@/features/imports/StatementImport";
 import { formatDate, formatDayMonth, monthName, monthParam } from "@/lib/format";
 import { fade, spring } from "@/lib/motion";
 import { useMonth } from "@/lib/month";
@@ -21,8 +23,58 @@ import { cn } from "@/lib/utils";
 /** A preview line as edited by the user before confirming, with the split chosen for it. */
 type Draft = ImportPreviewLine & { remember: boolean; split: SplitValue };
 
-/** Import of the Nubank invoice CSV: choose card and invoice, review each line, confirm (RF-53 to RF-57). */
+/** Kind of file the page imports. */
+type Mode = "nubank" | "santander";
+
+/** Import of a CSV: the Nubank invoice into a card or the Santander statement into an account, told apart by the
+ * content of the file (RF-53 to RF-57, RF-86 to RF-90). */
 export function ImportPage() {
+  const [mode, setMode] = useState<Mode>("nubank");
+  const [picked, setPicked] = useState<PickedFile | null>(null);
+  const detect = useDetectImport();
+
+  /** Reads the chosen file, asks the server what it is and hands it to the matching import. */
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    const content = await file.text();
+    detect.mutate(content, {
+      onSuccess: (format) => {
+        setMode(format === "santander_statement" ? "santander" : "nubank");
+        setPicked({ name: file.name, content });
+      },
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-0.5">
+        <Link to="/settings" className="flex items-center gap-0.5 text-sm text-primary">
+          <ChevronLeft className="size-4" />
+          Ajustes
+        </Link>
+        <h1 className="px-1 text-lg font-semibold">Importar CSV</h1>
+      </div>
+      <Segmented<Mode>
+        ariaLabel="Tipo de arquivo"
+        value={mode}
+        options={[
+          { value: "nubank", label: "Fatura do Nubank" },
+          { value: "santander", label: "Extrato do Santander" },
+        ]}
+        onChange={(next) => {
+          setMode(next);
+          setPicked(null);
+        }}
+        className="w-full"
+      />
+      <FieldError message={detect.error?.message} />
+      {mode === "nubank" ? <NubankImport picked={picked} onPick={(f) => void pick(f)} /> : <StatementImport picked={picked} onPick={(f) => void pick(f)} />}
+    </div>
+  );
+}
+
+/** Import of the Nubank invoice CSV: choose card and invoice, review each line, confirm (RF-53 to RF-57). */
+function NubankImport({ picked, onPick }: { picked: PickedFile | null; onPick: (file: File | undefined) => void }) {
   const cards = useCards();
   const { year, month } = useMonth();
   const [cardId, setCardId] = useState(0);
@@ -35,16 +87,18 @@ export function ImportPage() {
   const activeCards = (cards.data ?? []).filter((c) => c.active);
   const chosenCard = cardId || activeCards[0]?.id || 0;
 
-  /** Reads the chosen file and asks the server for the preview. */
-  const onFile = async (file: File | undefined) => {
-    if (!file || !chosenCard) return;
-    setFileName(file.name);
-    const content = await file.text();
+  const previewed = useRef<PickedFile | null>(null);
+
+  // A new file picked in the page is previewed for the chosen card and invoice, once.
+  useEffect(() => {
+    if (!picked || !chosenCard || previewed.current === picked) return;
+    previewed.current = picked;
+    setFileName(picked.name);
     preview.mutate(
-      { cardId: chosenCard, invoiceMonth: invoice, content },
+      { cardId: chosenCard, invoiceMonth: invoice, content: picked.content },
       { onSuccess: (data) => setLines(data.map((l) => ({ ...l, remember: false, split: EMPTY_SPLIT }))) },
     );
-  };
+  }, [picked, chosenCard, invoice, preview]);
 
   /** Changes one line; a new name or category is remembered by default (RF-55). */
   const edit = (index: number, patch: Partial<Draft>) =>
@@ -87,15 +141,7 @@ export function ImportPage() {
   const chosen = (lines ?? []).filter((l) => !l.skip);
   const [iy, im] = invoice.split("-").map(Number);
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-0.5">
-        <Link to="/settings" className="flex items-center gap-0.5 text-sm text-primary">
-          <ChevronLeft className="size-4" />
-          Ajustes
-        </Link>
-        <h1 className="px-1 text-lg font-semibold">Importar fatura</h1>
-      </div>
-
+    <>
       <Card className="flex flex-col gap-4">
         <div>
           <CardTitle>CSV do Nubank</CardTitle>
@@ -124,7 +170,8 @@ export function ImportPage() {
                 const file = e.target.files?.[0];
                 // Cleared at once, so picking the same file again, after a failed preview, still fires.
                 e.target.value = "";
-                void onFile(file);
+                previewed.current = null;
+                onPick(file);
               }}
             />
           </label>
@@ -175,7 +222,7 @@ export function ImportPage() {
       </AnimatePresence>
 
       <History />
-    </div>
+    </>
   );
 }
 
