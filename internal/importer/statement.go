@@ -372,14 +372,15 @@ func statementDuplicate(ctx context.Context, q *store.Queries, accountID int64, 
 // expectedPool holds the expected incomes of the account not yet confirmed, each one usable by a single salary line.
 type expectedPool struct{ list []income.Occurrence }
 
-// take returns the first expected income with the amount of the line, in the month of the line or the next one,
-// since a salary may fall a few days early (RF-88).
+// take returns the expected income with the amount of the line in the month of the line or, failing that, in the
+// next one, since a salary may fall a few days early (RF-88).
 func (p *expectedPool) take(l StatementLine) (income.Occurrence, bool) {
-	for i, o := range p.list {
-		m := o.ExpectedOn.MonthOf()
-		if o.ExpectedCents == l.AmountCents && (m == l.Date.MonthOf() || m == l.Date.MonthOf().Add(1)) {
-			p.list = append(p.list[:i], p.list[i+1:]...)
-			return o, true
+	for _, m := range []civil.Month{l.Date.MonthOf(), l.Date.MonthOf().Add(1)} {
+		for i, o := range p.list {
+			if o.ExpectedCents == l.AmountCents && o.ExpectedOn.MonthOf() == m {
+				p.list = append(p.list[:i], p.list[i+1:]...)
+				return o, true
+			}
 		}
 	}
 	return income.Occurrence{}, false

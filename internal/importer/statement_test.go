@@ -236,3 +236,31 @@ func TestStatementCardPaymentRules(t *testing.T) {
 		})
 	}
 }
+
+// TestExpectedPoolPrefersTheSameMonth gives the salary to the income of its own month before the next one, whatever
+// the order the months were read in (RF-88).
+func TestExpectedPoolPrefersTheSameMonth(t *testing.T) {
+	nov, dec := civil.Date{Year: 2026, Month: time.November, Day: 5}, civil.Date{Year: 2026, Month: time.December, Day: 5}
+	pool := &expectedPool{list: []income.Occurrence{
+		{IncomeID: 1, ExpectedOn: dec, ExpectedCents: 250_000},
+		{IncomeID: 1, ExpectedOn: nov, ExpectedCents: 250_000},
+	}}
+	tests := []struct {
+		name  string
+		date  civil.Date
+		want  civil.Month
+		found bool
+	}{
+		{name: "november salary takes november", date: civil.Date{Year: 2026, Month: time.November, Day: 5}, want: nov.MonthOf(), found: true},
+		{name: "early december salary on the last days of november takes december", date: civil.Date{Year: 2026, Month: time.November, Day: 30}, want: dec.MonthOf(), found: true},
+		{name: "nothing left", date: civil.Date{Year: 2026, Month: time.November, Day: 30}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o, ok := pool.take(StatementLine{Date: tt.date, AmountCents: 250_000, Kind: StatementSalary})
+			if ok != tt.found || (ok && o.ExpectedOn.MonthOf() != tt.want) {
+				t.Fatalf("take = %+v, %v", o, ok)
+			}
+		})
+	}
+}
